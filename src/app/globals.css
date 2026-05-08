@@ -1,26 +1,33 @@
 @import "tailwindcss";
 
+@theme {
+  --color-background: #F5F7FA;
+  --color-foreground: #333333;
+  
+  --color-primary: #0B3C5D;
+  --color-primary-foreground: #ffffff;
+  
+  --color-accent: #D4AF37;
+  --color-accent-foreground: #ffffff;
+  
+  --color-surface: #ffffff;
+  --color-surface-foreground: #1a1c1e;
+  
+  --color-border: #E1E4E8;
+  --color-muted: #F5F7FA;
+  
+  --radius-lg: 12px;
+  --radius-md: 8px;
+  --radius-sm: 4px;
+}
+
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
-
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+  --background: #F5F7FA;
+  --foreground: #333333;
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: Arial, Helvetica, sans-serif; /* Fallback, using next/font in layout */
 }
