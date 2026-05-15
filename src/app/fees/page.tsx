@@ -207,7 +207,7 @@ function OverviewSection({ stats }: { stats: any }) {
         <div className="bg-white p-8 rounded-[32px] border border-slate-200 shadow-sm flex flex-col">
           <h3 className="text-xl font-bold text-[#0B3C5D] mb-8">Payment Status</h3>
           <div className="flex-1 flex items-center justify-center relative">
-             <ResponsiveContainer width="100%" height="200">
+             <ResponsiveContainer width="100%" height={200}>
               <PieChart>
                 <Pie
                   data={statusData}

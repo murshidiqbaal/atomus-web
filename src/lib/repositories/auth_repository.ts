@@ -3,55 +3,80 @@ import { AuthCredentials } from "../types";
 import { generateSecurePassword } from "../utils/password_utils";
 
 export interface IAuthRepository {
-  createAccount(email: string, password?: string): Promise<AuthCredentials>;
+  createParentAccount(email: string, phone: string, password: string, fullName: string): Promise<AuthCredentials>;
   resetPassword(email: string): Promise<string>;
-  sendCredentials(email: string, password: string): Promise<{ success: boolean; message: string }>;
+  sendCredentials(email: string, phone: string, password: string, studentName: string): Promise<{ success: boolean; message: string }>;
 }
 
 export class SupabaseAuthRepository implements IAuthRepository {
-  async createAccount(email: string, password?: string): Promise<AuthCredentials> {
-    const generatedPassword = password || generateSecurePassword();
-
-    // Create user in Supabase Auth
+  /**
+   * Creates a parent auth account. Uses email for Supabase Auth (required),
+   * phone is stored as username for Flutter app login.
+   */
+  async createParentAccount(
+    email: string,
+    phone: string,
+    password: string,
+    fullName: string
+  ): Promise<AuthCredentials> {
     const { data, error } = await supabase.auth.signUp({
       email,
-      password: generatedPassword,
+      password,
       options: {
         data: {
+          full_name: fullName,
+          phone_number: phone,
           role: 'parent',
-        }
-      }
+        },
+      },
     });
 
     if (error) throw error;
-
-    return { email, password: generatedPassword };
+    return { email, password };
   }
 
   async resetPassword(email: string): Promise<string> {
-    // In Supabase, this sends a reset link, it doesn't return a new password string
-    // But for this UI, we might want to manually generate one if the admin resets it
     const { error } = await supabase.auth.resetPasswordForEmail(email);
     if (error) throw error;
     return "Reset link sent";
   }
 
-  async sendCredentials(email: string, password: string): Promise<{ success: boolean; message: string }> {
-    /**
-     * NOTE: To send plain text passwords via email in Supabase, 
-     * you should use a Supabase Edge Function with a service like Resend or SendGrid.
-     * 
-     * Example Edge Function call:
-     * await supabase.functions.invoke('send-parent-credentials', {
-     *   body: { email, password }
-     * });
-     */
+  /**
+   * Sends parent login credentials via Supabase Edge Function.
+   * The Edge Function (send-parent-credentials) uses Resend/SendGrid
+   * to email the parent their phone number (username) and auto-generated password.
+   */
+  async sendCredentials(
+    email: string,
+    phone: string,
+    password: string,
+    studentName: string
+  ): Promise<{ success: boolean; message: string }> {
+    try {
+      const { error } = await supabase.functions.invoke('send-parent-credentials', {
+        body: {
+          email,
+          phone,
+          password,
+          studentName,
+          loginId: phone.replace(/\D/g, ''), // digits-only phone as login
+        },
+      });
 
-    // For now, we simulate the success of the invitation/signup process
-    return {
-      success: true,
-      message: `Account created. Supabase has sent a confirmation email to ${email}.`
-    };
+      if (error) throw error;
+
+      return {
+        success: true,
+        message: `Credentials sent to ${email}. Phone: ${phone}, Password: ${password}`,
+      };
+    } catch {
+      // Edge function may not be deployed yet — log credentials for admin
+      console.warn('[sendCredentials] Edge function unavailable. Credentials:', { email, phone, password });
+      return {
+        success: false,
+        message: `Email delivery pending. Credentials — Phone: ${phone} | Password: ${password}`,
+      };
+    }
   }
 }
 

@@ -1,19 +1,30 @@
 export type AccountStatus = 'Active' | 'Pending' | 'Disabled';
-export type PaymentStatus = 'Paid' | 'Pending' | 'Partial';
+export type PaymentStatus = 'Paid' | 'Pending' | 'Partial' | 'Overdue';
 export type AttendanceStatus = 'Present' | 'Absent' | 'Late';
 export type ProgressStatus = 'Excellent' | 'Good' | 'Average' | 'Needs Improvement' | 'At Risk';
+export type AnnouncementPriority = 'Normal' | 'Important' | 'Urgent';
+export type AnnouncementAudience = 'All' | 'Parents' | 'Teachers' | 'Students';
 
 export interface Student {
   id: string;
   name: string;
+  full_name?: string;
   admissionNumber: string;
+  admission_number?: string;
   rollNumber: string;
+  roll_number?: string;
   parentId?: string;
+  parent_id?: string;
   courseId: string;
+  course_id?: string;
   batchId: string;
+  batch_id?: string;
   attendancePercentage: number;
+  attendance_percentage?: number;
   progressStatus: ProgressStatus;
+  progress_status?: ProgressStatus;
   createdAt: string;
+  created_at?: string;
 }
 
 export interface Parent {
@@ -26,6 +37,19 @@ export interface Parent {
   password?: string;
   status: AccountStatus;
   createdAt: string;
+}
+
+export interface Teacher {
+  id: string;
+  full_name: string;
+  email: string;
+  phone_number: string;
+  subject_specialization: string;
+  assigned_courses: string[];
+  assigned_batches: string[];
+  account_status: AccountStatus;
+  created_at: string;
+  auth_id?: string;
 }
 
 export interface Course {
@@ -60,6 +84,8 @@ export interface Exam {
   batchId: string;
   name: string;
   date: string;
+  subject?: string;
+  totalMarks?: number;
 }
 
 export interface MarkRecord {
@@ -79,6 +105,19 @@ export interface FeeRecord {
   amountPaid: number;
   status: PaymentStatus;
   dueDate: string;
+}
+
+export interface Announcement {
+  id: string;
+  title: string;
+  content: string;
+  priority: AnnouncementPriority;
+  audience: AnnouncementAudience;
+  is_published: boolean;
+  scheduled_at?: string;
+  published_at?: string;
+  created_by?: string;
+  created_at: string;
 }
 
 export interface AuthCredentials {

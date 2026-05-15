@@ -71,7 +71,7 @@ export const ParentTable: React.FC<ParentTableProps> = ({
                   <div className="flex flex-wrap gap-1">
                     {parent.linkedStudents.map((student) => (
                       <span key={student.id} className="inline-flex items-center px-2 py-0.5 rounded-md bg-accent/10 text-accent text-[10px] font-bold border border-accent/20">
-                        {student.name} ({student.class})
+                        {student.name || (student as any).full_name}
                       </span>
                     ))}
                     {parent.linkedStudents.length === 0 && (
