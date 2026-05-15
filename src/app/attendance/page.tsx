@@ -258,8 +258,7 @@ export default function AttendancePage() {
   // ── Fetch students
   const { data: students = [], isLoading: studentsLoading } = useQuery({
     queryKey: ["students-batch", selectedBatch],
-    queryFn: () => studentRepository.getStudentsByBatch(selectedBatch),
-    enabled: !!selectedBatch,
+    queryFn: () => studentRepository.getStudentsByBatch(selectedBatch || undefined),
     staleTime: 60_000,
   });
 
@@ -376,11 +375,11 @@ export default function AttendancePage() {
                 ? loading
                   ? "Loading…"
                   : `${total} students · ${selectedDate}`
-                : "Select a course and batch to begin"}
+                : `All Students · ${total} total`}
             </p>
           </div>
 
-          {selectedBatch && (
+          {students.length > 0 && (
             <div className="flex items-center gap-2 flex-wrap">
               <button
                 onClick={markAllPresent}
@@ -392,15 +391,17 @@ export default function AttendancePage() {
               </button>
               <button
                 onClick={resetAll}
+                disabled={!selectedBatch}
                 className="flex items-center gap-1.5 px-3.5 py-2 text-sm font-semibold text-slate-600 bg-slate-100
-                           border border-slate-200 rounded-xl hover:bg-slate-200 transition-colors"
+                           border border-slate-200 rounded-xl hover:bg-slate-200 transition-colors
+                           disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 <RotateCcw size={15} />
                 Reset
               </button>
               <button
                 onClick={handleSave}
-                disabled={saveMutation.isPending || !hasChanges}
+                disabled={saveMutation.isPending || !hasChanges || !selectedBatch}
                 className="flex items-center gap-2 px-4 py-2 text-sm font-bold text-white bg-[#0B3C5D]
                            rounded-xl hover:bg-[#0B3C5D]/90 transition-all shadow-md shadow-blue-900/20
                            disabled:opacity-50 disabled:cursor-not-allowed active:scale-[0.98]"
@@ -540,15 +541,7 @@ export default function AttendancePage() {
         )}
 
         {/* Main content */}
-        {!selectedBatch ? (
-          // Empty state
-          <div className="bg-white rounded-2xl border-2 border-dashed border-slate-200 py-20 text-center">
-            <div className="w-14 h-14 rounded-full bg-slate-100 flex items-center justify-center mx-auto mb-3">
-              <CalendarCheck size={26} className="text-slate-300" />
-            </div>
-            <p className="text-sm font-semibold text-slate-500">Select a course and batch to start marking attendance.</p>
-          </div>
-        ) : loading ? (
+        {loading ? (
           // Loading skeleton
           <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
             {Array(6).fill(0).map((_, i) => (

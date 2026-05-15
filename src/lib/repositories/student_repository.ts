@@ -12,12 +12,17 @@ export class SupabaseStudentRepository {
     return data as any[];
   }
 
-  async getStudentsByBatch(batchId: string): Promise<Student[]> {
-    const { data, error } = await supabase
+  async getStudentsByBatch(batchId?: string): Promise<Student[]> {
+    let query = supabase
       .from("students")
       .select("*")
-      .eq("batch_id", batchId)
       .order("full_name", { ascending: true });
+
+    if (batchId) {
+      query = query.eq("batch_id", batchId);
+    }
+
+    const { data, error } = await query;
 
     if (error) throw error;
     return data as any[];

@@ -12,18 +12,27 @@ export class SupabaseTeacherRepository {
     return (data || []) as Teacher[];
   }
 
-  async addTeacher(teacherData: Partial<Teacher> & { password?: string }): Promise<Teacher> {
+  async addTeacher(
+    teacherData: Partial<Teacher> & { password: string }
+  ): Promise<Teacher & { generatedPassword: string }> {
     const { password, ...rest } = teacherData;
 
+    // Create Supabase auth account
     const { data: authData, error: authError } = await supabase.auth.signUp({
       email: rest.email!,
-      password: password || 'Teacher@2026',
+      password,
       options: {
         data: { full_name: rest.full_name, role: 'teacher' },
       },
     });
 
-    if (authError && authError.message !== 'User already registered') throw authError;
+    if (authError) {
+      // If already registered, we continue and just insert the teachers row
+      // (the admin can reset the password separately)
+      if (!authError.message.toLowerCase().includes('already registered')) {
+        throw authError;
+      }
+    }
 
     const { data, error } = await supabase
       .from('teachers')
@@ -35,13 +44,13 @@ export class SupabaseTeacherRepository {
         assigned_courses: rest.assigned_courses || [],
         assigned_batches: rest.assigned_batches || [],
         account_status: 'Active',
-        auth_id: authData?.user?.id,
+        auth_id: authData?.user?.id ?? null,
       }])
       .select()
       .single();
 
     if (error) throw error;
-    return data as Teacher;
+    return { ...(data as Teacher), generatedPassword: password };
   }
 
   async updateTeacher(id: string, updates: Partial<Teacher>): Promise<Teacher> {

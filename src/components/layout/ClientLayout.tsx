@@ -2,11 +2,12 @@
 
 import React, { useState } from 'react';
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import QueryProvider from '@/providers/QueryProvider';
+import { useAuth } from '@/providers/AuthProvider';
 import {
   LayoutDashboard, Users, UserCircle, GraduationCap, BookOpen,
-  Layers, CalendarCheck, FileSpreadsheet, CreditCard, Megaphone,
+  Layers, BookMarked, CalendarCheck, FileSpreadsheet, CreditCard, Megaphone,
   BarChart3, Settings, Menu, X, Bell, Search, ChevronDown,
   LogOut, User
 } from 'lucide-react';
@@ -18,6 +19,7 @@ const navItems = [
   { href: '/teachers', label: 'Teachers', icon: GraduationCap },
   { href: '/courses', label: 'Courses', icon: BookOpen },
   { href: '/batches', label: 'Batches', icon: Layers },
+  { href: '/subjects', label: 'Subjects', icon: BookMarked },
   { href: '/attendance', label: 'Attendance', icon: CalendarCheck },
   { href: '/marks', label: 'Marks', icon: FileSpreadsheet },
   { href: '/fees', label: 'Fees', icon: CreditCard },
@@ -55,12 +57,34 @@ function SidebarItem({
 
 export default function ClientLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
+  const router = useRouter();
+  const { session, loading, signOut } = useAuth();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
 
   const isLoginPage = pathname === '/login';
 
+  // Route protection
+  React.useEffect(() => {
+    if (!loading) {
+      if (!session && !isLoginPage) {
+        router.push('/login');
+      } else if (session && isLoginPage) {
+        router.push('/');
+      }
+    }
+  }, [session, loading, isLoginPage, router]);
+
+  if (loading) {
+    return (
+      <div className="h-screen w-screen flex items-center justify-center bg-[#0B3C5D]">
+        <div className="w-12 h-12 border-4 border-white/20 border-t-white rounded-full animate-spin" />
+      </div>
+    );
+  }
+
   if (isLoginPage) return <>{children}</>;
+  if (!session) return null; // Prevent flash of content
 
   return (
     <div className="flex h-screen overflow-hidden">
@@ -119,9 +143,13 @@ export default function ClientLayout({ children }: { children: React.ReactNode }
               <p className="text-white text-sm font-bold truncate leading-tight">Admin</p>
               <p className="text-white/40 text-[10px] font-bold uppercase tracking-wider">Super Admin</p>
             </div>
-            <Link href="/login" className="p-1.5 text-white/30 hover:text-white/70 transition-colors" title="Logout">
+            <button 
+              onClick={signOut} 
+              className="p-1.5 text-white/30 hover:text-white/70 transition-colors" 
+              title="Logout"
+            >
               <LogOut size={14} />
-            </Link>
+            </button>
           </div>
         </div>
       </aside>
@@ -179,10 +207,13 @@ export default function ClientLayout({ children }: { children: React.ReactNode }
                       <Settings size={15} />
                       Settings
                     </Link>
-                    <Link href="/login" onClick={() => setProfileOpen(false)} className="flex items-center gap-2 px-3 py-2 text-sm text-rose-600 hover:bg-rose-50 rounded-xl transition-colors">
+                    <button 
+                      onClick={() => { setProfileOpen(false); signOut(); }} 
+                      className="w-full flex items-center gap-2 px-3 py-2 text-sm text-rose-600 hover:bg-rose-50 rounded-xl transition-colors"
+                    >
                       <LogOut size={15} />
                       Sign Out
-                    </Link>
+                    </button>
                   </div>
                 </div>
               )}
