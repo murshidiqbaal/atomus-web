@@ -2,7 +2,7 @@
 
 import { memo, useMemo } from "react";
 import Link from "next/link";
-import { Mail, Phone, GraduationCap, BookOpen, Layers, Pencil, Power } from "lucide-react";
+import { Mail, Phone, GraduationCap, BookOpen, Layers, Pencil, Power, Building2 } from "lucide-react";
 import { Teacher } from "../types";
 
 const STATUS_BADGE: Record<string, string> = {
@@ -48,6 +48,10 @@ function TeacherCard({ teacher, onEdit, onToggleStatus }: Props) {
       </div>
 
       <div className="space-y-1 text-xs text-slate-500">
+        <div className="flex items-center gap-2">
+          <Building2 size={12} />
+          <span className="truncate">{teacher.campuses?.name ?? "No campus"}</span>
+        </div>
         <div className="flex items-center gap-2"><Mail size={12} /><span className="truncate">{teacher.email}</span></div>
         <div className="flex items-center gap-2"><Phone size={12} /><span className="font-mono">{teacher.phone_number ?? "—"}</span></div>
       </div>

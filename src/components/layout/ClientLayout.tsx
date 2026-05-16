@@ -1,34 +1,40 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useCallback, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import QueryProvider from '@/providers/QueryProvider';
 import { useAuth } from '@/providers/AuthProvider';
 import {
   LayoutDashboard, Users, UserCircle, GraduationCap, BookOpen,
-  Layers, BookMarked, CalendarCheck, FileSpreadsheet, CreditCard, Megaphone,
+  BookMarked, CalendarCheck, FileSpreadsheet, CreditCard, Megaphone,
   BarChart3, Settings, Menu, X, Bell, Search, ChevronDown,
-  LogOut, User
+  LogOut, Calculator
 } from 'lucide-react';
 
-const navItems = [
+type NavItem = { href: string; label: string; icon: any };
+
+const navItems: readonly NavItem[] = [
   { href: '/', label: 'Dashboard', icon: LayoutDashboard },
   { href: '/students', label: 'Students', icon: Users },
   { href: '/parents', label: 'Parents', icon: UserCircle },
   { href: '/teachers', label: 'Teachers', icon: GraduationCap },
   { href: '/courses', label: 'Courses', icon: BookOpen },
-  { href: '/batches', label: 'Batches', icon: Layers },
   { href: '/subjects', label: 'Subjects', icon: BookMarked },
   { href: '/attendance', label: 'Attendance', icon: CalendarCheck },
   { href: '/marks', label: 'Marks', icon: FileSpreadsheet },
   { href: '/fees', label: 'Fees', icon: CreditCard },
+  { href: '/expenses', label: 'Expenses', icon: Calculator },
   { href: '/announcements', label: 'Announcements', icon: Megaphone },
   { href: '/reports', label: 'Reports', icon: BarChart3 },
   { href: '/settings', label: 'Settings', icon: Settings },
 ];
 
-function SidebarItem({
+function isItemActive(href: string, pathname: string) {
+  return href === '/' ? pathname === '/' : pathname === href || pathname.startsWith(href + '/');
+}
+
+const SidebarItem = React.memo(function SidebarItem({
   href, label, icon: Icon, active, onClick
 }: {
   href: string; label: string; icon: any; active: boolean; onClick?: () => void;
@@ -53,7 +59,7 @@ function SidebarItem({
       {active && <div className="ml-auto w-1.5 h-1.5 rounded-full bg-[#D4AF37]" />}
     </Link>
   );
-}
+});
 
 export default function ClientLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
@@ -66,14 +72,38 @@ export default function ClientLayout({ children }: { children: React.ReactNode }
 
   // Route protection
   React.useEffect(() => {
-    if (!loading) {
-      if (!session && !isLoginPage) {
-        router.push('/login');
-      } else if (session && isLoginPage) {
-        router.push('/');
-      }
+    if (loading) return;
+    if (!session && !isLoginPage) {
+      router.push('/login');
+    } else if (session && isLoginPage) {
+      router.push('/');
     }
   }, [session, loading, isLoginPage, router]);
+
+  // Stable callbacks so memoized SidebarItem children don't re-render on
+  // every parent render (e.g. when the profile dropdown toggles).
+  const closeSidebar = useCallback(() => setSidebarOpen(false), []);
+  const toggleSidebar = useCallback(() => setSidebarOpen((v) => !v), []);
+  const toggleProfile = useCallback(() => setProfileOpen((v) => !v), []);
+  const closeProfile = useCallback(() => setProfileOpen(false), []);
+  const handleSignOut = useCallback(() => {
+    setProfileOpen(false);
+    signOut();
+  }, [signOut]);
+
+  const sidebarNav = useMemo(
+    () => navItems.map((item) => (
+      <SidebarItem
+        key={item.href}
+        href={item.href}
+        label={item.label}
+        icon={item.icon}
+        active={isItemActive(item.href, pathname)}
+        onClick={closeSidebar}
+      />
+    )),
+    [pathname, closeSidebar],
+  );
 
   if (loading) {
     return (
@@ -92,7 +122,7 @@ export default function ClientLayout({ children }: { children: React.ReactNode }
       {sidebarOpen && (
         <div
           className="fixed inset-0 z-30 bg-black/50 lg:hidden"
-          onClick={() => setSidebarOpen(false)}
+          onClick={closeSidebar}
         />
       )}
 
@@ -120,38 +150,9 @@ export default function ClientLayout({ children }: { children: React.ReactNode }
         </div>
 
         {/* Navigation */}
-        <nav className="flex-1 px-3 py-4 space-y-0.5 overflow-y-auto scrollbar-thin">
-          {navItems.map(item => (
-            <SidebarItem
-              key={item.href}
-              href={item.href}
-              label={item.label}
-              icon={item.icon}
-              active={item.href === '/' ? pathname === '/' : pathname.startsWith(item.href)}
-              onClick={() => setSidebarOpen(false)}
-            />
-          ))}
+        <nav className="flex-1 px-3 py-4 pb-6 space-y-0.5 overflow-y-auto scrollbar-thin">
+          {sidebarNav}
         </nav>
-
-        {/* Admin Profile */}
-        <div className="p-4 border-t border-white/10">
-          <div className="bg-white/8 rounded-2xl p-3 flex items-center gap-3 border border-white/10">
-            <div className="w-9 h-9 rounded-xl bg-[#D4AF37] flex items-center justify-center font-black text-[#0B3C5D] text-sm shrink-0">
-              AD
-            </div>
-            <div className="flex-1 min-w-0">
-              <p className="text-white text-sm font-bold truncate leading-tight">Admin</p>
-              <p className="text-white/40 text-[10px] font-bold uppercase tracking-wider">Super Admin</p>
-            </div>
-            <button 
-              onClick={signOut} 
-              className="p-1.5 text-white/30 hover:text-white/70 transition-colors" 
-              title="Logout"
-            >
-              <LogOut size={14} />
-            </button>
-          </div>
-        </div>
       </aside>
 
       {/* Main Area */}
@@ -160,7 +161,7 @@ export default function ClientLayout({ children }: { children: React.ReactNode }
         <header className="bg-white border-b border-slate-200 px-6 py-3 flex items-center gap-4 shrink-0 z-20">
           {/* Mobile Hamburger */}
           <button
-            onClick={() => setSidebarOpen(!sidebarOpen)}
+            onClick={toggleSidebar}
             className="lg:hidden p-2 text-slate-500 hover:text-slate-800 hover:bg-slate-100 rounded-xl transition-colors"
           >
             {sidebarOpen ? <X size={20} /> : <Menu size={20} />}
@@ -186,7 +187,7 @@ export default function ClientLayout({ children }: { children: React.ReactNode }
             {/* Profile dropdown */}
             <div className="relative">
               <button
-                onClick={() => setProfileOpen(!profileOpen)}
+                onClick={toggleProfile}
                 className="flex items-center gap-2 bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-100 transition-colors"
               >
                 <div className="w-6 h-6 rounded-lg bg-[#0B3C5D] text-white text-[10px] font-black flex items-center justify-center">
@@ -203,12 +204,12 @@ export default function ClientLayout({ children }: { children: React.ReactNode }
                     <p className="text-xs text-slate-400">Super Admin</p>
                   </div>
                   <div className="p-2">
-                    <Link href="/settings" onClick={() => setProfileOpen(false)} className="flex items-center gap-2 px-3 py-2 text-sm text-slate-600 hover:bg-slate-50 rounded-xl transition-colors">
+                    <Link href="/settings" onClick={closeProfile} className="flex items-center gap-2 px-3 py-2 text-sm text-slate-600 hover:bg-slate-50 rounded-xl transition-colors">
                       <Settings size={15} />
                       Settings
                     </Link>
-                    <button 
-                      onClick={() => { setProfileOpen(false); signOut(); }} 
+                    <button
+                      onClick={handleSignOut}
                       className="w-full flex items-center gap-2 px-3 py-2 text-sm text-rose-600 hover:bg-rose-50 rounded-xl transition-colors"
                     >
                       <LogOut size={15} />

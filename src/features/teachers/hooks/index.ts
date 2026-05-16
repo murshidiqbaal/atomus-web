@@ -23,6 +23,21 @@ export function useTeacher(id: string) {
   });
 }
 
+export function useTeacherCampuses() {
+  return useQuery({
+    queryKey: ["teacher-campuses-list"],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("campuses")
+        .select("id, name, is_active")
+        .eq("is_active", true)
+        .order("name");
+      return (data ?? []) as { id: string; name: string; is_active: boolean }[];
+    },
+    staleTime: 5 * 60_000,
+  });
+}
+
 export function useTeacherCourses() {
   return useQuery({
     queryKey: ["teacher-courses-list"],
@@ -31,6 +46,25 @@ export function useTeacherCourses() {
       return (data ?? []) as { id: string; name: string }[];
     },
     staleTime: 5 * 60_000,
+  });
+}
+
+/** Courses linked to a campus via campus_courses. Empty when no campus chosen. */
+export function useTeacherCoursesByCampus(campus_id: string) {
+  return useQuery({
+    queryKey: ["teacher-courses-by-campus", campus_id],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("campus_courses")
+        .select("courses!inner(id, name, is_active)")
+        .eq("campus_id", campus_id)
+        .eq("courses.is_active", true);
+      const rows = (data ?? []) as unknown as { courses: { id: string; name: string } | null }[];
+      const courses = rows.map((r) => r.courses).filter(Boolean) as { id: string; name: string }[];
+      return courses.sort((a, b) => a.name.localeCompare(b.name));
+    },
+    enabled: !!campus_id,
+    staleTime: 60_000,
   });
 }
 
@@ -55,11 +89,28 @@ export function useTeacherBatches() {
     queryFn: async () => {
       const { data } = await supabase
         .from("batches")
-        .select("id, name, course_id")
+        .select("id, name, course_id, campus_id")
         .order("name");
-      return (data ?? []) as { id: string; name: string; course_id: string }[];
+      return (data ?? []) as { id: string; name: string; course_id: string; campus_id: string | null }[];
     },
     staleTime: 5 * 60_000,
+  });
+}
+
+/** Batches scoped to a campus. Empty when no campus chosen. */
+export function useTeacherBatchesByCampus(campus_id: string) {
+  return useQuery({
+    queryKey: ["teacher-batches-by-campus", campus_id],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("batches")
+        .select("id, name, course_id, campus_id")
+        .eq("campus_id", campus_id)
+        .order("name");
+      return (data ?? []) as { id: string; name: string; course_id: string; campus_id: string | null }[];
+    },
+    enabled: !!campus_id,
+    staleTime: 60_000,
   });
 }
 

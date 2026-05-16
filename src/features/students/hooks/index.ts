@@ -23,13 +23,50 @@ export function useStudent(id: string) {
   });
 }
 
+export function useCampuses() {
+  return useQuery({
+    queryKey: ["campuses"],
+    queryFn: async () => {
+      const { data } = await supabase.from("campuses").select("id, name").eq("is_active", true).order("name");
+      return (data ?? []) as { id: string; name: string }[];
+    },
+    staleTime: 300_000,
+  });
+}
+
 export function useCourses() {
   return useQuery({
     queryKey: ["courses"],
     queryFn: async () => {
-      const { data } = await supabase.from("courses").select("id, name").order("name");
+      const { data } = await supabase.from("courses").select("id, name").eq("is_active", true).order("name");
       return (data ?? []) as { id: string; name: string }[];
     },
+    staleTime: 60_000,
+  });
+}
+
+export function useCoursesByCampus(campus_id: string) {
+  return useQuery({
+    queryKey: ["courses", "campus", campus_id],
+    queryFn: async () => {
+      // Use the course_id column as the relationship handle to be explicit
+      const { data, error } = await supabase
+        .from("campus_courses")
+        .select(`
+          course:course_id(id, name, is_active)
+        `)
+        .eq("campus_id", campus_id);
+      
+      if (error) {
+        console.error("Course fetch error:", error);
+        return [];
+      }
+
+      // Map and filter active courses
+      const courses = (data?.map((d: any) => d.course).filter((c: any) => c && c.is_active) ?? []) as { id: string; name: string }[];
+      return courses.sort((a, b) => a.name.localeCompare(b.name));
+    },
+    enabled: !!campus_id,
     staleTime: 60_000,
   });
 }
@@ -40,9 +77,10 @@ export function useAllBatches() {
     queryFn: async () => {
       const { data } = await supabase
         .from("batches")
-        .select("id, name, course_id")
+        .select("id, name, course_id, campus_id")
+        .eq("is_active", true)
         .order("name");
-      return (data ?? []) as { id: string; name: string; course_id: string }[];
+      return (data ?? []) as { id: string; name: string; course_id: string; campus_id: string }[];
     },
     staleTime: 60_000,
   });
@@ -56,10 +94,29 @@ export function useBatchesByCourse(course_id: string) {
         .from("batches")
         .select("id, name")
         .eq("course_id", course_id)
+        .eq("is_active", true)
         .order("name");
       return (data ?? []) as { id: string; name: string }[];
     },
     enabled: !!course_id,
+    staleTime: 60_000,
+  });
+}
+
+export function useBatchesByCourseAndCampus(course_id: string, campus_id: string) {
+  return useQuery({
+    queryKey: ["batches", course_id, campus_id],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("batches")
+        .select("id, name")
+        .eq("course_id", course_id)
+        .eq("campus_id", campus_id)
+        .eq("is_active", true)
+        .order("name");
+      return (data ?? []) as { id: string; name: string }[];
+    },
+    enabled: !!course_id && !!campus_id,
     staleTime: 60_000,
   });
 }

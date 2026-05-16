@@ -3,7 +3,13 @@
     "allow": [
       "Bash(npm install *)",
       "Bash(npx tsc *)",
-      "Bash(npx next *)"
+      "Bash(npx next *)",
+      "Bash(Select-Object -First 50)",
+      "PowerShell(npx tsc --noEmit 2>&1 | Select-Object -First 200)",
+      "PowerShell(npx tsc --noEmit; Write-Output \"EXIT_CODE=$LASTEXITCODE\")",
+      "PowerShell(npx eslint src/features/marks src/app/marks 2>&1; Write-Output \"EXIT_CODE=$LASTEXITCODE\")",
+      "Bash(echo \"EXIT=$?\")",
+      "Bash(npx eslint *)"
     ]
   }
 }

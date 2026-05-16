@@ -9,6 +9,7 @@ export interface Student {
   gender?: Gender | null;
   dob?: string | null;
   photo_url?: string | null;
+  campus_id: string;
   course_id: string;
   batch_id: string;
   joining_date?: string | null;
@@ -24,6 +25,7 @@ export interface Student {
 }
 
 export interface StudentWithRelations extends Student {
+  campuses?: { id: string; name: string } | null;
   courses?: { id: string; name: string } | null;
   batches?: { id: string; name: string } | null;
   parents?: { id: string; full_name: string; phone_number: string; email: string } | null;
@@ -49,6 +51,7 @@ export interface MarksRecord {
 
 export interface StudentFilters {
   search: string;
+  campus_id: string;
   course_id: string;
   batch_id: string;
   gender: string;

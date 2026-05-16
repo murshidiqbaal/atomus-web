@@ -52,22 +52,91 @@ export interface Teacher {
   auth_id?: string;
 }
 
+// ── Course Management ────────────────────────────────────────────
+export type CourseType =
+  | 'Regular'
+  | 'Crash Course'
+  | 'Foundation'
+  | 'Revision Batch'
+  | 'Entrance Coaching';
+
+export type CourseMode = 'Offline' | 'Online' | 'Hybrid';
+
+/** Stored as free TEXT in DB; app-level enum keeps inputs consistent. */
+export type CourseClassLevel =
+  | '8th Standard'
+  | '9th Standard'
+  | '10th Standard'
+  | '+1 HSS'
+  | '+2 HSS'
+  | 'CBSE'
+  | 'ICSE'
+  | 'CEE';
+
+export const COURSE_TYPES: readonly CourseType[] = [
+  'Regular', 'Crash Course', 'Foundation', 'Revision Batch', 'Entrance Coaching',
+];
+export const COURSE_MODES: readonly CourseMode[] = ['Offline', 'Online', 'Hybrid'];
+export const COURSE_CLASS_LEVELS: readonly CourseClassLevel[] = [
+  '8th Standard', '9th Standard', '10th Standard',
+  '+1 HSS', '+2 HSS', 'CBSE', 'ICSE', 'CEE',
+];
+
+export interface Campus {
+  id: string;
+  name: string;
+  location: string | null;
+  isActive: boolean;
+  createdAt: string;
+  courseCount?: number;
+}
+
 export interface Course {
   id: string;
   name: string;
-  description: string;
+  description: string | null;
+  // Legacy fields — kept so existing callers still compile.
   subjects: string[];
-  durationMonths: number;
   batchCount: number;
+  // Course-management fields (snake-case → camelCase mapping in repo)
+  courseType: CourseType;
+  classLevel: CourseClassLevel | string | null;
+  durationMonths: number | null;
+  feeAmount: number;
+  mode: CourseMode;
+  thumbnailUrl: string | null;
+  isActive: boolean;
+  createdAt?: string;
+  campuses?: Campus[];
+  subjectCount?: number;
 }
 
 export interface Batch {
   id: string;
   courseId: string;
+  campusId: string | null;
   name: string;
-  timing: string;
+  timing: string | null;
+  capacity: number | null;
   studentCount: number;
   isActive: boolean;
+  createdAt?: string;
+}
+
+export interface CampusCourseLink {
+  id: string;
+  campusId: string;
+  courseId: string;
+}
+
+/** Filter shape consumed by courseRepository.getCourses(filters?). */
+export interface CourseFilters {
+  search?: string;
+  campusId?: string;
+  courseType?: CourseType;
+  mode?: CourseMode;
+  classLevel?: string;
+  isActive?: boolean;
 }
 
 export interface AttendanceRecord {

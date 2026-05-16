@@ -17,8 +17,10 @@ export interface Teacher {
   account_status: AccountStatus;
   subject_specialization: string | null;
   password_hash: string | null;
+  campus_id: string | null;
   created_at: string;
 
+  campuses?: NamedRef | null;
   teacher_courses?:  { courses: NamedRef | null }[];
   teacher_subjects?: { subjects: (NamedRef & { course_id?: string | null }) | null }[];
   teacher_batches?:  { batches: (NamedRef & { course_id?: string | null }) | null }[];
@@ -33,6 +35,7 @@ export interface TeacherCredentials {
 export interface TeacherFilters {
   search: string;
   status: "all" | AccountStatus;
+  campus_id: string;
   course_id: string;
   subject_id: string;
   batch_id: string;

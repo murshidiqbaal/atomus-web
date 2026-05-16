@@ -5,6 +5,7 @@ import { TeacherFormValues } from "../schemas";
 
 const SELECT = `
   *,
+  campuses(id, name),
   teacher_courses(courses(id, name)),
   teacher_subjects(subjects(id, name, course_id)),
   teacher_batches(batches(id, name, course_id))
@@ -32,6 +33,7 @@ function teacherColumns(values: TeacherFormValues) {
     email: values.email,
     phone_number: values.phone_number,
     qualification: values.qualification,
+    campus_id: values.campus_id,
     gender: values.gender || null,
     address: values.address || null,
     experience_years: values.experience_years ?? 0,

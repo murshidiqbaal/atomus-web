@@ -5,7 +5,7 @@ import Link from "next/link";
 import {
   ArrowLeft, Mail, Phone, KeyRound, Power, Pencil, Trash2,
   CheckCircle2, AlertCircle, X, BookOpen, Layers, CalendarDays, GraduationCap,
-  Briefcase, MapPin, Eye, EyeOff, Copy, Check,
+  Briefcase, MapPin, Eye, EyeOff, Copy, Check, Building2,
 } from "lucide-react";
 import {
   useTeacher, useDeleteTeacher, useResetTeacherPassword, useToggleTeacherStatus,
@@ -141,6 +141,10 @@ export default function TeacherDetailPage({ id }: { id: string }) {
             </div>
             <p className="mt-1 text-sm font-bold text-[#D4AF37]">{teacher.qualification ?? "—"}</p>
             <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-slate-500">
+              <span className="inline-flex items-center gap-1.5">
+                <Building2 size={12} className="text-[#0B3C5D]" />
+                <span className="font-bold text-[#0B3C5D]">{teacher.campuses?.name ?? "No campus"}</span>
+              </span>
               <span className="inline-flex items-center gap-1.5"><Mail size={12} /> {teacher.email}</span>
               <span className="inline-flex items-center gap-1.5"><Phone size={12} /> {teacher.phone_number ?? "—"}</span>
               <span className="inline-flex items-center gap-1.5"><Briefcase size={12} /> {teacher.experience_years ?? 0}y experience</span>

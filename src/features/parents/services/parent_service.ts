@@ -116,9 +116,28 @@ export const parentService = {
       phone_number: values.phone_number,
     });
 
-    if (!auth.user_id) throw new Error("Auth user creation returned no id");
+    if (!auth.user_id) {
+      throw new Error(
+        "Couldn't create the parent auth account. The email may already exist in Supabase Auth " +
+        "with an unknown password, or the server is missing SUPABASE_SERVICE_ROLE_KEY in .env.local."
+      );
+    }
 
-    const { data, error } = await supabase
+    // If the auth account was recovered (already existed) but no parents row
+    // points at it, treat the existing parent row (if any) as the target so we
+    // don't violate the parents.email UNIQUE constraint.
+    if (auth.existed) {
+      const orphan = await this.findByEmail(values.email);
+      if (orphan) {
+        if (values.student_ids.length) {
+          await this.linkStudents(orphan.id, values.student_ids);
+        }
+        const refreshed = await this.getById(orphan.id);
+        return { parent: refreshed, password, emailSent: false, existed: true };
+      }
+    }
+
+    const { error } = await supabase
       .from("parents")
       .insert([{
         id: auth.user_id,
@@ -128,9 +147,7 @@ export const parentService = {
         username: values.phone_number.replace(/\D/g, ""),
         password_hash: password,
         account_status: values.account_status,
-      }])
-      .select(SELECT_WITH_STUDENTS)
-      .single();
+      }]);
 
     if (error) throw error;
 

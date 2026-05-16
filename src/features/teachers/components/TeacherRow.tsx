@@ -2,7 +2,7 @@
 
 import { memo, useMemo, useState } from "react";
 import Link from "next/link";
-import { Eye, EyeOff, Pencil, Power, KeyRound, Trash2, Copy, Check } from "lucide-react";
+import { Eye, EyeOff, Pencil, Power, KeyRound, Trash2, Copy, Check, Building2 } from "lucide-react";
 import { Teacher } from "../types";
 
 const STATUS_BADGE: Record<string, string> = {
@@ -59,6 +59,16 @@ function TeacherRow({ teacher, onEdit, onToggleStatus, onResetPassword, onDelete
             <p className="text-[11px] text-slate-400 truncate">{teacher.qualification ?? "—"}</p>
           </div>
         </div>
+      </td>
+
+      <td className="px-4 py-3 hidden md:table-cell">
+        {teacher.campuses?.name ? (
+          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-[#0B3C5D]/10 text-[#0B3C5D] text-[10px] font-bold border border-[#0B3C5D]/20">
+            <Building2 size={10} /> {teacher.campuses.name}
+          </span>
+        ) : (
+          <span className="text-xs text-slate-400 italic">—</span>
+        )}
       </td>
 
       <td className="px-4 py-3 hidden md:table-cell">

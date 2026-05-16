@@ -29,86 +29,86 @@ const StudentRow = React.memo(function StudentRow({ student, onEdit }: Props) {
   const isActive = student.academic_status === "Active";
 
   return (
-    <tr className="border-b border-slate-100 hover:bg-slate-50/60 transition-colors group">
+    <tr className="border-b border-slate-100 hover:bg-slate-50/60 transition-all group">
       {/* Photo + Name */}
-      <td className="px-4 py-3">
-        <div className="flex items-center gap-3 min-w-0">
+      <td className="px-6 py-4">
+        <div className="flex items-center gap-4 min-w-0">
           <div className="relative shrink-0">
             {student.photo_url ? (
               <img
                 src={student.photo_url}
                 alt={student.full_name}
-                className="w-10 h-10 rounded-xl object-cover shadow-sm border border-slate-200"
+                className="w-12 h-12 rounded-[1rem] object-cover shadow-sm border border-slate-200 group-hover:scale-110 transition-transform duration-500"
               />
             ) : (
-              <div className="w-10 h-10 rounded-xl bg-[#0B3C5D]/5 text-[#0B3C5D] flex items-center justify-center text-sm font-black border border-[#0B3C5D]/10">
+              <div className="w-12 h-12 rounded-[1rem] bg-[#0B3C5D]/5 text-[#0B3C5D] flex items-center justify-center text-sm font-black border border-[#0B3C5D]/10">
                 {student.full_name.charAt(0).toUpperCase()}
               </div>
             )}
-            <div className={`absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full border-2 border-white ${isActive ? "bg-emerald-500" : "bg-slate-300"}`} />
+            <div className={`absolute -bottom-1 -right-1 w-4 h-4 rounded-full border-4 border-white ${isActive ? "bg-emerald-500" : "bg-slate-300"}`} />
           </div>
           <div className="min-w-0">
-            <p className="text-sm font-bold text-slate-800 truncate group-hover:text-[#0B3C5D] transition-colors">{student.full_name}</p>
+            <p className="text-sm font-black text-slate-900 truncate group-hover:text-[#0B3C5D] transition-colors">{student.full_name}</p>
             {student.email && (
-              <p className="text-[11px] text-slate-400 truncate">{student.email}</p>
+              <p className="text-[11px] text-slate-400 truncate font-semibold">{student.email}</p>
             )}
           </div>
         </div>
       </td>
 
       {/* Roll */}
-      <td className="px-4 py-3">
-        <span className="font-mono text-[11px] font-black text-[#0B3C5D] bg-[#0B3C5D]/5 px-2 py-1 rounded-lg border border-[#0B3C5D]/10">
+      <td className="px-6 py-4">
+        <span className="font-mono text-[10px] font-black text-[#0B3C5D] bg-[#0B3C5D]/5 px-2.5 py-1.5 rounded-lg border border-[#0B3C5D]/10 uppercase tracking-wider">
           {student.roll_number}
         </span>
       </td>
 
-      {/* Course */}
-      <td className="px-4 py-3 hidden lg:table-cell">
+      {/* Campus */}
+      <td className="px-6 py-4 hidden xl:table-cell">
         <div className="flex flex-col">
-          <span className="text-sm font-semibold text-slate-700">{student.courses?.name ?? "—"}</span>
-          <span className="text-[10px] text-slate-400 uppercase font-bold tracking-tight">Course</span>
+          <span className="text-xs font-black text-[#D4AF37] tracking-tight">{student.campuses?.name ?? "—"}</span>
+          <span className="text-[9px] text-slate-400 uppercase font-black tracking-widest mt-0.5">Campus</span>
         </div>
       </td>
 
-      {/* Batch */}
-      <td className="px-4 py-3 hidden lg:table-cell">
+      {/* Course */}
+      <td className="px-6 py-4 hidden xl:table-cell">
         <div className="flex flex-col">
-          <span className="text-sm font-semibold text-slate-700">{student.batches?.name ?? "—"}</span>
-          <span className="text-[10px] text-slate-400 uppercase font-bold tracking-tight">Batch</span>
+          <span className="text-xs font-black text-slate-700 tracking-tight">{student.courses?.name ?? "—"}</span>
+          <span className="text-[9px] text-slate-400 uppercase font-black tracking-widest mt-0.5">{student.batches?.name ?? "Batch"}</span>
         </div>
       </td>
 
       {/* Parent */}
-      <td className="px-4 py-3 hidden xl:table-cell">
+      <td className="px-6 py-4 hidden xl:table-cell">
         {student.parents ? (
           <div className="min-w-0">
-            <p className="text-xs font-bold text-slate-700 truncate max-w-[8rem]">{student.parents.full_name}</p>
-            <p className="text-[10px] text-slate-400 truncate">{student.parents.phone_number}</p>
+            <p className="text-xs font-black text-slate-800 truncate max-w-[10rem]">{student.parents.full_name}</p>
+            <p className="text-[10px] text-slate-400 font-bold">{student.parents.phone_number}</p>
           </div>
         ) : (
-          <span className="text-[10px] font-bold text-amber-600 bg-amber-50 px-2 py-0.5 rounded-md border border-amber-100">
+          <span className="text-[9px] font-black text-amber-600 bg-amber-50 px-2 py-1 rounded-lg border border-amber-100 uppercase tracking-widest">
             Unlinked
           </span>
         )}
       </td>
 
       {/* Academic Status */}
-      <td className="px-4 py-3 hidden md:table-cell">
-        <span className={`text-[10px] font-black px-2.5 py-1 rounded-full uppercase tracking-wider ${STATUS_COLOR[student.academic_status ?? ""] ?? "bg-slate-100 text-slate-500"}`}>
+      <td className="px-6 py-4">
+        <span className={`text-[9px] font-black px-3 py-1.5 rounded-full uppercase tracking-[0.1em] border ${STATUS_COLOR[student.academic_status ?? ""] ?? "bg-slate-100 text-slate-500 border-slate-200"}`}>
           {student.academic_status ?? "—"}
         </span>
       </td>
 
       {/* Attendance */}
-      <td className="px-4 py-3 hidden md:table-cell">
+      <td className="px-6 py-4 hidden xl:table-cell">
         {student.attendance_percentage != null ? (
-          <div className="flex items-center gap-2">
-            <div className="w-16 h-1.5 bg-slate-100 rounded-full overflow-hidden">
+          <div className="flex items-center gap-3">
+            <div className="w-20 h-2 bg-slate-100 rounded-full overflow-hidden shadow-inner">
               <div
-                className={`h-full rounded-full transition-all duration-500 ${
-                  student.attendance_percentage >= 75 ? "bg-emerald-500" :
-                  student.attendance_percentage >= 50 ? "bg-amber-500" : "bg-rose-500"
+                className={`h-full rounded-full transition-all duration-700 ease-out ${
+                  student.attendance_percentage >= 75 ? "bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.4)]" :
+                  student.attendance_percentage >= 50 ? "bg-amber-500 shadow-[0_0_8px_rgba(245,158,11,0.4)]" : "bg-rose-500 shadow-[0_0_8px_rgba(244,63,94,0.4)]"
                 }`}
                 style={{ width: `${Math.min(100, student.attendance_percentage)}%` }}
               />
@@ -118,54 +118,54 @@ const StudentRow = React.memo(function StudentRow({ student, onEdit }: Props) {
             </span>
           </div>
         ) : (
-          <span className="text-xs text-slate-400">—</span>
+          <span className="text-xs text-slate-400 font-bold">—</span>
         )}
       </td>
 
       {/* Progress */}
-      <td className="px-4 py-3 hidden md:table-cell">
+      <td className="px-6 py-4 hidden xl:table-cell">
         {student.progress_status ? (
-          <span className="text-[10px] font-bold px-2 py-1 rounded-lg bg-slate-100 text-slate-600 border border-slate-200">
+          <span className="text-[10px] font-black px-2.5 py-1 rounded-xl bg-slate-100 text-slate-600 border border-slate-200 uppercase tracking-wider">
             {student.progress_status}
           </span>
         ) : (
-          <span className="text-xs text-slate-400">—</span>
+          <span className="text-xs text-slate-400 font-bold">—</span>
         )}
       </td>
 
       {/* Status toggle */}
-      <td className="px-4 py-3">
+      <td className="px-6 py-4">
         <button
           onClick={() => toggle.mutate({ id: student.id, is_active: !isActive })}
           disabled={toggle.isPending}
-          className={`relative inline-flex h-5 w-10 items-center rounded-full transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-[#0B3C5D]/20 disabled:opacity-50 ${
+          className={`relative inline-flex h-6 w-11 items-center rounded-full transition-all duration-300 focus:outline-none focus:ring-4 focus:ring-[#0B3C5D]/10 disabled:opacity-50 ${
             isActive ? "bg-[#0B3C5D]" : "bg-slate-300"
           }`}
         >
           <span
-            className={`inline-block h-3.5 w-3.5 rounded-full bg-white shadow-sm transition-transform duration-200 ${
-              isActive ? "translate-x-5.5" : "translate-x-1"
+            className={`inline-block h-4 w-4 rounded-full bg-white shadow-md transition-transform duration-300 ${
+              isActive ? "translate-x-6" : "translate-x-1"
             }`}
           />
         </button>
       </td>
 
       {/* Actions */}
-      <td className="px-4 py-3">
-        <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+      <td className="px-6 py-4">
+        <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-all transform translate-x-2 group-hover:translate-x-0">
           <Link
             href={`/students/${student.id}`}
-            className="p-2 text-slate-400 hover:text-[#0B3C5D] hover:bg-[#0B3C5D]/5 rounded-xl transition-all"
+            className="p-2.5 text-slate-400 hover:text-[#0B3C5D] hover:bg-[#0B3C5D]/5 rounded-xl transition-all"
             title="View full profile"
           >
-            <Eye size={16} />
+            <Eye size={18} />
           </Link>
           <button
             onClick={() => onEdit(student)}
-            className="p-2 text-slate-400 hover:text-[#0B3C5D] hover:bg-[#0B3C5D]/5 rounded-xl transition-all"
+            className="p-2.5 text-slate-400 hover:text-[#0B3C5D] hover:bg-[#0B3C5D]/5 rounded-xl transition-all"
             title="Quick Edit"
           >
-            <Pencil size={16} />
+            <Pencil size={18} />
           </button>
         </div>
       </td>

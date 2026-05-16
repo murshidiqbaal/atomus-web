@@ -3,11 +3,12 @@
 import { useMemo, useState } from "react";
 import {
   Plus, Search, GraduationCap, RotateCcw, CheckCircle2, AlertCircle, X,
-  Users, BookOpen, Layers,
+  Users, Building2, Sparkles,
 } from "lucide-react";
 import { Teacher } from "../types";
 import {
-  useTeachers, useTeacherCourses, useTeacherSubjects, useTeacherBatches,
+  useTeachers, useTeacherCampuses, useTeacherCourses, useTeacherCoursesByCampus,
+  useTeacherSubjects, useTeacherBatches, useTeacherBatchesByCampus,
   useToggleTeacherStatus, useDeleteTeacher, useResetTeacherPassword,
 } from "../hooks";
 import TeacherRow from "../components/TeacherRow";
@@ -19,14 +20,15 @@ const PAGE_SIZE = 12;
 interface Filters {
   search: string;
   status: "all" | Teacher["account_status"];
+  campus_id: string;
   course_id: string;
   subject_id: string;
   batch_id: string;
 }
 
 function StatCard({ icon, label, value, sub, tone = "blue" }: {
-  icon: React.ReactNode; label: string; value: number; sub?: string;
-  tone?: "blue" | "emerald" | "amber" | "rose" | "gold";
+  icon: React.ReactNode; label: string; value: number | string; sub?: string;
+  tone?: "blue" | "emerald" | "amber" | "rose" | "gold" | "violet";
 }) {
   const tones: Record<string, string> = {
     blue: "bg-blue-50 text-blue-600",
@@ -34,28 +36,36 @@ function StatCard({ icon, label, value, sub, tone = "blue" }: {
     amber: "bg-amber-50 text-amber-600",
     rose: "bg-rose-50 text-rose-600",
     gold: "bg-[#D4AF37]/15 text-[#D4AF37]",
+    violet: "bg-violet-50 text-violet-600",
   };
   return (
     <div className="bg-white rounded-2xl border border-slate-200 px-5 py-4">
       <div className={`w-9 h-9 ${tones[tone]} rounded-xl flex items-center justify-center mb-2`}>{icon}</div>
       <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wide">{label}</p>
-      <p className="text-2xl font-black text-[#0B3C5D] mt-1">{value}</p>
-      {sub && <p className="text-xs text-slate-400 mt-0.5">{sub}</p>}
+      <p className="text-2xl font-black text-[#0B3C5D] mt-1 truncate">{value}</p>
+      {sub && <p className="text-xs text-slate-400 mt-0.5 truncate">{sub}</p>}
     </div>
   );
 }
 
 export default function TeachersPage() {
   const { data: teachers = [], isLoading } = useTeachers();
-  const { data: courses = [] }  = useTeacherCourses();
-  const { data: subjects = [] } = useTeacherSubjects();
-  const { data: batches = [] }  = useTeacherBatches();
+  const { data: campuses = [] }    = useTeacherCampuses();
+  const { data: allCourses = [] }  = useTeacherCourses();
+  const { data: subjects = [] }    = useTeacherSubjects();
+  const { data: allBatches = [] }  = useTeacherBatches();
   const toggleStatus  = useToggleTeacherStatus();
   const deleteTeacher = useDeleteTeacher();
   const resetPassword = useResetTeacherPassword();
 
-  const [filters, setFilters] = useState<Filters>({ search: "", status: "all", course_id: "", subject_id: "", batch_id: "" });
+  const [filters, setFilters] = useState<Filters>({
+    search: "", status: "all", campus_id: "", course_id: "", subject_id: "", batch_id: "",
+  });
   const [page, setPage] = useState(1);
+
+  // When a campus is picked, narrow courses & batches to that campus.
+  const { data: campusCourses = [] } = useTeacherCoursesByCampus(filters.campus_id);
+  const { data: campusBatches = [] } = useTeacherBatchesByCampus(filters.campus_id);
 
   const [modalOpen, setModalOpen] = useState(false);
   const [editing, setEditing] = useState<Teacher | null>(null);
@@ -70,6 +80,9 @@ export default function TeachersPage() {
   function setFilter<K extends keyof Filters>(key: K, val: Filters[K]) {
     setFilters((p) => {
       const next = { ...p, [key]: val };
+      if (key === "campus_id") {
+        next.course_id = ""; next.subject_id = ""; next.batch_id = "";
+      }
       if (key === "course_id") { next.subject_id = ""; next.batch_id = ""; }
       return next;
     });
@@ -77,25 +90,31 @@ export default function TeachersPage() {
   }
 
   function resetFilters() {
-    setFilters({ search: "", status: "all", course_id: "", subject_id: "", batch_id: "" });
+    setFilters({ search: "", status: "all", campus_id: "", course_id: "", subject_id: "", batch_id: "" });
     setPage(1);
   }
 
-  const hasActiveFilters = filters.search || filters.status !== "all" || filters.course_id || filters.subject_id || filters.batch_id;
+  const hasActiveFilters =
+    filters.search || filters.status !== "all" ||
+    filters.campus_id || filters.course_id || filters.subject_id || filters.batch_id;
+
+  const courseOptions = filters.campus_id ? campusCourses : allCourses;
+  const batchOptionsRaw = filters.campus_id ? campusBatches : allBatches;
 
   const subjectOptions = useMemo(
     () => (filters.course_id ? subjects.filter((s) => s.course_id === filters.course_id) : subjects),
     [subjects, filters.course_id]
   );
   const batchOptions = useMemo(
-    () => (filters.course_id ? batches.filter((b) => b.course_id === filters.course_id) : batches),
-    [batches, filters.course_id]
+    () => (filters.course_id ? batchOptionsRaw.filter((b) => b.course_id === filters.course_id) : batchOptionsRaw),
+    [batchOptionsRaw, filters.course_id]
   );
 
   const filtered = useMemo(() => {
     const q = filters.search.toLowerCase();
     return teachers.filter((t) => {
       if (filters.status !== "all" && t.account_status !== filters.status) return false;
+      if (filters.campus_id && t.campus_id !== filters.campus_id) return false;
       if (filters.course_id && !(t.teacher_courses ?? []).some((c) => c.courses?.id === filters.course_id)) return false;
       if (filters.subject_id && !(t.teacher_subjects ?? []).some((s) => s.subjects?.id === filters.subject_id)) return false;
       if (filters.batch_id && !(t.teacher_batches ?? []).some((b) => b.batches?.id === filters.batch_id)) return false;
@@ -114,12 +133,29 @@ export default function TeachersPage() {
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   const paginated = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
-  const stats = useMemo(() => ({
-    total: teachers.length,
-    active: teachers.filter((t) => t.account_status === "Active").length,
-    courses: new Set(teachers.flatMap((t) => (t.teacher_courses ?? []).map((c) => c.courses?.id).filter(Boolean))).size,
-    batches: new Set(teachers.flatMap((t) => (t.teacher_batches ?? []).map((b) => b.batches?.id).filter(Boolean))).size,
-  }), [teachers]);
+  const stats = useMemo(() => {
+    const campusCounts = new Map<string, { name: string; count: number }>();
+    for (const t of teachers) {
+      if (!t.campus_id) continue;
+      const cur = campusCounts.get(t.campus_id);
+      const name = t.campuses?.name ?? "—";
+      campusCounts.set(t.campus_id, { name, count: (cur?.count ?? 0) + 1 });
+    }
+    let topCampus: { name: string; count: number } | null = null;
+    for (const v of campusCounts.values()) {
+      if (!topCampus || v.count > topCampus.count) topCampus = v;
+    }
+    const specialists = teachers.filter(
+      (t) => (t.subject_specialization?.trim().length ?? 0) > 0,
+    ).length;
+    return {
+      total: teachers.length,
+      active: teachers.filter((t) => t.account_status === "Active").length,
+      specialists,
+      topCampus,
+      campusCount: campusCounts.size,
+    };
+  }, [teachers]);
 
   function openAdd() { setEditing(null); setModalOpen(true); }
   function openEdit(t: Teacher) { setEditing(t); setModalOpen(true); }
@@ -177,11 +213,35 @@ export default function TeachersPage() {
         </button>
       </div>
 
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-        <StatCard tone="blue"    icon={<Users size={18} />}         label="Total"   value={stats.total} />
-        <StatCard tone="emerald" icon={<GraduationCap size={18} />} label="Active"  value={stats.active} sub={`${stats.total ? Math.round((stats.active / stats.total) * 100) : 0}% of total`} />
-        <StatCard tone="gold"    icon={<BookOpen size={18} />}      label="Courses Covered" value={stats.courses} />
-        <StatCard tone="amber"   icon={<Layers size={18} />}        label="Batches Covered" value={stats.batches} />
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        <StatCard
+          tone="blue"
+          icon={<Users size={18} />}
+          label="Total Teachers"
+          value={stats.total}
+          sub={`${stats.campusCount} campus${stats.campusCount === 1 ? "" : "es"} assigned`}
+        />
+        <StatCard
+          tone="emerald"
+          icon={<GraduationCap size={18} />}
+          label="Active"
+          value={stats.active}
+          sub={`${stats.total ? Math.round((stats.active / stats.total) * 100) : 0}% of total`}
+        />
+        <StatCard
+          tone="gold"
+          icon={<Building2 size={18} />}
+          label="Top Campus"
+          value={stats.topCampus ? stats.topCampus.name : "—"}
+          sub={stats.topCampus ? `${stats.topCampus.count} teacher${stats.topCampus.count === 1 ? "" : "s"}` : "No assignments yet"}
+        />
+        <StatCard
+          tone="violet"
+          icon={<Sparkles size={18} />}
+          label="Subject Specialists"
+          value={stats.specialists}
+          sub={`${stats.total - stats.specialists} general`}
+        />
       </div>
 
       <div className="bg-white rounded-2xl border border-slate-200 p-4">
@@ -198,12 +258,21 @@ export default function TeachersPage() {
           </div>
 
           <select
+            value={filters.campus_id}
+            onChange={(e) => setFilter("campus_id", e.target.value)}
+            className="px-3 py-2 border border-slate-200 rounded-xl text-sm outline-none focus:border-[#0B3C5D] focus:ring-2 focus:ring-[#0B3C5D]/10 bg-white transition-all"
+          >
+            <option value="">All Campuses</option>
+            {campuses.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+          </select>
+
+          <select
             value={filters.course_id}
             onChange={(e) => setFilter("course_id", e.target.value)}
             className="px-3 py-2 border border-slate-200 rounded-xl text-sm outline-none focus:border-[#0B3C5D] focus:ring-2 focus:ring-[#0B3C5D]/10 bg-white transition-all"
           >
-            <option value="">All Courses</option>
-            {courses.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+            <option value="">{filters.campus_id ? "All Courses (campus)" : "All Courses"}</option>
+            {courseOptions.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
           </select>
 
           <select
@@ -267,16 +336,17 @@ export default function TeachersPage() {
               <table className="w-full text-left">
                 <thead>
                   <tr className="border-b border-slate-100 bg-slate-50/80">
-                    {["Teacher", "Contact", "Subjects", "Batches", "Exp.", "Password", "Status", "Actions"].map((h, i) => (
+                    {["Teacher", "Campus", "Contact", "Subjects", "Batches", "Exp.", "Password", "Status", "Actions"].map((h, i) => (
                       <th
                         key={h}
                         className={`px-4 py-3 text-[11px] font-bold text-slate-400 uppercase tracking-wide whitespace-nowrap
                           ${i === 1 ? "hidden md:table-cell" : ""}
-                          ${i === 2 ? "hidden lg:table-cell" : ""}
-                          ${i === 3 ? "hidden xl:table-cell" : ""}
-                          ${i === 4 ? "hidden md:table-cell" : ""}
-                          ${i === 5 ? "hidden xl:table-cell" : ""}
-                          ${i === 7 ? "text-right" : ""}
+                          ${i === 2 ? "hidden md:table-cell" : ""}
+                          ${i === 3 ? "hidden lg:table-cell" : ""}
+                          ${i === 4 ? "hidden xl:table-cell" : ""}
+                          ${i === 5 ? "hidden md:table-cell" : ""}
+                          ${i === 6 ? "hidden xl:table-cell" : ""}
+                          ${i === 8 ? "text-right" : ""}
                         `}
                       >
                         {h}

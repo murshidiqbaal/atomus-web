@@ -1,8 +1,8 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { Plus, Search, Users, RotateCcw, Filter, ChevronRight, Download } from "lucide-react";
-import { useStudents, useCourses, useAllBatches } from "../hooks";
+import { Plus, Search, Users, RotateCcw, Filter, ChevronRight, Download, GraduationCap, Building2, BookOpen, CheckCircle2 } from "lucide-react";
+import { useStudents, useCourses, useAllBatches, useCampuses, useCoursesByCampus } from "../hooks";
 import { StudentWithRelations, StudentFilters } from "../types";
 import StudentRow from "../components/StudentRow";
 import StudentModal from "../components/StudentModal";
@@ -13,82 +13,99 @@ const GENDERS    = ["Male", "Female", "Other"];
 const ACQ_STATUS = ["Active", "Inactive", "Graduated", "Dropped"];
 
 const STATUS_BADGE: Record<string, string> = {
-  Active:    "bg-emerald-100 text-emerald-700",
-  Inactive:  "bg-slate-100 text-slate-500",
-  Graduated: "bg-blue-100 text-blue-700",
-  Dropped:   "bg-rose-100 text-rose-600",
+  Active:    "bg-emerald-100 text-emerald-700 border-emerald-200",
+  Inactive:  "bg-slate-100 text-slate-500 border-slate-200",
+  Graduated: "bg-blue-100 text-blue-700 border-blue-200",
+  Dropped:   "bg-rose-100 text-rose-600 border-rose-200",
 };
 
-function StatCard({ label, value, sub, trend }: { label: string; value: number; sub?: string; trend?: string }) {
+function StatCard({ 
+  label, 
+  value, 
+  sub, 
+  trend, 
+  icon: Icon,
+  color = "blue"
+}: { 
+  label: string; 
+  value: number; 
+  sub?: string; 
+  trend?: string;
+  icon: any;
+  color?: "blue" | "gold" | "emerald" | "slate"
+}) {
+  const colors = {
+    blue:    "text-[#0B3C5D] bg-[#0B3C5D]/5 border-[#0B3C5D]/10",
+    gold:    "text-[#D4AF37] bg-[#D4AF37]/5 border-[#D4AF37]/10",
+    emerald: "text-emerald-600 bg-emerald-50 border-emerald-100",
+    slate:   "text-slate-600 bg-slate-50 border-slate-100",
+  };
+
   return (
-    <div className="bg-white rounded-2xl border border-slate-200 px-6 py-5 shadow-sm hover:shadow-md transition-shadow">
+    <div className="bg-white rounded-[2rem] border border-slate-200 p-6 shadow-sm hover:shadow-xl hover:shadow-slate-200/50 transition-all duration-300 group">
       <div className="flex justify-between items-start">
-        <p className="text-xs font-black text-slate-400 uppercase tracking-widest">{label}</p>
+        <div className={`p-3 rounded-2xl ${colors[color]} transition-transform group-hover:scale-110 duration-300`}>
+          <Icon size={20} />
+        </div>
         {trend && (
-          <span className="text-[10px] font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-lg border border-emerald-100">
+          <span className="text-[10px] font-black text-emerald-600 bg-emerald-50 px-2.5 py-1 rounded-full border border-emerald-100 uppercase tracking-wider">
             {trend}
           </span>
         )}
       </div>
-      <p className="text-3xl font-black text-[#0B3C5D] mt-2 tracking-tight">{value.toLocaleString()}</p>
-      {sub && <p className="text-xs text-slate-400 mt-1.5 font-medium">{sub}</p>}
+      <div className="mt-4">
+        <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.15em]">{label}</p>
+        <p className="text-3xl font-black text-slate-900 mt-1 tracking-tight">{value.toLocaleString()}</p>
+        {sub && <p className="text-xs text-slate-400 mt-1 font-semibold">{sub}</p>}
+      </div>
     </div>
   );
 }
 
 function MobileCard({ student, onEdit }: { student: StudentWithRelations; onEdit: (s: StudentWithRelations) => void }) {
   return (
-    <div className="bg-white rounded-2xl border border-slate-200 p-5 space-y-4 shadow-sm active:scale-[0.98] transition-transform">
+    <div className="bg-white rounded-[2rem] border border-slate-200 p-6 space-y-4 shadow-sm active:scale-[0.98] transition-all">
       <div className="flex items-start gap-4">
         <div className="relative">
           {student.photo_url ? (
-            <img src={student.photo_url} alt={student.full_name} className="w-12 h-12 rounded-2xl object-cover border border-slate-100 shadow-sm" />
+            <img src={student.photo_url} alt={student.full_name} className="w-14 h-14 rounded-2xl object-cover border-2 border-white shadow-md" />
           ) : (
-            <div className="w-12 h-12 rounded-2xl bg-[#0B3C5D]/5 text-[#0B3C5D] flex items-center justify-center text-lg font-black border border-[#0B3C5D]/10">
+            <div className="w-14 h-14 rounded-2xl bg-[#0B3C5D]/5 text-[#0B3C5D] flex items-center justify-center text-xl font-black border border-[#0B3C5D]/10">
               {student.full_name.charAt(0).toUpperCase()}
             </div>
           )}
-          <div className={`absolute -bottom-1 -right-1 w-3.5 h-3.5 rounded-full border-2 border-white ${student.is_active !== false ? "bg-emerald-500" : "bg-slate-300"}`} />
+          <div className={`absolute -bottom-1 -right-1 w-4 h-4 rounded-full border-2 border-white ${student.academic_status === "Active" ? "bg-emerald-500" : "bg-slate-300"}`} />
         </div>
         <div className="flex-1 min-w-0">
           <div className="flex justify-between items-start gap-2">
-            <p className="text-sm font-black text-slate-900 truncate">{student.full_name}</p>
-            {student.academic_status && (
-              <span className={`shrink-0 text-[10px] font-black px-2 py-0.5 rounded-lg uppercase tracking-wider ${STATUS_BADGE[student.academic_status] ?? "bg-slate-100 text-slate-500"}`}>
-                {student.academic_status}
-              </span>
-            )}
+            <p className="text-base font-black text-slate-900 truncate tracking-tight">{student.full_name}</p>
           </div>
-          <p className="text-xs text-slate-400 mt-1 flex items-center gap-2">
-            <span className="font-mono font-bold text-[#0B3C5D] bg-[#0B3C5D]/5 px-1.5 py-0.5 rounded-md">{student.roll_number}</span>
-            {student.courses?.name && <span>· {student.courses.name}</span>}
+          <p className="text-[11px] text-slate-400 mt-0.5 flex items-center gap-2 font-bold uppercase tracking-wider">
+            <span className="text-[#0B3C5D]">{student.roll_number}</span>
+            <span>·</span>
+            <span className="truncate">{student.campuses?.name ?? "No Campus"}</span>
           </p>
         </div>
       </div>
 
-      <div className="grid grid-cols-2 gap-3 p-3 bg-slate-50 rounded-xl border border-slate-100">
+      <div className="grid grid-cols-2 gap-3 p-4 bg-slate-50 rounded-2xl border border-slate-100">
         <div className="space-y-1">
-          <p className="text-[10px] font-bold text-slate-400 uppercase tracking-tight">Batch</p>
-          <p className="text-xs font-semibold text-slate-700 truncate">{student.batches?.name ?? "—"}</p>
+          <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Course</p>
+          <p className="text-xs font-bold text-slate-700 truncate">{student.courses?.name ?? "—"}</p>
         </div>
         <div className="space-y-1">
-          <p className="text-[10px] font-bold text-slate-400 uppercase tracking-tight">Attendance</p>
-          <p className="text-xs font-semibold text-slate-700">
-            {student.attendance_percentage != null ? `${Math.round(student.attendance_percentage)}%` : "—"}
-          </p>
+          <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Status</p>
+          <span className={`inline-block text-[10px] font-black px-2 py-0.5 rounded-lg uppercase tracking-wider border ${STATUS_BADGE[student.academic_status ?? ""] ?? "bg-slate-100 text-slate-500"}`}>
+            {student.academic_status ?? "—"}
+          </span>
         </div>
       </div>
 
       <div className="flex items-center justify-between gap-3 pt-2">
-        <div className="flex -space-x-2">
-          {/* Action buttons could go here or more stats */}
-        </div>
-        <div className="flex gap-2">
-          <button onClick={() => onEdit(student)} className="px-4 py-2 text-xs font-bold text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-xl transition-colors">Edit</button>
-          <a href={`/students/${student.id}`} className="px-4 py-2 text-xs font-bold text-white bg-[#0B3C5D] rounded-xl flex items-center gap-1.5 shadow-md shadow-[#0B3C5D]/10">
-            Profile <ChevronRight size={12} />
-          </a>
-        </div>
+        <button onClick={() => onEdit(student)} className="flex-1 px-4 py-3 text-xs font-black text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-xl transition-colors">Edit</button>
+        <a href={`/students/${student.id}`} className="flex-1 px-4 py-3 text-xs font-black text-white bg-[#0B3C5D] rounded-xl flex items-center justify-center gap-2 shadow-lg shadow-[#0B3C5D]/20">
+          Profile <ChevronRight size={14} />
+        </a>
       </div>
     </div>
   );
@@ -97,17 +114,17 @@ function MobileCard({ student, onEdit }: { student: StudentWithRelations; onEdit
 function TableSkeleton() {
   return (
     <div className="p-0 animate-pulse">
-      <div className="h-12 bg-slate-50 border-b border-slate-100" />
+      <div className="h-14 bg-slate-50 border-b border-slate-100" />
       {Array.from({ length: 8 }).map((_, i) => (
-        <div key={i} className="flex gap-4 p-4 border-b border-slate-50 items-center">
-          <div className="w-10 h-10 bg-slate-100 rounded-xl" />
+        <div key={i} className="flex gap-4 p-5 border-b border-slate-50 items-center">
+          <div className="w-12 h-12 bg-slate-100 rounded-xl" />
           <div className="flex-1 space-y-2">
             <div className="h-4 bg-slate-100 rounded w-1/4" />
             <div className="h-3 bg-slate-50 rounded w-1/6" />
           </div>
-          <div className="h-8 bg-slate-50 rounded w-24" />
-          <div className="h-8 bg-slate-50 rounded w-24" />
-          <div className="h-8 bg-slate-50 rounded w-12" />
+          <div className="h-10 bg-slate-50 rounded w-32" />
+          <div className="h-10 bg-slate-50 rounded w-32" />
+          <div className="h-10 bg-slate-50 rounded w-16" />
         </div>
       ))}
     </div>
@@ -116,44 +133,79 @@ function TableSkeleton() {
 
 export default function StudentsPage() {
   const { data: students = [], isLoading } = useStudents();
+  const { data: campuses = [] }            = useCampuses();
   const { data: courses = [] }             = useCourses();
   const { data: allBatches = [] }          = useAllBatches();
 
   const [filters, setFilters] = useState<StudentFilters>({
-    search: "", course_id: "", batch_id: "", gender: "", academic_status: "", status: "all",
+    search: "", campus_id: "", course_id: "", batch_id: "", gender: "", academic_status: "", status: "all",
   });
   const [page, setPage]         = useState(1);
   const [modalOpen, setModalOpen] = useState(false);
   const [editing, setEditing]     = useState<StudentWithRelations | null>(null);
 
+  // When a campus is picked, fetch only its linked courses (via campus_courses).
+  const { data: campusCourses = [] } = useCoursesByCampus(filters.campus_id);
+
   function setFilter<K extends keyof StudentFilters>(key: K, val: StudentFilters[K]) {
-    setFilters((prev) => ({ ...prev, [key]: val }));
+    setFilters((prev) => {
+      const next = { ...prev, [key]: val };
+      if (key === "campus_id") { next.course_id = ""; next.batch_id = ""; }
+      if (key === "course_id") { next.batch_id = ""; }
+      return next;
+    });
     setPage(1);
   }
 
   function resetFilters() {
-    setFilters({ search: "", course_id: "", batch_id: "", gender: "", academic_status: "", status: "all" });
+    setFilters({ search: "", campus_id: "", course_id: "", batch_id: "", gender: "", academic_status: "", status: "all" });
     setPage(1);
   }
 
   const hasActiveFilters =
-    filters.search || filters.course_id || filters.batch_id ||
+    filters.search || filters.campus_id || filters.course_id || filters.batch_id ||
     filters.gender || filters.academic_status || filters.status !== "all";
 
+  const availableCourses = useMemo(
+    () => (filters.campus_id ? campusCourses : courses),
+    [courses, campusCourses, filters.campus_id],
+  );
+
   const availableBatches = useMemo(
-    () => filters.course_id ? allBatches.filter((b) => b.course_id === filters.course_id) : allBatches,
-    [allBatches, filters.course_id]
+    () => {
+      let b = allBatches;
+      if (filters.campus_id) b = b.filter(x => x.campus_id === filters.campus_id);
+      if (filters.course_id) b = b.filter(x => x.course_id === filters.course_id);
+      return b;
+    },
+    [allBatches, filters.campus_id, filters.course_id]
   );
 
   const stats = useMemo(() => {
-    const now = new Date();
-    const thisMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+    const total = students.length;
+    const active = students.filter((s) => s.academic_status === "Active").length;
+    
+    // Campus-wise
+    const campusCounts: Record<string, number> = {};
+    students.forEach(s => {
+      const name = s.campuses?.name || "Unassigned";
+      campusCounts[name] = (campusCounts[name] || 0) + 1;
+    });
+    const topCampus = Object.entries(campusCounts).sort((a, b) => b[1] - a[1])[0];
+
+    // Course-wise
+    const courseCounts: Record<string, number> = {};
+    students.forEach(s => {
+      const name = s.courses?.name || "Unassigned";
+      courseCounts[name] = (courseCounts[name] || 0) + 1;
+    });
+    const topCourse = Object.entries(courseCounts).sort((a, b) => b[1] - a[1])[0];
+
     return {
-      total:      students.length,
-      active:     students.filter((s) => s.academic_status === "Active").length,
-      inactive:   students.filter((s) => s.academic_status === "Inactive").length,
-      withParent: students.filter((s) => s.parent_id).length,
-      newMonth:   students.filter((s) => s.created_at?.startsWith(thisMonth)).length,
+      total,
+      active,
+      topCampus: topCampus ? { name: topCampus[0], count: topCampus[1] } : null,
+      topCourse: topCourse ? { name: topCourse[0], count: topCourse[1] } : null,
     };
   }, [students]);
 
@@ -161,6 +213,7 @@ export default function StudentsPage() {
     const q = filters.search.toLowerCase();
     return students.filter((s) => {
       if (q && !s.full_name.toLowerCase().includes(q) && !s.roll_number.toLowerCase().includes(q)) return false;
+      if (filters.campus_id && s.campus_id !== filters.campus_id) return false;
       if (filters.course_id && s.course_id !== filters.course_id) return false;
       if (filters.batch_id && s.batch_id !== filters.batch_id) return false;
       if (filters.gender && s.gender !== filters.gender) return false;
@@ -179,218 +232,268 @@ export default function StudentsPage() {
   function closeModal() { setModalOpen(false); setEditing(null); }
 
   return (
-    <div className="p-6 space-y-8 max-w-[1400px] mx-auto animate-in fade-in duration-500">
-      {/* Header */}
-      <div className="flex items-center justify-between gap-4 flex-wrap">
-        <div className="flex items-center gap-4">
-          <div className="bg-[#0B3C5D] p-3 rounded-2xl shadow-lg shadow-[#0B3C5D]/20 transform hover:scale-105 transition-transform">
-            <Users size={24} className="text-white" />
+    <div className="p-4 sm:p-8 space-y-10 max-w-[1600px] mx-auto animate-in fade-in slide-in-from-bottom-4 duration-700">
+      {/* Premium Header */}
+      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
+        <div className="flex items-center gap-5">
+          <div className="relative">
+            <div className="bg-[#0B3C5D] p-4 rounded-[2rem] shadow-2xl shadow-[#0B3C5D]/30 transform hover:scale-105 transition-all duration-500">
+              <Users size={28} className="text-white" />
+            </div>
+            <div className="absolute -top-1 -right-1 w-5 h-5 bg-[#D4AF37] rounded-full border-2 border-white shadow-sm flex items-center justify-center">
+              <span className="text-[8px] font-black text-white leading-none">ER</span>
+            </div>
           </div>
           <div>
-            <h1 className="text-2xl font-black text-slate-900 tracking-tight">Student Management</h1>
-            <p className="text-sm text-slate-400 font-medium">Manage and monitor {students.length} active enrollments</p>
+            <h1 className="text-3xl font-black text-slate-900 tracking-tight flex items-center gap-3">
+              Student Directory
+              <span className="text-[10px] bg-[#D4AF37]/10 text-[#D4AF37] px-2 py-0.5 rounded-full border border-[#D4AF37]/20 uppercase tracking-widest font-black">Admin</span>
+            </h1>
+            <p className="text-sm text-slate-400 font-semibold mt-0.5 flex items-center gap-2">
+              <Building2 size={14} className="text-[#D4AF37]" />
+              Multi-campus Student Information System
+            </p>
           </div>
         </div>
-        <div className="flex gap-3">
-          <button className="flex items-center gap-2 bg-slate-100 text-slate-600 px-4 py-2.5 rounded-xl text-sm font-bold hover:bg-slate-200 transition-all active:scale-95">
-            <Download size={16} />
-            Export
+        <div className="flex items-center gap-3">
+          <button className="hidden sm:flex items-center gap-2 bg-white border border-slate-200 text-slate-600 px-5 py-3 rounded-2xl text-sm font-black hover:bg-slate-50 transition-all active:scale-95 shadow-sm">
+            <Download size={18} />
+            Data Export
           </button>
           <button
             onClick={openAdd}
-            className="flex items-center gap-2 bg-[#0B3C5D] text-white px-5 py-2.5 rounded-xl text-sm font-black hover:bg-[#0B3C5D]/90 transition-all shadow-lg shadow-[#0B3C5D]/20 active:scale-95"
+            className="flex-1 sm:flex-none flex items-center justify-center gap-2 bg-[#0B3C5D] text-white px-6 py-3 rounded-2xl text-sm font-black hover:bg-[#0B3C5D]/90 transition-all shadow-xl shadow-[#0B3C5D]/20 active:scale-95 group"
           >
-            <Plus size={18} />
-            Enroll Student
+            <Plus size={20} className="group-hover:rotate-90 transition-transform duration-300" />
+            Enroll New Student
           </button>
         </div>
       </div>
 
-      {/* Stats */}
+      {/* Analytics Grid */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-        <StatCard label="Total Students" value={stats.total} trend="+12% this year" />
-        <StatCard label="Active Status"  value={stats.active}     sub={`${stats.total ? Math.round((stats.active / stats.total) * 100) : 0}% of total`} />
-        <StatCard label="Parent Linked"  value={stats.withParent} sub="Accounts auto-linked" />
-        <StatCard label="Monthly New"   value={stats.newMonth}   trend="New admissions" />
+        <StatCard 
+          label="Total Enrollment" 
+          value={stats.total} 
+          icon={GraduationCap} 
+          trend="Institutional" 
+          color="blue"
+        />
+        <StatCard 
+          label="Top Campus" 
+          value={stats.topCampus?.count || 0} 
+          sub={stats.topCampus?.name || "None"}
+          icon={Building2} 
+          color="gold"
+        />
+        <StatCard 
+          label="Active Scholars" 
+          value={stats.active} 
+          sub={`${stats.total ? Math.round((stats.active / stats.total) * 100) : 0}% Engagement`}
+          icon={CheckCircle2} 
+          color="emerald"
+        />
+        <StatCard 
+          label="Top Course" 
+          value={stats.topCourse?.count || 0} 
+          sub={stats.topCourse?.name || "None"}
+          icon={BookOpen} 
+          color="slate"
+        />
       </div>
 
-      {/* Main Content Area */}
-      <div className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden">
-        {/* Filters Bar */}
-        <div className="p-5 border-b border-slate-100 bg-slate-50/30">
-          <div className="flex flex-wrap gap-4 items-center">
-            <div className="relative flex-1 min-w-[280px]">
-              <Search size={16} className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" />
+      {/* Main Data Container */}
+      <div className="bg-white rounded-[2.5rem] border border-slate-200 shadow-sm overflow-hidden flex flex-col min-h-[600px]">
+        {/* Advanced Filters Bar */}
+        <div className="p-6 border-b border-slate-100 bg-slate-50/30">
+          <div className="flex flex-col xl:flex-row gap-5">
+            {/* Search Input */}
+            <div className="relative flex-1 min-w-0">
+              <Search size={18} className="absolute left-5 top-1/2 -translate-y-1/2 text-slate-400" />
               <input
                 type="text"
-                placeholder="Search by student name or roll number..."
+                placeholder="Search by student name, roll number, or parent..."
                 value={filters.search}
                 onChange={(e) => setFilter("search", e.target.value)}
-                className="w-full pl-11 pr-4 py-3 bg-white border border-slate-200 rounded-2xl text-sm outline-none focus:border-[#0B3C5D] focus:ring-4 focus:ring-[#0B3C5D]/5 transition-all shadow-sm"
+                className="w-full pl-14 pr-6 py-4 bg-white border border-slate-200 rounded-[1.5rem] text-sm font-medium outline-none focus:border-[#0B3C5D] focus:ring-8 focus:ring-[#0B3C5D]/5 transition-all shadow-sm placeholder:text-slate-400"
               />
             </div>
 
-            <div className="flex items-center gap-2 flex-wrap">
-              <div className="flex items-center gap-1.5 bg-white border border-slate-200 rounded-2xl p-1 shadow-sm">
+            {/* Quick Filters */}
+            <div className="flex items-center gap-3 flex-wrap">
+              {/* Campus Selector */}
+              <div className="flex items-center gap-2 bg-white border border-slate-200 rounded-[1.25rem] px-4 py-1.5 shadow-sm hover:border-[#D4AF37] transition-colors group">
+                <Building2 size={16} className="text-slate-400 group-hover:text-[#D4AF37] transition-colors" />
+                <select
+                  value={filters.campus_id}
+                  onChange={(e) => setFilter("campus_id", e.target.value)}
+                  className="bg-transparent text-xs font-black text-slate-700 outline-none cursor-pointer py-2 appearance-none pr-2"
+                >
+                  <option value="">All Campuses</option>
+                  {campuses.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+                </select>
+              </div>
+
+              {/* Course Selector */}
+              <div className="flex items-center gap-2 bg-white border border-slate-200 rounded-[1.25rem] px-4 py-1.5 shadow-sm hover:border-[#0B3C5D] transition-colors group">
+                <BookOpen size={16} className="text-slate-400 group-hover:text-[#0B3C5D] transition-colors" />
                 <select
                   value={filters.course_id}
-                  onChange={(e) => { setFilter("course_id", e.target.value); setFilter("batch_id", ""); }}
-                  className="px-3 py-2 bg-transparent text-sm font-bold text-slate-700 outline-none cursor-pointer"
+                  onChange={(e) => setFilter("course_id", e.target.value)}
+                  className="bg-transparent text-xs font-black text-slate-700 outline-none cursor-pointer py-2 appearance-none pr-2"
                 >
                   <option value="">All Courses</option>
-                  {courses.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+                  {availableCourses.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
                 </select>
-                <div className="w-px h-6 bg-slate-100" />
+              </div>
+
+              {/* Batch Selector */}
+              <div className="flex items-center gap-2 bg-white border border-slate-200 rounded-[1.25rem] px-4 py-1.5 shadow-sm hover:border-[#0B3C5D] transition-colors group">
+                <Users size={16} className="text-slate-400 group-hover:text-[#0B3C5D] transition-colors" />
                 <select
                   value={filters.batch_id}
                   onChange={(e) => setFilter("batch_id", e.target.value)}
-                  className="px-3 py-2 bg-transparent text-sm font-bold text-slate-700 outline-none cursor-pointer"
+                  className="bg-transparent text-xs font-black text-slate-700 outline-none cursor-pointer py-2 appearance-none pr-2"
                 >
                   <option value="">All Batches</option>
                   {availableBatches.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
                 </select>
               </div>
 
-              <select
-                value={filters.status}
-                onChange={(e) => setFilter("status", e.target.value as StudentFilters["status"])}
-                className="px-4 py-2.5 bg-white border border-slate-200 rounded-2xl text-sm font-bold text-slate-700 outline-none cursor-pointer shadow-sm"
-              >
-                <option value="all">Every Status</option>
-                <option value="active">Active Only</option>
-                <option value="inactive">Inactive Only</option>
-              </select>
+              {/* Status Filter */}
+              <div className="flex items-center gap-2 bg-white border border-slate-200 rounded-[1.25rem] px-4 py-1.5 shadow-sm hover:border-[#0B3C5D] transition-colors group">
+                <Filter size={16} className="text-slate-400 group-hover:text-[#0B3C5D] transition-colors" />
+                <select
+                  value={filters.status}
+                  onChange={(e) => setFilter("status", e.target.value as StudentFilters["status"])}
+                  className="bg-transparent text-xs font-black text-slate-700 outline-none cursor-pointer py-2 appearance-none pr-2"
+                >
+                  <option value="all">Any Status</option>
+                  <option value="active">Active Scholars</option>
+                  <option value="inactive">Non-Active</option>
+                </select>
+              </div>
 
               {hasActiveFilters && (
                 <button
                   onClick={resetFilters}
-                  className="flex items-center gap-2 px-4 py-2.5 text-rose-600 hover:bg-rose-50 rounded-2xl text-sm font-black transition-colors"
+                  className="flex items-center gap-2 px-5 py-3 text-rose-600 hover:bg-rose-50 rounded-[1.25rem] text-xs font-black transition-all active:scale-95"
                 >
-                  <RotateCcw size={14} />
-                  Reset
+                  <RotateCcw size={16} />
+                  Clear All
                 </button>
               )}
             </div>
           </div>
         </div>
 
-        {/* Desktop View */}
-        <div className="hidden md:block">
+        {/* Desktop View Table */}
+        <div className="hidden lg:block flex-1 overflow-x-auto">
           {isLoading ? (
             <TableSkeleton />
           ) : filtered.length === 0 ? (
-            <div className="py-24 text-center">
-              <div className="bg-slate-50 w-20 h-20 rounded-3xl flex items-center justify-center mx-auto mb-4 border border-slate-100">
-                <Search size={32} className="text-slate-300" />
+            <div className="py-32 text-center animate-in zoom-in-95 duration-500">
+              <div className="bg-slate-50 w-24 h-24 rounded-[2rem] flex items-center justify-center mx-auto mb-6 border border-slate-100 shadow-inner">
+                <Search size={40} className="text-slate-200" />
               </div>
-              <p className="text-slate-600 font-black text-lg">No students matching your search</p>
+              <p className="text-slate-900 font-black text-xl tracking-tight">No match found</p>
               <p className="text-slate-400 text-sm mt-1 max-w-xs mx-auto font-medium">
-                Try adjusting your filters or search terms to find what you're looking for.
+                Refine your filters or check for typos in the search box.
               </p>
               {hasActiveFilters && (
-                <button onClick={resetFilters} className="mt-6 text-[#0B3C5D] font-black text-sm hover:underline">Clear all filters</button>
+                <button onClick={resetFilters} className="mt-8 text-[#0B3C5D] font-black text-sm hover:underline decoration-2 underline-offset-4">Reset system filters</button>
               )}
             </div>
           ) : (
-            <>
-              <div className="overflow-x-auto">
-                <table className="w-full text-left">
-                  <thead>
-                    <tr className="bg-slate-50/50 border-b border-slate-100">
-                      {[
-                        "Student Profile", "Roll", "Academic Path", "Batch Details",
-                        "Parent/Guard.", "Status", "Performance", "Progress", "Active", "Actions",
-                      ].map((h) => (
-                        <th
-                          key={h}
-                          className={`px-4 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest whitespace-nowrap
-                            ${h.includes("Path") || h.includes("Batch") ? "hidden lg:table-cell" : ""}
-                            ${h.includes("Parent") ? "hidden xl:table-cell" : ""}
-                            ${h.includes("Performance") || h.includes("Progress") ? "hidden md:table-cell" : ""}
-                          `}
-                        >
-                          {h}
-                        </th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-50">
-                    {paginated.map((s) => (
-                      <StudentRow key={s.id} student={s} onEdit={openEdit} />
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-
-              {/* Pagination */}
-              {totalPages > 1 && (
-                <div className="flex items-center justify-between px-6 py-5 bg-slate-50/30 border-t border-slate-100">
-                  <p className="text-xs font-bold text-slate-500">
-                    Showing <span className="text-slate-900">{(page - 1) * PAGE_SIZE + 1}–{Math.min(page * PAGE_SIZE, filtered.length)}</span> of <span className="text-slate-900">{filtered.length}</span> students
-                  </p>
-                  <div className="flex items-center gap-1.5">
-                    <button
-                      onClick={() => setPage((p) => Math.max(1, p - 1))}
-                      disabled={page === 1}
-                      className="px-4 py-2 text-xs font-black rounded-xl border border-slate-200 text-slate-600 hover:bg-white disabled:opacity-40 transition-all active:scale-95"
+            <table className="w-full text-left">
+              <thead>
+                <tr className="bg-slate-50/50 border-b border-slate-100">
+                  {[
+                    "Scholar Profile", "Academic ID", "Campus/Institute", "Academic Path", 
+                    "Primary Guardian", "Current Status", "Academic Performance", "Progress", "Active", "Manage",
+                  ].map((h, i) => (
+                    <th
+                      key={h}
+                      className={`px-6 py-5 text-[10px] font-black text-slate-400 uppercase tracking-[0.15em] whitespace-nowrap
+                        ${i > 1 && i < 8 ? "hidden xl:table-cell" : ""}
+                        ${h.includes("Campus") || h.includes("Path") ? "xl:table-cell" : ""}
+                      `}
                     >
-                      Prev
-                    </button>
-                    <div className="flex gap-1 mx-1">
-                      {Array.from({ length: totalPages }, (_, i) => i + 1)
-                        .filter(p => p === 1 || p === totalPages || Math.abs(p - page) <= 1)
-                        .map((p, i, arr) => (
-                          <div key={p} className="flex items-center">
-                            {i > 0 && arr[i-1] !== p - 1 && <span className="px-1 text-slate-300">...</span>}
-                            <button
-                              onClick={() => setPage(p)}
-                              className={`w-9 h-9 text-xs font-black rounded-xl transition-all active:scale-90 ${
-                                p === page ? "bg-[#0B3C5D] text-white shadow-lg shadow-[#0B3C5D]/20" : "hover:bg-slate-100 text-slate-600"
-                              }`}
-                            >
-                              {p}
-                            </button>
-                          </div>
-                        ))}
-                    </div>
-                    <button
-                      onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-                      disabled={page === totalPages}
-                      className="px-4 py-2 text-xs font-black rounded-xl border border-slate-200 text-slate-600 hover:bg-white disabled:opacity-40 transition-all active:scale-95"
-                    >
-                      Next
-                    </button>
-                  </div>
-                </div>
-              )}
-            </>
+                      {h}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-50">
+                {paginated.map((s) => (
+                  <StudentRow key={s.id} student={s} onEdit={openEdit} />
+                ))}
+              </tbody>
+            </table>
           )}
         </div>
 
-        {/* Mobile Cards View */}
-        <div className="md:hidden p-4 space-y-4 bg-slate-50/30">
+        {/* Mobile/Tablet Card View */}
+        <div className="lg:hidden p-6 space-y-6 bg-slate-50/30 flex-1 overflow-y-auto">
           {isLoading
             ? Array.from({ length: 4 }).map((_, i) => (
-                <div key={i} className="h-44 bg-white rounded-3xl animate-pulse border border-slate-100 shadow-sm" />
+                <div key={i} className="h-56 bg-white rounded-[2rem] animate-pulse border border-slate-100 shadow-sm" />
               ))
             : paginated.map((s) => <MobileCard key={s.id} student={s} onEdit={openEdit} />)}
           
-          {!isLoading && filtered.length > 0 && totalPages > 1 && (
-            <div className="flex justify-center items-center gap-4 pt-4 pb-2">
-              <button onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={page === 1}
-                className="w-12 h-12 flex items-center justify-center rounded-2xl bg-white border border-slate-200 text-slate-600 disabled:opacity-40 shadow-sm">
-                <ChevronRight size={18} className="rotate-180" />
-              </button>
-              <span className="text-xs font-black text-slate-600 bg-white px-4 py-2 rounded-xl border border-slate-200 shadow-sm">
-                Page {page} of {totalPages}
-              </span>
-              <button onClick={() => setPage((p) => Math.min(totalPages, p + 1))} disabled={page === totalPages}
-                className="w-12 h-12 flex items-center justify-center rounded-2xl bg-[#0B3C5D] text-white shadow-lg shadow-[#0B3C5D]/20 disabled:opacity-40">
-                <ChevronRight size={18} />
-              </button>
+          {!isLoading && filtered.length === 0 && (
+            <div className="py-20 text-center">
+              <Search size={32} className="text-slate-200 mx-auto mb-4" />
+              <p className="text-slate-500 font-black">No scholars matching filters</p>
             </div>
           )}
         </div>
+
+        {/* Premium Pagination */}
+        {!isLoading && totalPages > 1 && (
+          <div className="flex flex-col sm:flex-row items-center justify-between px-8 py-6 bg-white border-t border-slate-100 gap-4">
+            <p className="text-[11px] font-bold text-slate-400 uppercase tracking-widest">
+              Visualizing <span className="text-slate-900">{(page - 1) * PAGE_SIZE + 1} – {Math.min(page * PAGE_SIZE, filtered.length)}</span> of <span className="text-slate-900 font-black">{filtered.length}</span> Scholars
+            </p>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setPage((p) => Math.max(1, p - 1))}
+                disabled={page === 1}
+                className="w-12 h-12 flex items-center justify-center rounded-2xl border border-slate-200 text-slate-600 hover:bg-slate-50 disabled:opacity-30 disabled:cursor-not-allowed transition-all active:scale-90"
+              >
+                <ChevronRight size={18} className="rotate-180" />
+              </button>
+              
+              <div className="flex gap-2 mx-2">
+                {Array.from({ length: totalPages }, (_, i) => i + 1)
+                  .filter(p => p === 1 || p === totalPages || Math.abs(p - page) <= 1)
+                  .map((p, i, arr) => (
+                    <div key={p} className="flex items-center">
+                      {i > 0 && arr[i-1] !== p - 1 && <span className="px-2 text-slate-300 font-black">...</span>}
+                      <button
+                        onClick={() => setPage(p)}
+                        className={`w-12 h-12 text-xs font-black rounded-2xl transition-all active:scale-90 ${
+                          p === page 
+                            ? "bg-[#0B3C5D] text-white shadow-xl shadow-[#0B3C5D]/20 scale-110" 
+                            : "bg-white border border-slate-100 hover:bg-slate-50 text-slate-600"
+                        }`}
+                      >
+                        {p}
+                      </button>
+                    </div>
+                  ))}
+              </div>
+
+              <button
+                onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                disabled={page === totalPages}
+                className="w-12 h-12 flex items-center justify-center rounded-2xl bg-[#0B3C5D] text-white shadow-xl shadow-[#0B3C5D]/20 hover:bg-[#0B3C5D]/90 disabled:opacity-30 disabled:cursor-not-allowed transition-all active:scale-90"
+              >
+                <ChevronRight size={18} />
+              </button>
+            </div>
+          </div>
+        )}
       </div>
 
       {modalOpen && <StudentModal student={editing} onClose={closeModal} />}

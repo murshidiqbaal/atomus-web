@@ -18,6 +18,7 @@ export interface ParentLinkResult {
 
 const STUDENT_SELECT = `
   *,
+  campuses:campus_id(id, name),
   courses:course_id(id, name),
   batches:batch_id(id, name),
   parents:parent_id(id, full_name, phone_number, email)
@@ -31,6 +32,7 @@ async function createOrConnectParent(
 ): Promise<ParentLinkResult> {
   if (!name && !email && !phone) return { parent_id: null };
 
+  // 1. Try to find by email if provided
   if (email) {
     const { data: existing } = await supabase
       .from("parents")
@@ -40,6 +42,17 @@ async function createOrConnectParent(
     if (existing) return { parent_id: existing.id };
   }
 
+  // 2. Try to find by phone if provided
+  if (phone) {
+    const { data: existing } = await supabase
+      .from("parents")
+      .select("id")
+      .eq("phone_number", phone)
+      .maybeSingle();
+    if (existing) return { parent_id: existing.id };
+  }
+
+  // 3. If neither email nor phone exists, we can't create/connect (needs at least one for auth)
   if (!email || !phone) {
     return { parent_id: null };
   }

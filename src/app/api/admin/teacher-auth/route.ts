@@ -47,6 +47,8 @@ export async function POST(request: Request) {
     return NextResponse.json({ user_id: data?.user?.id, existed: false });
   }
 
+  // ── Fallback path (no SUPABASE_SERVICE_ROLE_KEY) ───────────────
+  // See parent-auth route for the full rationale. Same three cases.
   const { data, error } = await client.auth.signUp({
     email,
     password,
@@ -55,10 +57,35 @@ export async function POST(request: Request) {
 
   if (error) {
     if (error.message.toLowerCase().includes("already registered")) {
-      return NextResponse.json({ user_id: (data as any)?.user?.id ?? null, existed: true });
+      const recovered = await tryRecoverUserId(client, email, password);
+      if (recovered) return NextResponse.json({ user_id: recovered, existed: true });
     }
     return NextResponse.json({ error: error.message }, { status: 400 });
   }
 
-  return NextResponse.json({ user_id: data?.user?.id, existed: false });
+  if (data?.user?.id) {
+    return NextResponse.json({ user_id: data.user.id, existed: false });
+  }
+
+  const recovered = await tryRecoverUserId(client, email, password);
+  if (recovered) return NextResponse.json({ user_id: recovered, existed: true });
+
+  return NextResponse.json({
+    error:
+      "An account with this email already exists in Supabase Auth but its password is unknown. " +
+      "Set SUPABASE_SERVICE_ROLE_KEY in .env.local so the admin API can create users directly, " +
+      "or delete the orphaned auth.users row from the Supabase dashboard.",
+  }, { status: 409 });
+}
+
+import type { SupabaseClient } from "@supabase/supabase-js";
+
+async function tryRecoverUserId(
+  client: SupabaseClient,
+  email: string,
+  password: string,
+): Promise<string | null> {
+  const { data, error } = await client.auth.signInWithPassword({ email, password });
+  if (error) return null;
+  return data?.user?.id ?? null;
 }

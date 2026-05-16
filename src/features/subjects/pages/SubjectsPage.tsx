@@ -204,18 +204,6 @@ export default function SubjectsPage() {
             ))}
           </select>
 
-          {/* Class Level */}
-          <select
-            value={filters.class_level}
-            onChange={(e) => setFilter("class_level", e.target.value)}
-            className="px-3 py-2 border border-slate-200 rounded-xl text-sm outline-none focus:border-[#0B3C5D] focus:ring-2 focus:ring-[#0B3C5D]/10 bg-white transition-all"
-          >
-            <option value="">All Classes</option>
-            {CLASS_LEVELS.map((l) => (
-              <option key={l} value={l}>Class {l}</option>
-            ))}
-          </select>
-
           {/* Subject Type */}
           <select
             value={filters.subject_type}
