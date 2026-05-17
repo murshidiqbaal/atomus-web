@@ -6,9 +6,10 @@ import {
   Trophy, ArrowUp, ArrowDown, BarChart3, Zap, Edit3,
 } from "lucide-react";
 import {
-  useBatches, useCourses, useExams, useMarks, useSaveMarks,
+  useExams, useMarks, useSaveMarks,
   useStudentsForExam, useSubjects,
 } from "../hooks";
+import { useCampuses, useCoursesByCampus, useAllBatches, useCourses as useGlobalCourses } from "../../students/hooks";
 import { Mark, MarksMap, StudentLite, Grade } from "../types";
 import { Card, EmptyState, fieldCls, Label } from "./ui";
 import { calcPct, getGrade, GRADE_CFG } from "../utils/grade";
@@ -21,6 +22,7 @@ export function MarksEntry({
   onToast: (type: "success" | "error", msg: string) => void;
   onCreateExam: () => void;
 }) {
+  const [selectedCampus, setSelectedCampus] = useState("");
   const [selectedCourse, setSelectedCourse] = useState("");
   const [selectedBatch, setSelectedBatch] = useState("");
   const [selectedSubject, setSelectedSubject] = useState("");
@@ -30,8 +32,19 @@ export function MarksEntry({
   const [hasChanges, setHasChanges] = useState(false);
   const [bulkValue, setBulkValue] = useState<string>("");
 
-  const { data: courses = [] } = useCourses();
-  const { data: batches = [] } = useBatches(selectedCourse);
+  const { data: campuses = [] } = useCampuses();
+  const { data: globalCourses = [] } = useGlobalCourses();
+  const { data: campusCourses = [] } = useCoursesByCampus(selectedCampus);
+  const courses = selectedCampus ? campusCourses : globalCourses;
+
+  const { data: allBatches = [] } = useAllBatches();
+  const batches = useMemo(() => {
+    return allBatches.filter((b) => {
+      if (selectedCampus && b.campus_id !== selectedCampus) return false;
+      if (selectedCourse && b.course_id !== selectedCourse) return false;
+      return true;
+    });
+  }, [allBatches, selectedCampus, selectedCourse]);
   const { data: subjects = [] } = useSubjects(selectedCourse);
   const { data: exams = [] } = useExams(selectedCourse, selectedBatch);
 
@@ -248,7 +261,29 @@ export function MarksEntry({
     <div className="space-y-5">
       {/* Filters */}
       <Card className="p-4">
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-3">
+          <div>
+            <Label optional>Campus</Label>
+            <select
+              value={selectedCampus}
+              onChange={(e) => {
+                setSelectedCampus(e.target.value);
+                setSelectedCourse("");
+                setSelectedBatch("");
+                setSelectedExam("");
+                setSelectedSubject("");
+              }}
+              className={fieldCls}
+            >
+              <option value="">All Campuses</option>
+              {campuses.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.name}
+                </option>
+              ))}
+            </select>
+          </div>
+
           <div>
             <Label>Course</Label>
             <select

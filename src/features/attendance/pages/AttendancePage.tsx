@@ -1,17 +1,13 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { CalendarCheck } from "lucide-react";
 import type { AttendanceFilters as Filters } from "../types";
+import { todayISO } from "../types";
 import { useAttRecords, useAttStudents, useAttSubjects } from "../hooks";
 import { AttendanceFilters } from "../components/AttendanceFilters";
 import { AttendanceGrid } from "../components/AttendanceGrid";
 import { ToastStack, useToasts } from "../components/ui";
-
-function today(): string {
-  const d = new Date();
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-}
 
 export default function AttendancePage() {
   const { toasts, add, dismiss } = useToasts();
@@ -21,10 +17,12 @@ export default function AttendancePage() {
     course_id: "",
     batch_id: "",
     subject_id: "",
-    attendance_date: today(),
+    attendance_date: todayISO(),
   });
 
-  const { data: students = [], isLoading: studentsLoading } = useAttStudents(filters.campus_id, filters.course_id, filters.batch_id);
+  const { data: students = [], isLoading: studentsLoading } = useAttStudents(
+    filters.campus_id, filters.course_id, filters.batch_id,
+  );
   const { data: records = [], isLoading: recordsLoading } = useAttRecords(
     filters.campus_id,
     filters.course_id,
@@ -32,18 +30,25 @@ export default function AttendancePage() {
     filters.attendance_date,
     filters.subject_id || null,
   );
-
   const { data: subjects = [] } = useAttSubjects(filters.course_id);
 
   const isLoading = studentsLoading || recordsLoading;
 
-  const subjectName = filters.subject_id
-    ? subjects.find((s) => s.id === filters.subject_id)?.name || ""
-    : "";
+  const subjectName = useMemo(
+    () =>
+      filters.subject_id
+        ? subjects.find((s) => s.id === filters.subject_id)?.name ?? ""
+        : "",
+    [subjects, filters.subject_id],
+  );
 
-  // Re-mount the grid whenever the filter tuple changes so
-  // local edit state ("overrides") starts fresh per session.
-  const gridKey = `${filters.campus_id}|${filters.course_id}|${filters.batch_id}|${filters.attendance_date}|${filters.subject_id || "overall"}`;
+  // Re-mount the grid whenever the filter tuple changes so local edits
+  // ("overrides") don't bleed across selections.
+  const gridKey = useMemo(
+    () =>
+      `${filters.campus_id}|${filters.course_id}|${filters.batch_id}|${filters.attendance_date}|${filters.subject_id || "overall"}`,
+    [filters],
+  );
 
   return (
     <>
@@ -57,10 +62,10 @@ export default function AttendancePage() {
           </div>
           <div>
             <h1 className="text-xl font-black text-slate-900 leading-tight">
-              Mark Attendance
+              Hourly Attendance
             </h1>
             <p className="text-xs text-slate-400 mt-0.5">
-              Pick campus → course → batch → subject → date, then mark each student.
+              Pick campus → course → batch → subject → date, then tap each hour circle. Changes auto-save.
             </p>
           </div>
         </div>

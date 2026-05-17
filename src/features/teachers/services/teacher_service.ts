@@ -11,20 +11,20 @@ const SELECT = `
   teacher_batches(batches(id, name, course_id))
 `;
 
-async function createAuthUser(args: {
-  email: string;
-  password: string;
-  full_name: string;
-  phone_number: string;
-}): Promise<{ user_id: string | null; existed: boolean }> {
-  const res = await fetch("/api/admin/teacher-auth", {
+async function createTeacherAPI(payload: any): Promise<{ user_id: string; existed: boolean; teacher: Teacher }> {
+  const res = await fetch("/api/create-teacher", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(args),
+    body: JSON.stringify(payload),
   });
   const json = await res.json();
-  if (!res.ok) throw new Error(json.error || "Failed to create teacher auth account");
-  return { user_id: json.user_id ?? null, existed: !!json.existed };
+  if (!res.ok) {
+    if (res.status === 409 && json.error.includes("already exists")) {
+       throw new Error(json.error);
+    }
+    throw new Error(json.error || "Failed to create teacher account");
+  }
+  return { user_id: json.user_id, existed: false, teacher: json.teacher };
 }
 
 function teacherColumns(values: TeacherFormValues) {
@@ -88,23 +88,15 @@ export const teacherService = {
   },
 
   async create(values: TeacherFormValues, photoFile?: File): Promise<CreateTeacherResult> {
-    const password = generateTeacherPassword(values.full_name);
+    const password = values.password || generateTeacherPassword(values.full_name);
 
-    const auth = await createAuthUser({
-      email: values.email,
+    // Call the unified transaction-safe API
+    const auth = await createTeacherAPI({
+      ...teacherColumns(values),
       password,
-      full_name: values.full_name,
-      phone_number: values.phone_number,
     });
 
-    const { data, error } = await supabase
-      .from("teachers")
-      .insert([{ ...teacherColumns(values), auth_id: auth.user_id, password_hash: password }])
-      .select("id")
-      .single();
-    if (error) throw error;
-
-    const teacherId = (data as any).id as string;
+    const teacherId = auth.teacher.id;
 
     let profileUrl: string | null = null;
     if (photoFile) profileUrl = await this.uploadPhoto(photoFile, teacherId);

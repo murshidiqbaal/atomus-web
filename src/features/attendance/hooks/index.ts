@@ -1,49 +1,117 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMemo } from "react";
 import { attendanceService } from "../services/attendance_service";
-import { AttendanceUpsertRow } from "../types";
+import {
+  AttendanceRecord,
+  AttendanceUpsertRow,
+  TeacherProfile,
+} from "../types";
 
 export const QK = {
-  campuses: ["attendance", "campuses"] as const,
-  courses: (campusId: string) => ["attendance", "courses", campusId] as const,
-  batches: (courseId: string, campusId: string) =>
-    ["attendance", "batches", courseId, campusId] as const,
-  subjects: (courseId: string) => ["attendance", "subjects", courseId] as const,
-  students: (campusId: string, courseId: string, batchId: string) => ["attendance", "students", campusId, courseId, batchId] as const,
-  records: (campusId: string, courseId: string, batchId: string, date: string, subjectId: string | null) =>
+  user: ["attendance", "currentUser"] as const,
+  teacher: (authId: string | null) => ["attendance", "teacher", authId] as const,
+  campuses: (campusFilter: string | null) =>
+    ["attendance", "campuses", campusFilter ?? "*"] as const,
+  courses: (campusId: string, restrict: string[] | null) =>
+    ["attendance", "courses", campusId, restrict ? restrict.join(",") : "*"] as const,
+  batches: (courseId: string, campusId: string, restrict: string[] | null) =>
+    ["attendance", "batches", courseId, campusId, restrict ? restrict.join(",") : "*"] as const,
+  subjects: (courseId: string, restrict: string[] | null) =>
+    ["attendance", "subjects", courseId, restrict ? restrict.join(",") : "*"] as const,
+  students: (campusId: string, courseId: string, batchId: string) =>
+    ["attendance", "students", campusId, courseId, batchId] as const,
+  records: (
+    campusId: string,
+    courseId: string,
+    batchId: string,
+    date: string,
+    subjectId: string | null,
+  ) =>
     ["attendance", "records", campusId, courseId, batchId, date, subjectId ?? "overall"] as const,
 };
 
-export function useAttCampuses() {
+export function useCurrentUser() {
   return useQuery({
-    queryKey: QK.campuses,
-    queryFn: () => attendanceService.listCampuses(),
+    queryKey: QK.user,
+    queryFn: () => attendanceService.getCurrentUser(),
+    staleTime: 5 * 60_000,
+  });
+}
+
+export function useTeacherProfile() {
+  const { data: user } = useCurrentUser();
+  return useQuery({
+    queryKey: QK.teacher(user?.id ?? null),
+    queryFn: () => attendanceService.getTeacherProfile(user!.id),
+    enabled: user?.role === "teacher",
+    staleTime: 5 * 60_000,
+  });
+}
+
+export function useTeacherRestrictions() {
+  const { data: user } = useCurrentUser();
+  const { data: teacher } = useTeacherProfile();
+
+  return useMemo(() => {
+    if (user?.role !== "teacher") {
+      return {
+        isTeacher: false,
+        ready: !!user,
+        teacher: null as TeacherProfile | null,
+        campusFilter: null as string | null,
+        courseFilter: null as string[] | null,
+        batchFilter: null as string[] | null,
+        subjectFilter: null as string[] | null,
+      };
+    }
+    return {
+      isTeacher: true,
+      ready: !!teacher,
+      teacher: teacher ?? null,
+      campusFilter: teacher?.campus_id ?? null,
+      courseFilter: teacher?.course_ids ?? [],
+      batchFilter: teacher?.batch_ids ?? [],
+      subjectFilter: teacher?.subject_ids ?? [],
+    };
+  }, [user, teacher]);
+}
+
+export function useAttCampuses() {
+  const r = useTeacherRestrictions();
+  return useQuery({
+    queryKey: QK.campuses(r.campusFilter),
+    queryFn: () => attendanceService.listCampuses(r.campusFilter),
+    enabled: r.ready,
     staleTime: 5 * 60_000,
   });
 }
 
 export function useAttCourses(campus_id: string) {
+  const r = useTeacherRestrictions();
   return useQuery({
-    queryKey: QK.courses(campus_id),
-    queryFn: () => attendanceService.listCoursesByCampus(campus_id),
-    enabled: !!campus_id,
+    queryKey: QK.courses(campus_id, r.courseFilter),
+    queryFn: () => attendanceService.listCoursesByCampus(campus_id, r.courseFilter),
+    enabled: !!campus_id && r.ready,
     staleTime: 60_000,
   });
 }
 
 export function useAttBatches(course_id: string, campus_id: string) {
+  const r = useTeacherRestrictions();
   return useQuery({
-    queryKey: QK.batches(course_id, campus_id),
-    queryFn: () => attendanceService.listBatchesByCourseAndCampus(course_id, campus_id),
-    enabled: !!course_id && !!campus_id,
+    queryKey: QK.batches(course_id, campus_id, r.batchFilter),
+    queryFn: () => attendanceService.listBatchesByCourseAndCampus(course_id, campus_id, r.batchFilter),
+    enabled: !!course_id && !!campus_id && r.ready,
     staleTime: 60_000,
   });
 }
 
 export function useAttSubjects(course_id: string) {
+  const r = useTeacherRestrictions();
   return useQuery({
-    queryKey: QK.subjects(course_id),
-    queryFn: () => attendanceService.listSubjectsByCourse(course_id),
-    enabled: !!course_id,
+    queryKey: QK.subjects(course_id, r.subjectFilter),
+    queryFn: () => attendanceService.listSubjectsByCourse(course_id, r.subjectFilter),
+    enabled: !!course_id && r.ready,
     staleTime: 60_000,
   });
 }
@@ -52,6 +120,7 @@ export function useAttStudents(campus_id: string, course_id: string, batch_id: s
   return useQuery({
     queryKey: QK.students(campus_id, course_id, batch_id),
     queryFn: () => attendanceService.listStudents({ campus_id, course_id, batch_id }),
+    enabled: !!(campus_id || course_id || batch_id),
     staleTime: 30_000,
   });
 }
@@ -65,12 +134,26 @@ export function useAttRecords(
 ) {
   return useQuery({
     queryKey: QK.records(campus_id, course_id, batch_id, attendance_date, subject_id),
-    queryFn: () => attendanceService.listAttendance({ campus_id, course_id, batch_id, attendance_date, subject_id }),
-    enabled: !!attendance_date,
+    queryFn: () =>
+      attendanceService.listAttendance({
+        campus_id,
+        course_id,
+        batch_id,
+        attendance_date,
+        subject_id,
+      }),
+    enabled: !!attendance_date && !!(campus_id || course_id || batch_id),
     staleTime: 10_000,
   });
 }
 
+/**
+ * Auto-save mutation with optimistic cache update.
+ *
+ * On mutate: patches the records cache so the UI reflects the save without
+ * waiting on the network. On success: invalidates to pick up server truth
+ * (ids, timestamps). On error: rolls back to the snapshot.
+ */
 export function useSaveAttendance(
   campus_id: string,
   course_id: string,
@@ -79,10 +162,68 @@ export function useSaveAttendance(
   subject_id: string | null,
 ) {
   const qc = useQueryClient();
+  const key = QK.records(campus_id, course_id, batch_id, attendance_date, subject_id);
+
   return useMutation({
     mutationFn: (rows: AttendanceUpsertRow[]) => attendanceService.upsertAttendance(rows),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: QK.records(campus_id, course_id, batch_id, attendance_date, subject_id) });
+
+    onMutate: async (rows) => {
+      await qc.cancelQueries({ queryKey: key });
+      const prev = qc.getQueryData<AttendanceRecord[]>(key) ?? [];
+
+      // Build a lookup keyed by (student, period) for O(1) patching.
+      const lookup = new Map<string, number>();
+      prev.forEach((r, idx) => {
+        lookup.set(`${r.student_id}|${r.period_number}`, idx);
+      });
+
+      const next = prev.slice();
+      for (const r of rows) {
+        const k = `${r.student_id}|${r.period_number}`;
+        const idx = lookup.get(k);
+        if (idx != null) {
+          next[idx] = {
+            ...next[idx],
+            status: r.status,
+            remarks: r.remarks ?? next[idx].remarks,
+            period_label: r.period_label ?? next[idx].period_label,
+            teacher_id: r.teacher_id ?? next[idx].teacher_id,
+            marked_by: r.marked_by ?? next[idx].marked_by,
+            updated_at: new Date().toISOString(),
+          };
+        } else {
+          // Synthetic optimistic row — replaced after invalidation succeeds.
+          next.push({
+            id: `optimistic-${k}-${Date.now()}`,
+            student_id: r.student_id,
+            campus_id: r.campus_id,
+            course_id: r.course_id,
+            batch_id: r.batch_id,
+            subject_id: r.subject_id,
+            teacher_id: r.teacher_id ?? null,
+            attendance_date: r.attendance_date,
+            period_number: r.period_number,
+            period_label: r.period_label ?? null,
+            status: r.status,
+            remarks: r.remarks ?? null,
+            marked_by: r.marked_by ?? null,
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+          });
+          lookup.set(k, next.length - 1);
+        }
+      }
+
+      qc.setQueryData(key, next);
+      return { prev };
+    },
+
+    onError: (_err, _rows, ctx) => {
+      if (ctx?.prev) qc.setQueryData(key, ctx.prev);
+    },
+
+    onSettled: () => {
+      qc.invalidateQueries({ queryKey: key });
     },
   });
 }

@@ -1,25 +1,25 @@
 "use client";
 
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Search, RotateCcw, CheckCircle2, XCircle, Clock, Calendar, MinusCircle,
-  Save, Loader2, Users,
+  Loader2, Users, BookMarked, AlertTriangle, CalendarPlus,
 } from "lucide-react";
 import type {
-  AttendanceFilters, AttendanceRecord, AttendanceStatus, StudentLite,
+  AttendanceFilters, AttendanceRecord, AttendanceStatus,
+  AttendanceUpsertRow, StudentLite,
 } from "../types";
-import { STATUS_KEY } from "../types";
-import { useSaveAttendance } from "../hooks";
-import { AttendanceRow } from "./AttendanceRow";
+import {
+  cycleStatus, defaultPeriods, isFutureDate, DEFAULT_PERIOD_COUNT,
+} from "../types";
+import { useSaveAttendance, useTeacherRestrictions } from "../hooks";
+import { StudentPeriodCard } from "./StudentPeriodCard";
 import { Card, EmptyState, fieldCls, STATUS_CFG } from "./ui";
 
-interface RowState {
-  status: AttendanceStatus;
-  remarks: string;
-}
-
-const FILTER_STATUSES = ["All", "Present", "Absent", "Late", "Unmarked"] as const;
+const FILTER_STATUSES = ["All", "Present", "Absent", "Late", "Leave", "Unmarked"] as const;
 type StatusFilter = (typeof FILTER_STATUSES)[number];
+
+const AUTO_SAVE_DELAY_MS = 800;
 
 interface Props {
   filters: AttendanceFilters;
@@ -30,133 +30,260 @@ interface Props {
   onToast: (type: "success" | "error", msg: string) => void;
 }
 
+type Pending = Record<string, AttendanceStatus>; // cellKey → status
+
 export function AttendanceGrid({
   filters, students, records, isLoading, subjectName, onToast,
 }: Props) {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("All");
-  const [overrides, setOverrides] = useState<Record<string, RowState>>({});
-  const tableRef = useRef<HTMLTableElement>(null);
 
+  // Dirty cells waiting for the debounced flush. Cleared on successful save.
+  const [pending, setPending] = useState<Pending>({});
+  // Cells currently being POSTed — used for the pulsing indicator.
+  const [inFlight, setInFlight] = useState<Set<string>>(new Set());
+
+  const periods = useMemo(() => defaultPeriods(DEFAULT_PERIOD_COUNT), []);
+
+  const teacherCtx = useTeacherRestrictions();
   const subjectId = filters.subject_id || null;
-  const saveMut = useSaveAttendance(filters.campus_id, filters.course_id, filters.batch_id, filters.attendance_date, subjectId);
+  const isOverallMode = !subjectId;
+  const futureBlocked = isFutureDate(filters.attendance_date);
+  const teacherBlocked = teacherCtx.isTeacher && isOverallMode;
+  const editingBlocked = futureBlocked || teacherBlocked;
 
-  // Server-side truth derived from the records query.
-  const serverMap = useMemo(() => {
-    const map: Record<string, RowState> = {};
+  const saveMut = useSaveAttendance(
+    filters.campus_id, filters.course_id, filters.batch_id,
+    filters.attendance_date, subjectId,
+  );
+
+  // ── Derived: server truth indexed by (student, period) ────────
+  const serverByCell = useMemo(() => {
+    const map: Record<string, AttendanceStatus> = {};
     for (const r of records) {
-      map[r.student_id] = { status: r.status, remarks: r.remarks ?? "" };
+      map[`${r.student_id}|${r.period_number}`] = r.status;
     }
     return map;
   }, [records]);
 
-  const defaultRemarks = subjectName ? subjectName : "";
+  // The status the UI should display: pending edit > server > Unmarked.
+  const statusFor = useCallback(
+    (studentId: string, period: number): AttendanceStatus => {
+      const k = `${studentId}|${period}`;
+      return pending[k] ?? serverByCell[k] ?? "Unmarked";
+    },
+    [pending, serverByCell],
+  );
 
-  // What the UI shows: server values with local edits layered on top.
-  const display = useMemo(() => {
-    const out: Record<string, RowState> = {};
+  // Build a per-student period→status snapshot for the visible card.
+  const snapshotFor = useCallback(
+    (studentId: string): Record<number, AttendanceStatus> => {
+      const out: Record<number, AttendanceStatus> = {};
+      for (const p of periods) out[p.number] = statusFor(studentId, p.number);
+      return out;
+    },
+    [periods, statusFor],
+  );
+
+  const pendingPeriodsFor = useCallback(
+    (studentId: string): Set<number> => {
+      const set = new Set<number>();
+      for (const p of periods) {
+        if (inFlight.has(`${studentId}|${p.number}`)) set.add(p.number);
+      }
+      return set;
+    },
+    [periods, inFlight],
+  );
+
+  // ── Page-wide stats (across every visible student × period cell) ─
+  const stats = useMemo(() => {
+    const out = { Present: 0, Absent: 0, Late: 0, Leave: 0, Unmarked: 0 };
     for (const s of students) {
-      out[s.id] = overrides[s.id] ?? serverMap[s.id] ?? { status: "Unmarked", remarks: defaultRemarks };
+      for (const p of periods) {
+        out[statusFor(s.id, p.number)]++;
+      }
     }
     return out;
-  }, [students, serverMap, overrides, defaultRemarks]);
+  }, [students, periods, statusFor]);
 
-  const hasChanges = useMemo(() => {
-    for (const id in overrides) {
-      const o = overrides[id];
-      const srv = serverMap[id] ?? { status: "Unmarked", remarks: defaultRemarks };
-      if (o.status !== srv.status || (o.remarks ?? "") !== (srv.remarks ?? "")) return true;
+  const totalCells = students.length * periods.length;
+
+  // ── Debounced auto-save ────────────────────────────────────────
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const studentLookup = useMemo(
+    () => new Map(students.map((s) => [s.id, s] as const)),
+    [students],
+  );
+
+  const flush = useCallback(() => {
+    timerRef.current = null;
+
+    setPending((cur) => {
+      if (Object.keys(cur).length === 0) return cur;
+      if (editingBlocked) return cur;
+
+      const teacherIdForRow = teacherCtx.isTeacher ? teacherCtx.teacher?.id ?? null : null;
+      const rows: AttendanceUpsertRow[] = [];
+      const keys: string[] = [];
+
+      for (const [k, status] of Object.entries(cur)) {
+        const [studentId, pStr] = k.split("|");
+        const student = studentLookup.get(studentId);
+        if (!student) continue;
+        const period = Number(pStr);
+        const periodMeta = periods.find((p) => p.number === period);
+
+        rows.push({
+          student_id: student.id,
+          campus_id: student.campus_id || filters.campus_id || null,
+          course_id: student.course_id || filters.course_id || null,
+          batch_id: student.batch_id || filters.batch_id || null,
+          subject_id: subjectId,
+          teacher_id: teacherIdForRow,
+          attendance_date: filters.attendance_date,
+          period_number: period,
+          period_label: periodMeta?.label ?? null,
+          status,
+          remarks: null,
+        });
+        keys.push(k);
+      }
+
+      if (rows.length === 0) return cur;
+
+      setInFlight((prev) => {
+        const next = new Set(prev);
+        for (const k of keys) next.add(k);
+        return next;
+      });
+
+      saveMut.mutate(rows, {
+        onSuccess: () => {
+          setInFlight((prev) => {
+            const next = new Set(prev);
+            for (const k of keys) next.delete(k);
+            return next;
+          });
+          setPending((p) => {
+            const next = { ...p };
+            for (const k of keys) {
+              // Only drop if the user hasn't tapped this cell again since
+              // the save started (would have a different status value).
+              if (next[k] !== undefined && next[k] === cur[k]) delete next[k];
+            }
+            return next;
+          });
+        },
+        onError: (err) => {
+          setInFlight((prev) => {
+            const next = new Set(prev);
+            for (const k of keys) next.delete(k);
+            return next;
+          });
+          onToast("error", err instanceof Error ? err.message : "Failed to save.");
+          // Leave the pending entries so the user can retry by tapping again
+          // or via the explicit Save button.
+        },
+      });
+
+      // Return cur unchanged — entries cleared on save success above.
+      return cur;
+    });
+  }, [
+    editingBlocked, teacherCtx, periods, filters, subjectId, studentLookup,
+    saveMut, onToast,
+  ]);
+
+  const scheduleFlush = useCallback(() => {
+    if (timerRef.current) clearTimeout(timerRef.current);
+    timerRef.current = setTimeout(flush, AUTO_SAVE_DELAY_MS);
+  }, [flush]);
+
+  // Flush any outstanding edits when the user leaves the page or switches
+  // filters (which unmounts the grid via the parent's `key`).
+  useEffect(() => {
+    return () => {
+      if (timerRef.current) {
+        clearTimeout(timerRef.current);
+        flush();
+      }
+    };
+  }, [flush]);
+
+  // ── Edit handlers ─────────────────────────────────────────────
+  const cycleCell = useCallback((studentId: string, period: number) => {
+    if (editingBlocked) {
+      if (futureBlocked) onToast("error", "Future attendance cannot be marked.");
+      else if (teacherBlocked) onToast("error", "Teachers can't mark Overall — pick a subject.");
+      return;
     }
-    return false;
-  }, [overrides, serverMap, defaultRemarks]);
+    const k = `${studentId}|${period}`;
+    const current = pending[k] ?? serverByCell[k] ?? "Unmarked";
+    const next = cycleStatus(current);
+    setPending((p) => ({ ...p, [k]: next }));
+    scheduleFlush();
+  }, [
+    editingBlocked, futureBlocked, teacherBlocked, pending, serverByCell,
+    scheduleFlush, onToast,
+  ]);
 
-  // Reset overrides whenever the (batch, date, subject) tuple shifts.
-  // The parent re-mounts the grid in that case by changing its key, so
-  // overrides start fresh per session.
-
-  const setStatus = useCallback((studentId: string, next: AttendanceStatus) => {
-    setOverrides((p) => ({
-      ...p,
-      [studentId]: { ...(p[studentId] ?? { status: next, remarks: serverMap[studentId]?.remarks ?? defaultRemarks }), status: next },
-    }));
-  }, [serverMap, defaultRemarks]);
-
-  const setRemarks = useCallback((studentId: string, next: string) => {
-    setOverrides((p) => ({
-      ...p,
-      [studentId]: { ...(p[studentId] ?? { status: serverMap[studentId]?.status ?? "Unmarked", remarks: next }), remarks: next },
-    }));
-  }, [serverMap]);
-
-  const bulk = useCallback((status: AttendanceStatus) => {
-    setOverrides((p) => {
+  const markRow = useCallback((studentId: string, status: AttendanceStatus) => {
+    if (editingBlocked) return;
+    setPending((p) => {
       const next = { ...p };
-      for (const s of students) {
-        const cur = next[s.id] ?? serverMap[s.id] ?? { status: "Unmarked", remarks: defaultRemarks };
-        next[s.id] = { ...cur, status };
+      for (const period of periods) {
+        next[`${studentId}|${period.number}`] = status;
       }
       return next;
     });
-  }, [students, serverMap, defaultRemarks]);
+    scheduleFlush();
+  }, [editingBlocked, periods, scheduleFlush]);
 
-  const reset = useCallback(() => {
-    setOverrides({});
-  }, []);
-
-  // ── Save ──────────────────────────────────────────────────────
-  const handleSave = useCallback(() => {
-    if (!filters.attendance_date) return;
-    const rows = students.map((s) => {
-      const d = display[s.id];
-      return {
-        student_id: s.id,
-        campus_id: s.campus_id || filters.campus_id,
-        course_id: s.course_id || filters.course_id,
-        batch_id: s.batch_id || filters.batch_id,
-        subject_id: filters.subject_id || null,
-        attendance_date: filters.attendance_date,
-        status: d.status,
-        remarks: d.remarks?.trim() || null,
-      };
+  const resetRow = useCallback((studentId: string) => {
+    if (editingBlocked) return;
+    setPending((p) => {
+      const next = { ...p };
+      for (const period of periods) {
+        next[`${studentId}|${period.number}`] = "Unmarked";
+      }
+      return next;
     });
-    saveMut.mutate(rows, {
-      onSuccess: () => {
-        onToast("success", `Saved attendance for ${rows.length} student${rows.length === 1 ? "" : "s"}.`);
-        setOverrides({});
-      },
-      onError: (err) => {
-        onToast("error", err instanceof Error ? err.message : "Failed to save attendance.");
-      },
+    scheduleFlush();
+  }, [editingBlocked, periods, scheduleFlush]);
+
+  const markAll = useCallback((status: AttendanceStatus) => {
+    if (editingBlocked) return;
+    setPending((p) => {
+      const next = { ...p };
+      for (const s of students) {
+        for (const period of periods) {
+          next[`${s.id}|${period.number}`] = status;
+        }
+      }
+      return next;
     });
-  }, [students, display, filters, saveMut, onToast]);
+    scheduleFlush();
+  }, [editingBlocked, students, periods, scheduleFlush]);
 
-  // ── Keyboard nav: ArrowUp/Down moves focus; P/A/L/V sets status. ─
-  // Listener lives on the <table> so each row doesn't need its own handler.
-  const handleTableKey = (e: React.KeyboardEvent<HTMLTableElement>) => {
-    const tr = (e.target as HTMLElement).closest("tr[data-row]") as HTMLTableRowElement | null;
-    if (!tr) return;
-    const rowIndex = Number(tr.dataset.row);
-    const ids = filteredIds;
-    const id = ids[rowIndex];
-    if (!id) return;
+  const resetAll = useCallback(() => {
+    if (editingBlocked) return;
+    setPending((p) => {
+      const next = { ...p };
+      for (const s of students) {
+        for (const period of periods) {
+          next[`${s.id}|${period.number}`] = "Unmarked";
+        }
+      }
+      return next;
+    });
+    scheduleFlush();
+  }, [editingBlocked, students, periods, scheduleFlush]);
 
-    const key = e.key;
-    if (key === "ArrowDown" || key === "ArrowUp" || key === "Enter") {
-      e.preventDefault();
-      const delta = key === "ArrowUp" ? -1 : 1;
-      const nextIdx = Math.max(0, Math.min(ids.length - 1, rowIndex + delta));
-      tableRef.current?.querySelector<HTMLTableRowElement>(`tr[data-row="${nextIdx}"]`)?.focus();
-      return;
-    }
-    const mapped = STATUS_KEY[key];
-    if (mapped) {
-      e.preventDefault();
-      setStatus(id, mapped);
-    }
-  };
+  const pendingCount = Object.keys(pending).length;
 
-  // ── Search & status filter ─────────────────────────────────────
-  const filtered = useMemo(() => {
+  // ── Search & filter ───────────────────────────────────────────
+  const visibleStudents = useMemo(() => {
     const q = search.trim().toLowerCase();
     return students.filter((s) => {
       if (q) {
@@ -164,47 +291,60 @@ export function AttendanceGrid({
         const inRoll = (s.roll_number ?? "").toLowerCase().includes(q);
         if (!inName && !inRoll) return false;
       }
-      if (statusFilter !== "All" && display[s.id].status !== statusFilter) return false;
+      if (statusFilter !== "All") {
+        // Match if ANY period in the row matches the filter status.
+        let hit = false;
+        for (const p of periods) {
+          if (statusFor(s.id, p.number) === statusFilter) { hit = true; break; }
+        }
+        if (!hit) return false;
+      }
       return true;
     });
-  }, [students, search, statusFilter, display]);
+  }, [students, search, statusFilter, periods, statusFor]);
 
-  const filteredIds = filtered.map((s) => s.id);
-
-  // ── Stats ─────────────────────────────────────────────────────
-  const stats = useMemo(() => {
-    const out = { Present: 0, Absent: 0, Late: 0, Unmarked: 0 };
-    for (const s of students) out[display[s.id].status]++;
-    return out;
-  }, [students, display]);
-
-  const total = students.length;
-
+  // ── Guards ────────────────────────────────────────────────────
   if (!filters.attendance_date) {
     return (
       <EmptyState
         icon={<Calendar size={26} />}
         title="Pick attendance date"
-        hint="The attendance grid will appear once you've selected a date."
+        hint="The hourly attendance grid will appear once you've selected a date."
+      />
+    );
+  }
+  if (!filters.batch_id) {
+    return (
+      <EmptyState
+        icon={<Users size={26} />}
+        title="Pick a batch to start"
+        hint="Select campus → course → batch and the students will load."
       />
     );
   }
 
   if (isLoading) {
     return (
-      <Card>
-        {Array(6).fill(0).map((_, i) => (
-          <div key={i} className="flex items-center gap-3 px-5 py-3.5 border-b border-slate-100 animate-pulse">
-            <div className="w-8 h-8 rounded-lg bg-slate-100 shrink-0" />
-            <div className="flex-1 space-y-1.5">
-              <div className="h-3.5 bg-slate-100 rounded w-44" />
-              <div className="h-2.5 bg-slate-100 rounded w-24" />
-            </div>
-            <div className="flex gap-1">
-              {Array(4).fill(0).map((_, j) => <div key={j} className="w-8 h-8 rounded-full bg-slate-100" />)}
-            </div>
-          </div>
-        ))}
+      <Card className="p-3">
+        <ul className="space-y-2">
+          {Array(6).fill(0).map((_, i) => (
+            <li
+              key={i}
+              className="flex items-center gap-3 px-3 py-3.5 border border-slate-100 rounded-2xl animate-pulse"
+            >
+              <div className="w-9 h-9 rounded-xl bg-slate-100 shrink-0" />
+              <div className="flex-1 space-y-1.5">
+                <div className="h-3.5 bg-slate-100 rounded w-44" />
+                <div className="h-2.5 bg-slate-100 rounded w-24" />
+              </div>
+              <div className="flex gap-2">
+                {Array(DEFAULT_PERIOD_COUNT).fill(0).map((_, j) => (
+                  <div key={j} className="w-11 h-11 rounded-full bg-slate-100" />
+                ))}
+              </div>
+            </li>
+          ))}
+        </ul>
       </Card>
     );
   }
@@ -219,14 +359,53 @@ export function AttendanceGrid({
     );
   }
 
+  // ── Render ────────────────────────────────────────────────────
   return (
     <div className="space-y-4">
-      {/* Summary cards */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        <SummaryCard label="Present" count={stats.Present} total={total} status="Present" icon={<CheckCircle2 size={16} />} />
-        <SummaryCard label="Absent" count={stats.Absent} total={total} status="Absent" icon={<XCircle size={16} />} />
-        <SummaryCard label="Late" count={stats.Late} total={total} status="Late" icon={<Clock size={16} />} />
-        <SummaryCard label="Unmarked" count={stats.Unmarked} total={total} status="Unmarked" icon={<MinusCircle size={16} />} />
+      {/* Mode + auto-save banner */}
+      <div className="flex items-center justify-between flex-wrap gap-2 px-1">
+        <div className="inline-flex items-center gap-2 text-xs text-slate-500">
+          <BookMarked size={13} className={isOverallMode ? "text-slate-400" : "text-[#0B3C5D]"} />
+          <span className="font-semibold text-slate-700">
+            {isOverallMode ? "Overall attendance" : subjectName || "Subject attendance"}
+          </span>
+          <span className="text-slate-300">·</span>
+          <CalendarPlus size={12} className="text-slate-400" />
+          <span>{filters.attendance_date}</span>
+          <span className="text-slate-300">·</span>
+          <span>{DEFAULT_PERIOD_COUNT} periods</span>
+        </div>
+        <div className="inline-flex items-center gap-2 text-[11px] font-bold">
+          {editingBlocked ? (
+            <span className="inline-flex items-center gap-1.5 text-amber-700 bg-amber-50 border border-amber-200 px-2.5 py-1 rounded-lg">
+              <AlertTriangle size={12} />
+              {futureBlocked
+                ? "Future date — editing disabled"
+                : "Teachers can't mark Overall — pick a subject"}
+            </span>
+          ) : saveMut.isPending || inFlight.size > 0 ? (
+            <span className="inline-flex items-center gap-1.5 text-[#0B3C5D] bg-blue-50 border border-blue-200 px-2.5 py-1 rounded-lg">
+              <Loader2 size={12} className="animate-spin" />
+              Saving…
+            </span>
+          ) : pendingCount > 0 ? (
+            <span className="inline-flex items-center gap-1.5 text-amber-700 bg-amber-50 border border-amber-200 px-2.5 py-1 rounded-lg">
+              <Loader2 size={12} className="animate-pulse" />
+              {pendingCount} pending
+            </span>
+          ) : (
+            <span className="text-emerald-600">All changes saved</span>
+          )}
+        </div>
+      </div>
+
+      {/* Stat summary */}
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-2.5">
+        <StatCard label="Present" count={stats.Present} total={totalCells} status="Present" icon={<CheckCircle2 size={14} />} />
+        <StatCard label="Absent"  count={stats.Absent}  total={totalCells} status="Absent"  icon={<XCircle size={14} />} />
+        <StatCard label="Late"    count={stats.Late}    total={totalCells} status="Late"    icon={<Clock size={14} />} />
+        <StatCard label="Leave"   count={stats.Leave}   total={totalCells} status="Leave"   icon={<CalendarPlus size={14} />} />
+        <StatCard label="Unmarked" count={stats.Unmarked} total={totalCells} status="Unmarked" icon={<MinusCircle size={14} />} />
       </div>
 
       {/* Toolbar */}
@@ -253,90 +432,66 @@ export function AttendanceGrid({
                     ? "bg-white text-[#0B3C5D] shadow-sm"
                     : "text-slate-500 hover:text-slate-700"}`}
               >
-                {s}{s !== "All" && <span className="ml-1 opacity-60">{stats[s as AttendanceStatus]}</span>}
+                {s}
+                {s !== "All" && (
+                  <span className="ml-1 opacity-60">{stats[s as AttendanceStatus]}</span>
+                )}
               </button>
             ))}
           </div>
 
           <div className="flex items-center gap-1.5 ml-auto flex-wrap">
-            <BulkButton onClick={() => bulk("Present")} tone="emerald"><CheckCircle2 size={13} /> All Present</BulkButton>
-            <BulkButton onClick={() => bulk("Absent")} tone="rose"><XCircle size={13} /> All Absent</BulkButton>
-            <BulkButton onClick={reset} tone="slate" disabled={!hasChanges}><RotateCcw size={13} /> Reset edits</BulkButton>
+            <BulkButton tone="emerald" disabled={editingBlocked} onClick={() => markAll("Present")}>
+              <CheckCircle2 size={13} /> All Present
+            </BulkButton>
+            <BulkButton tone="rose" disabled={editingBlocked} onClick={() => markAll("Absent")}>
+              <XCircle size={13} /> All Absent
+            </BulkButton>
+            <BulkButton tone="slate" disabled={editingBlocked || pendingCount === 0 && totalCells === 0} onClick={resetAll}>
+              <RotateCcw size={13} /> Reset all
+            </BulkButton>
             <button
-              onClick={handleSave}
-              disabled={!hasChanges || saveMut.isPending}
+              type="button"
+              onClick={flush}
+              disabled={pendingCount === 0 || editingBlocked || saveMut.isPending}
               className="inline-flex items-center gap-1.5 px-3.5 py-2 text-sm font-bold text-white
                          bg-[#0B3C5D] rounded-xl hover:bg-[#0B3C5D]/90 transition-all
                          shadow-md shadow-blue-900/20 disabled:opacity-50 disabled:cursor-not-allowed active:scale-[0.98]"
             >
-              {saveMut.isPending ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
-              {hasChanges ? "Save" : "Saved"}
+              {saveMut.isPending ? <Loader2 size={14} className="animate-spin" /> : null}
+              {pendingCount > 0 ? `Save now (${pendingCount})` : "Saved"}
             </button>
           </div>
         </div>
-        {hasChanges && (
-          <p className="mt-2 text-[11px] font-bold text-amber-600">
-            Unsaved changes — press Save or use Ctrl+S.
-          </p>
-        )}
       </Card>
 
-      {/* Table */}
-      <Card className="overflow-hidden">
-        <div className="px-5 py-3 border-b border-slate-100 bg-slate-50/60 flex items-center justify-between">
-          <p className="text-[11px] font-bold uppercase tracking-widest text-slate-400">
-            {filtered.length} of {total} students
-          </p>
-          <p className="hidden md:block text-[11px] text-slate-400">
-            Tip: <kbd className="px-1.5 py-0.5 bg-white border border-slate-200 rounded font-mono text-[10px]">P</kbd>{" "}/{" "}
-            <kbd className="px-1.5 py-0.5 bg-white border border-slate-200 rounded font-mono text-[10px]">A</kbd>{" "}/{" "}
-            <kbd className="px-1.5 py-0.5 bg-white border border-slate-200 rounded font-mono text-[10px]">L</kbd>{" "}
-            to set status · <kbd className="px-1.5 py-0.5 bg-white border border-slate-200 rounded font-mono text-[10px]">↑↓</kbd> to navigate
-          </p>
-        </div>
-        <div className="overflow-x-auto max-h-[65vh] overflow-y-auto">
-          <table
-            ref={tableRef}
-            onKeyDown={handleTableKey}
-            className="w-full text-left border-collapse"
-          >
-            <thead className="sticky top-0 z-10 bg-slate-50 backdrop-blur">
-              <tr className="border-b border-slate-200">
-                <th className="py-3 px-4 text-[11px] font-bold uppercase tracking-widest text-slate-500 w-24">Roll</th>
-                <th className="py-3 px-4 text-[11px] font-bold uppercase tracking-widest text-slate-500">Student</th>
-                <th className="py-3 px-4 text-[11px] font-bold uppercase tracking-widest text-slate-500 w-56">Status</th>
-                <th className="py-3 px-4 text-[11px] font-bold uppercase tracking-widest text-slate-500">Remarks</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filtered.length === 0 ? (
-                <tr>
-                  <td colSpan={4} className="py-10 text-center text-sm text-slate-400">
-                    No students match the current filters.
-                  </td>
-                </tr>
-              ) : (
-                filtered.map((s, idx) => (
-                  <AttendanceRow
-                    key={s.id}
-                    rowIndex={idx}
-                    student={s}
-                    status={display[s.id].status}
-                    remarks={display[s.id].remarks}
-                    onStatus={setStatus}
-                    onRemarks={setRemarks}
-                  />
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
-      </Card>
+      {/* Cards */}
+      <ul className="space-y-2">
+        {visibleStudents.length === 0 ? (
+          <Card className="py-8 text-center text-sm text-slate-400">
+            No students match the current filters.
+          </Card>
+        ) : (
+          visibleStudents.map((s) => (
+            <StudentPeriodCard
+              key={s.id}
+              student={s}
+              periods={periods}
+              statusByPeriod={snapshotFor(s.id)}
+              pendingPeriods={pendingPeriodsFor(s.id)}
+              disabled={editingBlocked}
+              onCellTap={cycleCell}
+              onMarkRow={markRow}
+              onResetRow={resetRow}
+            />
+          ))
+        )}
+      </ul>
     </div>
   );
 }
 
-function SummaryCard({
+function StatCard({
   label, count, total, status, icon,
 }: {
   label: string;
@@ -348,15 +503,21 @@ function SummaryCard({
   const cfg = STATUS_CFG[status];
   const pct = total > 0 ? Math.round((count / total) * 100) : 0;
   return (
-    <Card className="p-3 flex items-center gap-2.5">
-      <div className={`w-9 h-9 rounded-lg ${cfg.bg} text-white flex items-center justify-center shrink-0`}>
+    <Card className="p-2.5 flex items-center gap-2.5">
+      <div className={`w-8 h-8 rounded-lg ${cfg.bg} text-white flex items-center justify-center shrink-0`}>
         {icon}
       </div>
       <div className="min-w-0 flex-1">
-        <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">{label}</p>
-        <p className="text-lg font-black text-slate-800 leading-tight tabular-nums">{count}</p>
+        <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">
+          {label}
+        </p>
+        <p className="text-base font-black text-slate-800 leading-tight tabular-nums">
+          {count}
+        </p>
       </div>
-      <span className="text-[11px] font-bold text-slate-500 tabular-nums">{pct}%</span>
+      <span className="text-[11px] font-bold text-slate-500 tabular-nums">
+        {pct}%
+      </span>
     </Card>
   );
 }
@@ -376,9 +537,10 @@ function BulkButton({
   };
   return (
     <button
+      type="button"
       onClick={onClick}
       disabled={disabled}
-      className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold border rounded-xl transition-colors disabled:opacity-50 ${tones[tone]}`}
+      className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold border rounded-xl transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${tones[tone]}`}
     >
       {children}
     </button>

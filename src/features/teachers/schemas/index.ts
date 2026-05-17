@@ -14,6 +14,7 @@ export const teacherSchema = z.object({
   course_ids:       z.array(z.string().uuid()),
   subject_ids:      z.array(z.string().uuid()),
   batch_ids:        z.array(z.string().uuid()),
+  password:         z.string().optional().or(z.literal("")),
 });
 
 export type TeacherFormValues = z.infer<typeof teacherSchema>;

@@ -86,34 +86,63 @@ export function Label({ children }: { children: React.ReactNode }) {
 
 // ── Status presentation ───────────────────────────────────────────
 export const STATUS_CFG: Record<AttendanceStatus, {
-  bg: string;          // filled background
-  text: string;        // selected text
-  outline: string;     // unselected (default)
-  rowTint: string;     // table row tint when row has this status
-  label: string;       // long label
-  short: string;       // single-letter
-  key: string;         // keyboard hotkey
+  bg: string;          // filled background (when "on")
+  text: string;        // text color on the filled state
+  ring: string;        // ring color for focus/active
+  soft: string;        // soft background used on idle circles
+  border: string;      // border color on idle circles
+  outline: string;     // unselected pill outline (legacy)
+  rowTint: string;     // table row tint (legacy)
+  label: string;
+  short: string;
+  key: string;
 }> = {
   Present: {
-    bg: "bg-emerald-500", text: "text-white",
+    bg: "bg-emerald-500",
+    text: "text-white",
+    ring: "ring-emerald-200",
+    soft: "bg-emerald-50",
+    border: "border-emerald-200",
     outline: "text-emerald-600 border-emerald-200 hover:bg-emerald-50",
     rowTint: "bg-emerald-50/30",
     label: "Present", short: "P", key: "P",
   },
   Absent: {
-    bg: "bg-rose-500", text: "text-white",
+    bg: "bg-rose-500",
+    text: "text-white",
+    ring: "ring-rose-200",
+    soft: "bg-rose-50",
+    border: "border-rose-200",
     outline: "text-rose-600 border-rose-200 hover:bg-rose-50",
     rowTint: "bg-rose-50/30",
     label: "Absent", short: "A", key: "A",
   },
   Late: {
-    bg: "bg-amber-400", text: "text-white",
+    bg: "bg-amber-400",
+    text: "text-white",
+    ring: "ring-amber-200",
+    soft: "bg-amber-50",
+    border: "border-amber-200",
     outline: "text-amber-600 border-amber-200 hover:bg-amber-50",
     rowTint: "bg-amber-50/30",
     label: "Late", short: "L", key: "L",
   },
+  Leave: {
+    bg: "bg-sky-500",
+    text: "text-white",
+    ring: "ring-sky-200",
+    soft: "bg-sky-50",
+    border: "border-sky-200",
+    outline: "text-sky-600 border-sky-200 hover:bg-sky-50",
+    rowTint: "bg-sky-50/30",
+    label: "Leave", short: "LV", key: "V",
+  },
   Unmarked: {
-    bg: "bg-slate-300", text: "text-white",
+    bg: "bg-slate-200",
+    text: "text-slate-500",
+    ring: "ring-slate-200",
+    soft: "bg-slate-50",
+    border: "border-slate-200",
     outline: "text-slate-400 border-slate-200 hover:bg-slate-50",
     rowTint: "",
     label: "Unmarked", short: "—", key: "U",

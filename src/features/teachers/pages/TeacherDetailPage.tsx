@@ -231,32 +231,8 @@ export default function TeacherDetailPage({ id }: { id: string }) {
               <KeyRound size={13} className="text-[#D4AF37] shrink-0" />
               <div className="flex-1 min-w-0">
                 <p className="text-[9px] font-bold text-slate-400 uppercase tracking-wide">Password</p>
-                {teacher.password_hash ? (
-                  <code className="font-mono text-sm font-black text-[#0B3C5D] truncate block">
-                    {showPwd ? teacher.password_hash : "•".repeat(Math.min(12, teacher.password_hash.length))}
-                  </code>
-                ) : (
-                  <p className="text-xs italic text-slate-400">Not stored — use reset password to re-issue</p>
-                )}
+                <p className="text-xs italic text-slate-400">Not stored — use reset password to re-issue</p>
               </div>
-              {teacher.password_hash && (
-                <>
-                  <button
-                    onClick={() => setShowPwd((v) => !v)}
-                    className="p-1.5 text-slate-400 hover:text-[#0B3C5D] hover:bg-slate-50 rounded-lg transition-colors"
-                    title={showPwd ? "Hide" : "Reveal"}
-                  >
-                    {showPwd ? <EyeOff size={13} /> : <Eye size={13} />}
-                  </button>
-                  <button
-                    onClick={() => copyValue("pwd", teacher.password_hash!)}
-                    className="p-1.5 text-slate-400 hover:text-[#0B3C5D] hover:bg-slate-50 rounded-lg transition-colors"
-                    title="Copy password"
-                  >
-                    {copied === "pwd" ? <Check size={13} className="text-emerald-500" /> : <Copy size={13} />}
-                  </button>
-                </>
-              )}
             </div>
           </div>
         </div>

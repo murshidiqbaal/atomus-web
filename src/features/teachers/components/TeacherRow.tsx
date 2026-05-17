@@ -36,12 +36,7 @@ function TeacherRow({ teacher, onEdit, onToggleStatus, onResetPassword, onDelete
     [teacher.teacher_batches]
   );
 
-  function copyPassword() {
-    if (!teacher.password_hash) return;
-    navigator.clipboard.writeText(teacher.password_hash);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 1500);
-  }
+  // Password handling is now managed via Supabase Auth
 
   return (
     <tr className="border-b border-slate-100 hover:bg-slate-50/60 transition-colors group">
@@ -111,29 +106,7 @@ function TeacherRow({ teacher, onEdit, onToggleStatus, onResetPassword, onDelete
       </td>
 
       <td className="px-4 py-3 hidden xl:table-cell">
-        {teacher.password_hash ? (
-          <div className="flex items-center gap-1">
-            <code className="font-mono text-[11px] font-bold text-[#0B3C5D] bg-slate-50 px-2 py-1 rounded-md border border-slate-200 max-w-[8rem] truncate">
-              {showPwd ? teacher.password_hash : "•".repeat(Math.min(10, teacher.password_hash.length))}
-            </code>
-            <button
-              onClick={() => setShowPwd((v) => !v)}
-              className="p-1 text-slate-400 hover:text-[#0B3C5D] transition-colors"
-              title={showPwd ? "Hide" : "Reveal"}
-            >
-              {showPwd ? <EyeOff size={12} /> : <Eye size={12} />}
-            </button>
-            <button
-              onClick={copyPassword}
-              className="p-1 text-slate-400 hover:text-[#0B3C5D] transition-colors"
-              title="Copy password"
-            >
-              {copied ? <Check size={12} className="text-emerald-500" /> : <Copy size={12} />}
-            </button>
-          </div>
-        ) : (
-          <span className="text-[10px] font-bold text-slate-400 italic">—</span>
-        )}
+        <span className="text-[10px] font-bold text-slate-400 italic">Managed by Auth</span>
       </td>
 
       <td className="px-4 py-3">

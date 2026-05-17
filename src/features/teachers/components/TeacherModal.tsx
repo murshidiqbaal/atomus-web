@@ -8,7 +8,7 @@ import { teacherSchema, TeacherFormValues } from "../schemas";
 import { Teacher, TeacherCredentials } from "../types";
 import {
   useTeacherCampuses, useTeacherCoursesByCampus, useTeacherSubjects, useTeacherBatchesByCampus,
-  useCreateTeacher, useUpdateTeacher,
+  useCreateTeacher, useUpdateTeacher, useResetTeacherPassword,
 } from "../hooks";
 import MultiSelect from "./MultiSelect";
 import TeacherCredentialsModal from "./TeacherCredentialsModal";
@@ -40,7 +40,9 @@ export default function TeacherModal({ teacher, onClose }: Props) {
 
   const create = useCreateTeacher();
   const update = useUpdateTeacher();
+  const resetPasswordMut = useResetTeacherPassword();
 
+  const [passwordMode, setPasswordMode] = useState<"auto" | "manual">("auto");
   const [photoFile, setPhotoFile]       = useState<File | null>(null);
   const [photoPreview, setPhotoPreview] = useState<string | null>(teacher?.profile_image ?? null);
   const photoInputRef = useRef<HTMLInputElement>(null);
@@ -79,6 +81,7 @@ export default function TeacherModal({ teacher, onClose }: Props) {
           gender: "" as any, address: "", experience_years: 0, subject_specialization: "",
           account_status: "Active",
           course_ids: [], subject_ids: [], batch_ids: [],
+          password: "",
         },
   });
 
@@ -135,14 +138,29 @@ export default function TeacherModal({ teacher, onClose }: Props) {
     setPhotoPreview(URL.createObjectURL(file));
   }
 
+  async function handleResetPassword() {
+    if (!teacher?.email) return;
+    try {
+      await resetPasswordMut.mutateAsync(teacher.email);
+      alert("Password reset email sent to " + teacher.email);
+    } catch (err: any) {
+      alert("Failed to send reset email.");
+    }
+  }
+
   async function onSubmit(values: TeacherFormValues) {
     setServerError(null);
     try {
+      const payload = { ...values };
+      if (passwordMode === "auto") {
+        delete payload.password;
+      }
+
       if (isEdit) {
-        await update.mutateAsync({ id: teacher!.id, values, photoFile: photoFile ?? undefined });
+        await update.mutateAsync({ id: teacher!.id, values: payload, photoFile: photoFile ?? undefined });
         onClose();
       } else {
-        const result = await create.mutateAsync({ values, photoFile: photoFile ?? undefined });
+        const result = await create.mutateAsync({ values: payload, photoFile: photoFile ?? undefined });
         if (!result.existed) {
           setCredentials({ email: result.teacher.email, password: result.password, fullName: result.teacher.full_name });
         } else {
@@ -208,6 +226,51 @@ export default function TeacherModal({ teacher, onClose }: Props) {
                 <input ref={photoInputRef} type="file" accept="image/*" className="hidden" onChange={handlePhotoChange} />
               </div>
             </div>
+
+            {!isEdit ? (
+              <div className="space-y-4">
+                <SectionHeader title="Authentication" />
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="col-span-2">
+                    <label className={labelCls}>Password Generation</label>
+                    <div className="flex items-center gap-6 mt-1 mb-3">
+                      <label className="flex items-center gap-2 text-sm text-slate-700 cursor-pointer">
+                        <input type="radio" checked={passwordMode === 'auto'} onChange={() => setPasswordMode('auto')} className="text-[#0B3C5D] focus:ring-[#0B3C5D]" />
+                        Auto-generate password
+                      </label>
+                      <label className="flex items-center gap-2 text-sm text-slate-700 cursor-pointer">
+                        <input type="radio" checked={passwordMode === 'manual'} onChange={() => setPasswordMode('manual')} className="text-[#0B3C5D] focus:ring-[#0B3C5D]" />
+                        Set manual password
+                      </label>
+                    </div>
+                    {passwordMode === 'manual' && (
+                      <div>
+                        <input {...register("password")} type="password" placeholder="Enter password..." className={inputCls} />
+                        {errors.password && <p className={errorCls}>{errors.password.message}</p>}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                <SectionHeader title="Authentication" />
+                <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 flex items-center justify-between">
+                  <div>
+                    <h4 className="text-sm font-bold text-slate-700">Reset Password</h4>
+                    <p className="text-xs text-slate-500 mt-0.5">Send a password reset email to this teacher.</p>
+                  </div>
+                  <button 
+                    type="button" 
+                    onClick={handleResetPassword}
+                    disabled={resetPasswordMut.isPending}
+                    className="px-3 py-1.5 bg-white border border-slate-300 text-slate-700 text-xs font-bold rounded-lg hover:bg-slate-50 transition-colors disabled:opacity-50"
+                  >
+                    {resetPasswordMut.isPending ? "Sending..." : "Send Reset Link"}
+                  </button>
+                </div>
+              </div>
+            )}
 
             <div className="space-y-4">
               <SectionHeader title="Basic Details" />
