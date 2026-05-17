@@ -4,13 +4,17 @@ import { useEffect, useMemo, useState } from "react";
 import type React from "react";
 import {
   Calculator, Plus, Trash2, RotateCcw, TrendingUp, Wallet,
-  PieChart as PieIcon, BarChart3, Save, CheckCircle2,
+  PieChart as PieIcon, BarChart3, Save, CheckCircle2, ChevronLeft, Calendar,
 } from "lucide-react";
+import {
+  AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip,
+  ResponsiveContainer,
+} from "recharts";
 import {
   CUSTOM_PALETTE, DEFAULT_ITEMS, ExpenseItem, ICONS, IconKey,
 } from "../types";
 import {
-  currentMonth, formatINR, loadItems, loadPeriod, saveItems, savePeriod,
+  currentMonth, formatINR, loadItems, loadPeriod, saveItems, savePeriod, getYearlyData,
 } from "../utils/storage";
 import { DistributionPie, RankingBar } from "../components/ExpenseCharts";
 
@@ -120,25 +124,41 @@ export default function ExpensesPage() {
   const [period, setPeriod] = useState<string>(currentMonth());
   const [justSaved, setJustSaved] = useState(false);
   const [hydrated, setHydrated] = useState(false);
+  const [showYearlyAnalysis, setShowYearlyAnalysis] = useState(false);
 
-  // Hydrate from localStorage on mount. localStorage isn't available during
-  // SSR, so this must run in an effect.
-  /* eslint-disable react-hooks/set-state-in-effect */
+  const currentYear = useMemo(() => {
+    try {
+      return new Date(period).getFullYear() || new Date().getFullYear();
+    } catch {
+      return new Date().getFullYear();
+    }
+  }, [period]);
+
+  const [selectedYear, setSelectedYear] = useState<number>(currentYear);
+
+  // Sync selected year if period changes
   useEffect(() => {
-    setItems(loadItems());
-    setPeriod(loadPeriod());
+    setSelectedYear(currentYear);
+  }, [currentYear]);
+
+  // Hydrate from localStorage on mount. localStorage isn't available during SSR.
+  useEffect(() => {
+    const p = loadPeriod();
+    setPeriod(p);
+    setItems(loadItems(p));
     setHydrated(true);
   }, []);
 
+  // Save current items to current period automatically whenever they change.
   useEffect(() => {
     if (!hydrated) return;
-    saveItems(items);
+    saveItems(period, items);
     setJustSaved(true);
     const t = setTimeout(() => setJustSaved(false), 1500);
     return () => clearTimeout(t);
-  }, [items, hydrated]);
-  /* eslint-enable react-hooks/set-state-in-effect */
+  }, [items, period, hydrated]);
 
+  // Save period choice.
   useEffect(() => {
     if (!hydrated) return;
     savePeriod(period);
@@ -151,6 +171,16 @@ export default function ExpensesPage() {
     return [...items].sort((a, b) => b.amount - a.amount).find((i) => i.amount > 0) ?? null;
   }, [items, filledCount]);
   const avg = filledCount ? total / filledCount : 0;
+
+  // Monthly change transaction to prevent race conditions.
+  const handlePeriodChange = (nextPeriod: string) => {
+    if (!hydrated) return;
+    saveItems(period, items); // save old month
+    setPeriod(nextPeriod);
+    savePeriod(nextPeriod);
+    const loaded = loadItems(nextPeriod); // load new month
+    setItems(loaded);
+  };
 
   const updateItem = (id: string, next: Partial<ExpenseItem>) => {
     setItems((prev) => prev.map((p) => (p.id === id ? { ...p, ...next } : p)));
@@ -186,6 +216,277 @@ export default function ExpensesPage() {
     setItems((prev) => prev.map((p) => ({ ...p, amount: 0, notes: "" })));
   };
 
+  // Yearly data calculations
+  const yearlyData = useMemo(() => getYearlyData(selectedYear), [selectedYear]);
+
+  const yearlyTotal = useMemo(() => yearlyData.reduce((acc, curr) => acc + curr.total, 0), [yearlyData]);
+
+  const yearlyAvg = useMemo(() => {
+    const activeMonths = yearlyData.filter((d) => d.total > 0).length;
+    return activeMonths ? yearlyTotal / activeMonths : 0;
+  }, [yearlyData, yearlyTotal]);
+
+  const peakMonth = useMemo(() => {
+    if (yearlyTotal === 0) return null;
+    return [...yearlyData].sort((a, b) => b.total - a.total)[0];
+  }, [yearlyData, yearlyTotal]);
+
+  const yearlyCategories = useMemo(() => {
+    const totals: Record<string, number> = {};
+    yearlyData.forEach((d) => {
+      Object.entries(d.breakdown).forEach(([label, amt]) => {
+        totals[label] = (totals[label] || 0) + amt;
+      });
+    });
+    return Object.entries(totals)
+      .map(([label, amount]) => ({ label, amount }))
+      .sort((a, b) => b.amount - a.amount);
+  }, [yearlyData]);
+
+  // If showing yearly analysis panel
+  if (showYearlyAnalysis) {
+    return (
+      <div className="p-6 lg:p-8 max-w-[1400px] mx-auto space-y-5 animate-in fade-in duration-300">
+        {/* Header */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() => setShowYearlyAnalysis(false)}
+              className="p-2.5 bg-white border border-slate-200 rounded-xl text-slate-400 hover:text-[#0B3C5D] hover:border-[#0B3C5D] transition-all active:scale-95 shadow-sm group shrink-0"
+              title="Back to Monthly Entry"
+            >
+              <ChevronLeft size={20} className="group-hover:-translate-x-0.5 transition-transform" />
+            </button>
+            <div>
+              <h1 className="text-xl font-black text-slate-900 leading-tight">
+                Yearly Analysis ({selectedYear})
+              </h1>
+              <p className="text-xs text-slate-400 mt-0.5">
+                Overview of annual spending, seasonal trends, and department-wise cost allocations.
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <select
+              value={selectedYear}
+              onChange={(e) => setSelectedYear(Number(e.target.value))}
+              className="px-3 py-2.5 text-sm font-semibold text-slate-700 bg-white border border-slate-200 rounded-xl outline-none focus:border-[#0B3C5D] focus:ring-2 focus:ring-[#0B3C5D]/10"
+            >
+              {[2024, 2025, 2026, 2027, 2028].map((y) => (
+                <option key={y} value={y}>
+                  Year {y}
+                </option>
+              ))}
+            </select>
+            <button
+              onClick={() => setShowYearlyAnalysis(false)}
+              className="px-4 py-2.5 text-sm font-bold text-[#0B3C5D] bg-[#0B3C5D]/10 hover:bg-[#0B3C5D]/20 rounded-xl transition-all active:scale-95"
+            >
+              Monthly Calculator
+            </button>
+          </div>
+        </div>
+
+        {/* Yearly KPI Strip */}
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+          <StatCard
+            label="Annual Spending"
+            value={formatINR(yearlyTotal)}
+            icon={<Wallet size={18} />}
+            accent="bg-[#0B3C5D]"
+            sub={`Total for year ${selectedYear}`}
+          />
+          <StatCard
+            label="Monthly Average"
+            value={formatINR(yearlyAvg)}
+            icon={<BarChart3 size={18} />}
+            accent="bg-violet-500"
+            sub="Across active months"
+          />
+          <StatCard
+            label="Peak Outlay"
+            value={peakMonth ? peakMonth.month : "—"}
+            icon={<TrendingUp size={18} />}
+            accent="bg-[#D4AF37]"
+            sub={peakMonth ? formatINR(peakMonth.total) : "No data"}
+          />
+          <StatCard
+            label="Top Category"
+            value={yearlyCategories.length ? yearlyCategories[0].label : "—"}
+            icon={<PieIcon size={18} />}
+            accent="bg-emerald-500"
+            sub={yearlyCategories.length ? formatINR(yearlyCategories[0].amount) : "No data"}
+          />
+        </div>
+
+        {/* Yearly Graph Card */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+          <Card className="p-5 lg:col-span-2">
+            <div className="flex items-center justify-between mb-6">
+              <div>
+                <p className="text-sm font-bold text-slate-800">Monthly Expense Curve</p>
+                <p className="text-xs text-slate-400 mt-0.5">Fluctuations in institutional budget outflows</p>
+              </div>
+              <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest bg-slate-50 px-2.5 py-1 rounded-lg border border-slate-100">
+                Annual Trend
+              </span>
+            </div>
+
+            {yearlyTotal === 0 ? (
+              <div className="h-72 flex flex-col items-center justify-center text-center text-slate-400">
+                <TrendingUp size={28} className="mb-2 opacity-50 text-[#0B3C5D]" />
+                <p className="text-sm font-semibold">No annual records found</p>
+                <p className="text-xs mt-1">Enter monthly expenses to populate this year's graph.</p>
+              </div>
+            ) : (
+              <div className="h-72 w-full">
+                <ResponsiveContainer width="100%" height="100%">
+                  <AreaChart data={yearlyData} margin={{ top: 10, right: 10, left: -10, bottom: 0 }}>
+                    <defs>
+                      <linearGradient id="yearlyColorTotal" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#0B3C5D" stopOpacity={0.2} />
+                        <stop offset="95%" stopColor="#0B3C5D" stopOpacity={0.0} />
+                      </linearGradient>
+                    </defs>
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                    <XAxis
+                      dataKey="month"
+                      axisLine={false}
+                      tickLine={false}
+                      tick={{ fill: "#94a3b8", fontSize: 10, fontWeight: 700 }}
+                    />
+                    <YAxis
+                      axisLine={false}
+                      tickLine={false}
+                      tick={{ fill: "#94a3b8", fontSize: 10 }}
+                      tickFormatter={(v) => formatINR(v)}
+                    />
+                    <RechartsTooltip
+                      formatter={(v) => [formatINR(Number(v) || 0), "Total Expenses"] as [string, string]}
+                      contentStyle={{ borderRadius: 12, border: "1px solid #e2e8f0", fontSize: 12 }}
+                    />
+                    <Area
+                      type="monotone"
+                      dataKey="total"
+                      stroke="#0B3C5D"
+                      strokeWidth={3}
+                      fillOpacity={1}
+                      fill="url(#yearlyColorTotal)"
+                    />
+                  </AreaChart>
+                </ResponsiveContainer>
+              </div>
+            )}
+          </Card>
+
+          {/* Top Categories Card */}
+          <Card className="p-5 lg:col-span-1 flex flex-col justify-between">
+            <div>
+              <div className="flex items-center justify-between mb-4">
+                <div>
+                  <p className="text-sm font-bold text-slate-800">Category Share</p>
+                  <p className="text-xs text-slate-400 mt-0.5">Top expense categories this year</p>
+                </div>
+                <PieIcon size={16} className="text-slate-400" />
+              </div>
+
+              {yearlyCategories.length === 0 ? (
+                <div className="py-20 text-center text-slate-400">
+                  <p className="text-xs font-bold">No category data available</p>
+                </div>
+              ) : (
+                <div className="space-y-3.5 max-h-[260px] overflow-y-auto pr-1">
+                  {yearlyCategories.map((c) => {
+                    const pct = Math.round((c.amount / yearlyTotal) * 100);
+                    return (
+                      <div key={c.label} className="space-y-1">
+                        <div className="flex justify-between items-center text-xs font-bold">
+                          <span className="text-slate-600 truncate max-w-[120px]">{c.label}</span>
+                          <span className="text-slate-800 tabular-nums">{formatINR(c.amount)} ({pct}%)</span>
+                        </div>
+                        <div className="w-full bg-slate-100 h-2 rounded-full overflow-hidden">
+                          <div
+                            className="bg-[#0B3C5D] h-full rounded-full transition-all duration-500"
+                            style={{ width: `${pct}%` }}
+                          />
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+            {yearlyCategories.length > 0 && (
+              <p className="text-[10px] text-slate-400 mt-4 leading-normal">
+                These categories represent cumulative outlays calculated from all months in year {selectedYear}.
+              </p>
+            )}
+          </Card>
+        </div>
+
+        {/* Monthly Breakdown Table */}
+        <Card className="p-5">
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <p className="text-sm font-bold text-slate-800">Monthly Breakdown Overview</p>
+              <p className="text-xs text-slate-400 mt-0.5">Status and cost centers for each calendar month</p>
+            </div>
+            <Calendar size={16} className="text-slate-400" />
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-sm border-collapse">
+              <thead>
+                <tr className="border-b border-slate-100 text-slate-400 text-xs font-black uppercase tracking-wider">
+                  <th className="py-3 px-4">Month</th>
+                  <th className="py-3 px-4">Total Spending</th>
+                  <th className="py-3 px-4">Top Cost Category</th>
+                  <th className="py-3 px-4 text-right">Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {yearlyData.map((d) => {
+                  const sortedBreakdown = Object.entries(d.breakdown).sort((a, b) => b[1] - a[1]);
+                  const topCat = sortedBreakdown.length ? sortedBreakdown[0] : null;
+
+                  return (
+                    <tr key={d.monthKey} className="border-b border-slate-50 hover:bg-slate-50/50 transition-colors">
+                      <td className="py-3.5 px-4 font-bold text-slate-800">{d.month}</td>
+                      <td className="py-3.5 px-4 font-bold text-slate-800 tabular-nums">
+                        {d.total > 0 ? formatINR(d.total) : <span className="text-slate-300 font-semibold">₹0</span>}
+                      </td>
+                      <td className="py-3.5 px-4 text-slate-500 font-medium">
+                        {topCat ? (
+                          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-slate-100 text-slate-700 text-xs font-bold">
+                            {topCat[0]} ({formatINR(topCat[1])})
+                          </span>
+                        ) : (
+                          <span className="text-slate-300">—</span>
+                        )}
+                      </td>
+                      <td className="py-3.5 px-4 text-right">
+                        <button
+                          onClick={() => {
+                            setPeriod(d.monthKey);
+                            setItems(loadItems(d.monthKey));
+                            setShowYearlyAnalysis(false);
+                          }}
+                          className="px-3 py-1 text-xs font-bold text-[#0B3C5D] border border-[#0B3C5D]/20 hover:border-[#0B3C5D] hover:bg-[#0B3C5D]/5 rounded-lg transition-all"
+                        >
+                          View details
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </Card>
+      </div>
+    );
+  }
+
   return (
     <div className="p-6 lg:p-8 max-w-[1400px] mx-auto space-y-5">
       {/* Header */}
@@ -212,9 +513,17 @@ export default function ExpensesPage() {
           <input
             type="month"
             value={period}
-            onChange={(e) => setPeriod(e.target.value || currentMonth())}
+            onChange={(e) => handlePeriodChange(e.target.value || currentMonth())}
             className="px-3 py-2 text-sm font-semibold text-slate-700 bg-white border border-slate-200 rounded-xl outline-none focus:border-[#0B3C5D]"
           />
+          <button
+            onClick={() => setShowYearlyAnalysis(true)}
+            className="flex items-center gap-1.5 px-3 py-2 text-sm font-bold text-white bg-[#0B3C5D] rounded-xl hover:bg-[#0B3C5D]/90 transition-all shadow-md shadow-[#0B3C5D]/10 active:scale-95"
+            title="Yearly Analysis"
+          >
+            <TrendingUp size={14} />
+            <span>Year Analysis</span>
+          </button>
           <button
             onClick={clearAmounts}
             className="flex items-center gap-1.5 px-3 py-2 text-sm font-semibold text-slate-600 bg-white border border-slate-200 rounded-xl hover:bg-slate-50"
