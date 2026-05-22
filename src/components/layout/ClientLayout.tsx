@@ -15,7 +15,7 @@ import {
 type NavItem = { href: string; label: string; icon: any };
 
 const navItems: readonly NavItem[] = [
-  { href: '/', label: 'Dashboard', icon: LayoutDashboard },
+  { href: '/admin', label: 'Dashboard', icon: LayoutDashboard },
   { href: '/students', label: 'Students', icon: Users },
   { href: '/parents', label: 'Parents', icon: UserCircle },
   { href: '/teachers', label: 'Teachers', icon: GraduationCap },
@@ -76,9 +76,21 @@ export default function ClientLayout({ children }: { children: React.ReactNode }
     if (!session && !isLoginPage) {
       router.push('/login');
     } else if (session && isLoginPage) {
-      router.push('/');
+      router.push('/admin');
     }
   }, [session, loading, isLoginPage, router]);
+
+  // Global Ctrl+Shift+A navigation shortcut to admin panel
+  React.useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.ctrlKey && e.shiftKey && (e.key === 'A' || e.key === 'a')) {
+        e.preventDefault();
+        router.push('/admin');
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [router]);
 
   // Stable callbacks so memoized SidebarItem children don't re-render on
   // every parent render (e.g. when the profile dropdown toggles).

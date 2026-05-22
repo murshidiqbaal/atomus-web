@@ -1,0 +1,594 @@
+<!DOCTYPE html>
+
+<html lang="en">
+
+<head>
+
+  <meta charset="UTF-8">
+
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <meta name="description" content="Atomus.edu">
+
+  <meta name="keywords" content="Atomus.edu">
+
+  <meta name="author" content="Atomus.edu">
+
+
+  <!-- Open Graph Meta Tags for Social Media Previews -->
+
+  <meta property="og:type" content="website">
+  <meta property="og:title" content="Atomus.edu">
+  <meta property="og:description" content="Atomus.edu is a progressive coaching center dedicated to high school and higher secondary students.">
+  <meta property="og:url" content="https://atomusedu.com/">
+  <meta property="og:image" content="https://atomusedu.com/img/logo-share.jpg">
+  <meta property="og:image:secure_url" content="https://atomusedu.com/img/logo-share.jpg">
+  <meta property="og:image:width" content="400">
+  <meta property="og:image:height" content="400">
+
+  <!-- close Social Media Previews -->
+
+
+  <link rel="icon" type="image/x-icon" href="img/fav.png">
+
+  <title> Downloads || Atomus.edu </title>
+
+  <link href="css/bootstrap.min.css" rel="stylesheet">
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+
+  <link href="css/boxicons.min.css" rel="stylesheet">
+
+  <link href="https://fonts.googleapis.com/css2?family=Source+Sans+3:ital,wght@0,200..900;1,200..900&display=swap"
+    rel="stylesheet">
+
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/animate.css/4.1.1/animate.min.css" >
+
+  <link href="https://unpkg.com/aos@2.3.1/dist/aos.css" rel="stylesheet">
+
+  <link href="css/style.css" rel="stylesheet">
+  <link href="css/header.css" rel="stylesheet">
+
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.6.0/css/all.min.css"
+    integrity="sha512-Kc323vGBEqzTmouAECnVceyQqyqdsSiqLQISBL29aUW4U/M7pSPA/gEUZQqv1cwx4OnYxTxve5UMg5GT6L4JJg=="
+    crossorigin="anonymous" referrerpolicy="no-referrer" />
+
+  <link
+    href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,100..1000;1,9..40,100..1000&display=swap"
+    rel="stylesheet">
+
+  <link
+    href="https://fonts.googleapis.com/css2?family=Roboto+Serif:ital,opsz,wght@0,8..144,100..900;1,8..144,100..900&display=swap"
+    rel="stylesheet">
+
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/OwlCarousel2/2.3.4/assets/owl.carousel.min.css"
+    integrity="sha512-tS3S5qG0BlhnQROyJXvNjeEM4UpMXHrQfTGmbQ1gKmelCxlSEBUaxhRBj/EFTzpbP4RVSrpEikbmdJobCvhE3g=="
+    crossorigin="anonymous">
+  <link rel="stylesheet"
+    href="https://cdnjs.cloudflare.com/ajax/libs/OwlCarousel2/2.3.4/assets/owl.theme.default.min.css"
+    integrity="sha512-sMXtMNL1zRzolHYKEujM2AqCLUR9F2C4/05cdbxjjLSRvMQIciEPCQZo++nk7go3BtSuK9kfa/s+a4f4i5pLkw=="
+    crossorigin="anonymous">
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400..900;1,400..900&display=swap"
+    rel="stylesheet">
+
+  <style>
+    /* Custom High-Fidelity Downloads styling */
+    .dl-section {
+      background: radial-gradient(circle at 10% 20%, rgba(243, 246, 249, 1) 0%, rgba(255, 255, 255, 1) 90%);
+      padding: 80px 0;
+    }
+    
+    .dl-hdr {
+      text-align: center;
+      margin-bottom: 60px;
+    }
+    
+    .dl-hdr span.sub-hd {
+      display: inline-block;
+      background: rgba(212, 175, 55, 0.1);
+      color: #D4AF37;
+      font-weight: 800;
+      font-size: 13px;
+      text-transform: uppercase;
+      padding: 6px 16px;
+      border-radius: 30px;
+      margin-bottom: 12px;
+      letter-spacing: 1.5px;
+    }
+    
+    .dl-hdr h1 {
+      color: #0B3C5D;
+      font-size: 38px;
+      font-weight: 900;
+      letter-spacing: -0.5px;
+    }
+
+    .dl-card {
+      background: white;
+      border: 1px solid rgba(0, 0, 0, 0.05);
+      border-radius: 24px;
+      padding: 40px;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.02);
+      transition: all 0.4s cubic-bezier(0.165, 0.84, 0.44, 1);
+      text-align: center;
+      position: relative;
+      overflow: hidden;
+      height: 100%;
+    }
+
+    .dl-card:hover {
+      transform: translateY(-8px);
+      box-shadow: 0 20px 40px rgba(11, 60, 93, 0.08);
+      border-color: rgba(11, 60, 93, 0.1);
+    }
+
+    .dl-card::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 6px;
+      background: #0B3C5D;
+    }
+
+    .dl-card.android::before {
+      background: #3DDC84;
+    }
+
+    .dl-card.ios::before {
+      background: #8E8E93;
+    }
+
+    .dl-icon-wrapper {
+      width: 80px;
+      height: 80px;
+      margin: 0 auto 25px;
+      border-radius: 20px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 40px;
+      transition: transform 0.3s ease;
+    }
+
+    .dl-card:hover .dl-icon-wrapper {
+      transform: scale(1.1);
+    }
+
+    .android .dl-icon-wrapper {
+      background: rgba(61, 220, 132, 0.1);
+      color: #3DDC84;
+    }
+
+    .ios .dl-icon-wrapper {
+      background: rgba(142, 142, 147, 0.1);
+      color: #1F2937;
+    }
+
+    .dl-card h3 {
+      font-size: 22px;
+      font-weight: 800;
+      color: #0B3C5D;
+      margin-bottom: 12px;
+    }
+
+    .dl-card p {
+      color: #64748B;
+      font-size: 14px;
+      line-height: 1.6;
+      margin-bottom: 25px;
+    }
+
+    .dl-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 12px;
+      background: #0B3C5D;
+      color: white;
+      padding: 14px 28px;
+      border-radius: 14px;
+      font-weight: 700;
+      font-size: 15px;
+      text-decoration: none !important;
+      transition: all 0.3s ease;
+      width: 100%;
+      justify-content: center;
+      box-shadow: 0 4px 15px rgba(11, 60, 93, 0.2);
+    }
+
+    .dl-btn:hover {
+      background: #0B3C5D/90;
+      color: white;
+      transform: translateY(-2px);
+      box-shadow: 0 6px 20px rgba(11, 60, 93, 0.3);
+    }
+
+    .dl-btn i {
+      font-size: 20px;
+    }
+
+    .dl-meta {
+      margin-top: 20px;
+      font-size: 11px;
+      font-weight: 700;
+      color: #94A3B8;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    /* Info Credentials Card */
+    .credentials-info {
+      background: #FFFDF5;
+      border: 1px dashed #D4AF37;
+      border-radius: 24px;
+      padding: 40px;
+      margin-top: 60px;
+      box-shadow: 0 10px 25px rgba(212, 175, 55, 0.05);
+    }
+
+    .credentials-info h4 {
+      color: #0B3C5D;
+      font-weight: 900;
+      font-size: 20px;
+      margin-bottom: 15px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .credentials-info h4 i {
+      color: #D4AF37;
+    }
+
+    .credentials-info p {
+      color: #475569;
+      font-size: 15px;
+      line-height: 1.7;
+    }
+
+    .credential-badge {
+      display: inline-block;
+      background: #F8FAFC;
+      border: 1px solid #E2E8F0;
+      padding: 10px 16px;
+      border-radius: 12px;
+      font-weight: 700;
+      color: #0B3C5D;
+      font-family: monospace;
+      margin: 8px 0;
+    }
+
+    /* QR Code Card */
+    .qr-card {
+      background: white;
+      border: 1px solid rgba(0, 0, 0, 0.05);
+      border-radius: 24px;
+      padding: 40px;
+      text-align: center;
+      height: 100%;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.02);
+    }
+
+    .qr-box {
+      border: 2px solid #F1F5F9;
+      border-radius: 16px;
+      padding: 16px;
+      background: #F8FAFC;
+      display: inline-block;
+      margin-bottom: 20px;
+    }
+
+    .qr-box img {
+      width: 150px;
+      height: 150px;
+      border-radius: 8px;
+    }
+  </style>
+
+</head>
+
+<body>
+
+  <div class="hdr-1">
+    <div class="container container-1">
+      <div class="row">
+        <div class="col-md-8 col-lg-6">
+          <div class="hdr-cntct">
+            <ul>
+              <li> <img src="img/i-call.png" class="img-fluid" alt="img"> <a href="tel:7356471760"> +91 7356471760</a>
+              </li>
+              <li> <img src="img/i-mail.png" class="img-fluid" alt="img"> <a
+                  href="mailto:atomusenquiry@gmail.com">atomusenquiry@gmail.com </a> </li>
+            </ul>
+          </div>
+        </div>
+        <div class="col-md-4 col-lg-6">
+          <div class="hdr-mnu">
+
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <header class="header1" id="header">
+    <nav class="navbar1 container container-1">
+      <div class="navbar1-inner">
+        <a href="index.html" class="brand"> <img src="img/logo.jpg" class="img-fluid" alt="img"> </a>
+        <div class="burger" id="burger">
+          <span class="burger-line"></span>
+          <span class="burger-line"></span>
+          <span class="burger-line"></span>
+        </div>
+      </div>
+      <div class="navbar1-block" id="menu1">
+        <ul class="menu1">
+          <li class="menu1-item"><a href="index.html" class="menu1-link1">Home</a></li>
+          <li class="menu1-item"><a href="about.html" class="menu1-link1">About</a></li>
+          <li class="menu1-item"><a href="courses.html" class="menu1-link1">Courses</a></li>
+          <li class="menu1-item"><a href="gallery.html" class="menu1-link1">Gallery</a></li>
+          <li class="menu1-item"><a href="testimonials.html" class="menu1-link1">Testimonials</a></li>
+          <li class="menu1-item"><a href="downloads.html" class="menu1-link1 active">Downloads</a></li>
+          <li class="menu1-item"><a href="contact.html" class="menu1-link1">Contact</a></li>
+        </ul>
+        <div class="enquiry-btn-1">
+         <a href="contact.html"> Enquiry</a>
+        </div>
+      </div>
+    </nav>
+  </header>
+
+
+  <div class="banner-section">
+    <img src="img/banner-about.jpg" class="d-none d-sm-block w-100" alt="img">
+    <img src="img/banner-about-mob.jpg" class="d-block d-sm-none img-fluid" alt="img">
+  </div>
+
+
+  <section class="dl-section">
+    <div class="container">
+      <div class="dl-hdr" data-aos="fade-up" data-aos-duration="1500">
+        <span class="sub-hd">Mobile Experience</span>
+        <h1>Download Atomus Parents App</h1>
+        <p class="text-muted mt-2 col-md-8 mx-auto">
+          Access exam results, attendance logs, batch schedules, fees collections, announcements, and direct feedback anytime on your mobile device.
+        </p>
+      </div>
+
+      <div class="row g-4 justify-content-center">
+        <!-- Android Download Card -->
+        <div class="col-md-6 col-lg-5" data-aos="fade-up" data-aos-delay="100" data-aos-duration="1500">
+          <div class="dl-card android">
+            <div class="dl-icon-wrapper">
+              <i class="fa-brands fa-android"></i>
+            </div>
+            <h3>Android Parent App</h3>
+            <p>
+              Get the full-featured Android application for standard and higher-secondary parents. Click below to download the direct installation file (.APK).
+            </p>
+            <a href="downloads/atomus-parent.apk" download class="dl-btn">
+              <i class="fa-solid fa-download"></i> Direct Download (.APK)
+            </a>
+            <div class="dl-meta">
+              v1.2.4 • Requires Android 7.0+
+            </div>
+          </div>
+        </div>
+
+        <!-- iOS Download Card -->
+        <div class="col-md-6 col-lg-5" data-aos="fade-up" data-aos-delay="200" data-aos-duration="1500">
+          <div class="dl-card ios">
+            <div class="dl-icon-wrapper">
+              <i class="fa-brands fa-apple"></i>
+            </div>
+            <h3>iOS Parent App</h3>
+            <p>
+              Download the secure iOS application directly to your Apple device. Click below to download the direct installation file (.IPA).
+            </p>
+            <a href="downloads/atomus-parent.ipa" download class="dl-btn" style="background: #1F2937;">
+              <i class="fa-solid fa-download"></i> Direct Download (.IPA)
+            </a>
+            <div class="dl-meta">
+              v1.2.0 • Requires iOS 14.0+
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Credentials instruction box -->
+      <div class="row" data-aos="fade-up" data-aos-duration="1500">
+        <div class="col-12">
+          <div class="credentials-info">
+            <h4><i class="fa-solid fa-key"></i> Parent Credentials & Sign In Guide</h4>
+            <p>
+              Once the mobile app is installed on your device, parents can access the system immediately using their pre-configured credentials generated by the coaching center's administration:
+            </p>
+            <div class="row g-4 mt-2">
+              <div class="col-md-6">
+                <strong><i class="fa-solid fa-user"></i> Login Username</strong>
+                <br>
+                <div class="credential-badge">Your Registered Phone Number (+91 XXXXXXXXXX)</div>
+              </div>
+              <div class="col-md-6">
+                <strong><i class="fa-solid fa-lock"></i> Auto-Generated Password</strong>
+                <br>
+                <div class="credential-badge">First3LettersOfStudent + Last5DigitsOfPhone</div>
+              </div>
+            </div>
+            <p class="mt-3 text-muted" style="font-size: 13px; margin-bottom: 0;">
+              *Example: If the student's name is <strong>Amit</strong> and the registered phone number is <strong>9876543210</strong>, the login password will be <strong style="color: #0B3C5D;">Ami63210</strong> (first letter capitalized).
+            </p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+
+  <footer>
+    <div class="container">
+      <div class="row">
+        <div class="col-lg-12 col-xl-5 ftr-abt">
+          <a href="index.html">
+            <img src="img/logo.jpg" class="img-fluid" alt="img">
+          </a>
+          <p>
+            Atomus.edu is a progressive coaching center dedicated to high school and higher secondary students.
+          </p>
+          <ul>
+            <li>
+              <a target="_blank" href="https://www.facebook.com/atomus.educenter/">
+                <i class="fa-brands fa-facebook-f" aria-hidden="true"></i>
+              </a>
+            </li>
+            <li>
+              <a target="_blank"  href="https://www.youtube.com/@atomus.educenter">
+                <i class="fa-brands fa-youtube" aria-hidden="true"></i>
+              </a>
+            </li>
+            <li>
+              <a target="_blank"  href="https://www.instagram.com/atomus.edu_/">
+                <i class="fa-brands fa-instagram" aria-hidden="true"></i>
+              </a>
+            </li>
+          </ul>
+        </div>
+        <div class="col-md-12 col-xl-7">
+          <div class="row">
+            <div class="col-md-4 col-6">
+              <div class="ftr-sc">
+                <h4>Useful Links</h4>
+                <ul>
+                   <li><a href="index.html">Home</a></li>
+                  <li><a href="about.html">About</a></li>
+                  
+                  <li><a href="testimonials.html">Testimonials</a></li>
+                  <li><a href="contact.html">Contact</a></li>
+                </ul>
+              </div>
+            </div>
+             <div class="col-md-4 col-6">
+              <div class="ftr-sc">
+                <h4>Quick Links</h4>
+                <ul>
+                 <li><a href="courses.html">Courses</a></li>
+                  <li><a href="gallery.html">Gallery</a></li>
+                </ul>
+              </div>
+            </div>
+            <div class="col-md-4">
+              <div class="ftr-sc ftr-sc-cntct">
+                <h4>Contact Us</h4>
+                <ul>
+                   
+                  <li>
+                    <i aria-hidden="true" class="fas fa-envelope"></i>
+                    <a href="mailto:atomusenquiry@gmail.com">
+                      atomusenquiry@gmail.com</a>
+                  </li>
+                  <li><i aria-hidden="true" class="fas fa-phone"></i> <a href="tel:7356471760"> +91 7356471760</a></li>
+                </ul>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </footer>
+
+  <section class="copy">
+    <div class="container">
+      <div class="row cpyrght-sc">
+        <div class="col-md-6 my-auto">
+          <h6>© 2026. Atomus.edu . All Rights Reserved.</h6>
+        </div>
+       <div class="col-md-6 my-auto dvlpd">
+          <h6>Developed by <a href="https://brandifydot.com/" target="_blank">brandifydot</a> </h6>
+        </div>
+      </div>
+    </div>
+  </section>
+
+
+  <a href="tel:7356471760" class="telephone">
+    <img src="img/telephone.svg" class="img-fluid" alt="img">
+  </a>
+  <a href="https://api.whatsapp.com/send?phone=7356471760" class="whatsapp" target="_blank">
+    <img src="img/whatsapp-logo.svg" class="img-fluid" alt="img">
+  </a>
+
+  <script src="js/jquery-3.6.0.min.js"></script>
+
+  <script src="js/bootstrap.min.js"></script>
+
+  <script src="js/mnu.js"></script>
+
+  <script src="https://unpkg.com/aos@2.3.1/dist/aos.js"></script>
+
+  <script src="https://kit.fontawesome.com/4b28861238.js" crossorigin="anonymous"></script>
+
+  <script>
+
+    AOS.init({
+      disable: function () {
+        var maxWidth = 800;
+        return window.innerWidth < maxWidth;
+      }
+    });
+
+  </script>
+
+
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.6.0/jquery.min.js"
+    integrity="sha512-894YE6QWD5I59HgZOGReFYm4dnWc1Qt5NtvYSaNcOP+u1T9qYdvdihz0PPSiiqn/+/3e7Jo4EaG7TubfWGUrMQ=="
+    crossorigin="anonymous"></script>
+  <!-- Owl Carousel -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/OwlCarousel2/2.3.4/owl.carousel.min.js"></script>
+  <!-- custom JS code after importing jquery and owl -->
+
+  <script type="text/javascript">
+    $(document).ready(function () {
+      $(".owl-carousel3").owlCarousel();
+    });
+
+    $('.owl-carousel3').owlCarousel({
+      loop: true,
+      margin: 10,
+      dots: false,
+      autoplayHoverPause: true,
+      nav: true,
+      autoplay: true,
+      smartSpeed: 2000,
+      navText: ["<i class='fa fa-chevron-left'></i>", "<i class='fa fa-chevron-right'></i>"],
+      responsive: {
+        0: {
+          items: 1
+        },
+        600: {
+          items: 1
+        },
+        1000: {
+          items: 2
+        },
+        1200: {
+          items: 3
+        }
+      }
+    })
+  </script>
+
+
+</body>
+
+</html>
