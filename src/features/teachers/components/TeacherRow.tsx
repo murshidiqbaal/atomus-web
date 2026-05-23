@@ -42,8 +42,8 @@ function TeacherRow({ teacher, onEdit, onToggleStatus, onResetPassword, onDelete
     <tr className="border-b border-slate-100 hover:bg-slate-50/60 transition-colors group">
       <td className="px-4 py-3">
         <div className="flex items-center gap-3 min-w-0">
-          {teacher.profile_image ? (
-            <img src={teacher.profile_image} alt={teacher.full_name} className="w-10 h-10 rounded-xl object-cover border border-slate-200 shrink-0" />
+          {teacher.profile_photo_url ? (
+            <img src={teacher.profile_photo_url} alt={teacher.full_name} className="w-10 h-10 rounded-xl object-cover border border-slate-200 shrink-0" />
           ) : (
             <div className="w-10 h-10 rounded-xl bg-[#0B3C5D]/10 text-[#0B3C5D] flex items-center justify-center text-xs font-black shrink-0">
               {initials(teacher.full_name)}
@@ -106,7 +106,13 @@ function TeacherRow({ teacher, onEdit, onToggleStatus, onResetPassword, onDelete
       </td>
 
       <td className="px-4 py-3 hidden xl:table-cell">
-        <span className="text-[10px] font-bold text-slate-400 italic">Managed by Auth</span>
+        {teacher.password_hash ? (
+          <span className="font-mono text-xs text-[#D4AF37] select-all bg-amber-50 px-2 py-1 rounded border border-amber-200/50">
+            {teacher.password_hash}
+          </span>
+        ) : (
+          <span className="text-[10px] font-bold text-slate-400 italic">Managed by Auth</span>
+        )}
       </td>
 
       <td className="px-4 py-3">

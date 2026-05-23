@@ -4,7 +4,7 @@ import React from "react";
 import Link from "next/link";
 import { Eye, Pencil, ExternalLink } from "lucide-react";
 import { StudentWithRelations } from "../types";
-import { useToggleStudent } from "../hooks";
+import { useToggleStudent, useUpdateStudentStatus } from "../hooks";
 
 const GENDER_COLOR: Record<string, string> = {
   Male:   "text-blue-600",
@@ -26,6 +26,7 @@ interface Props {
 
 const StudentRow = React.memo(function StudentRow({ student, onEdit }: Props) {
   const toggle = useToggleStudent();
+  const updateStatus = useUpdateStudentStatus();
   const isActive = student.academic_status === "Active";
 
   return (
@@ -34,9 +35,9 @@ const StudentRow = React.memo(function StudentRow({ student, onEdit }: Props) {
       <td className="px-6 py-4">
         <div className="flex items-center gap-4 min-w-0">
           <div className="relative shrink-0">
-            {student.photo_url ? (
+            {student.profile_photo_url ? (
               <img
-                src={student.photo_url}
+                src={student.profile_photo_url}
                 alt={student.full_name}
                 className="w-12 h-12 rounded-[1rem] object-cover shadow-sm border border-slate-200 group-hover:scale-110 transition-transform duration-500"
               />
@@ -133,21 +134,19 @@ const StudentRow = React.memo(function StudentRow({ student, onEdit }: Props) {
         )}
       </td>
 
-      {/* Status toggle */}
+      {/* Status selector */}
       <td className="px-6 py-4">
-        <button
-          onClick={() => toggle.mutate({ id: student.id, is_active: !isActive })}
-          disabled={toggle.isPending}
-          className={`relative inline-flex h-6 w-11 items-center rounded-full transition-all duration-300 focus:outline-none focus:ring-4 focus:ring-[#0B3C5D]/10 disabled:opacity-50 ${
-            isActive ? "bg-[#0B3C5D]" : "bg-slate-300"
-          }`}
+        <select
+          value={student.academic_status || "Active"}
+          onChange={(e) => updateStatus.mutate({ id: student.id, status: e.target.value })}
+          disabled={updateStatus.isPending}
+          className="text-xs font-black border border-slate-200 rounded-xl px-2.5 py-1.5 outline-none focus:border-[#0B3C5D] cursor-pointer bg-white text-slate-700 shadow-sm hover:border-slate-300 transition-colors"
         >
-          <span
-            className={`inline-block h-4 w-4 rounded-full bg-white shadow-md transition-transform duration-300 ${
-              isActive ? "translate-x-6" : "translate-x-1"
-            }`}
-          />
-        </button>
+          <option value="Active">Active</option>
+          <option value="Inactive">Inactive</option>
+          <option value="Graduated">Graduated</option>
+          <option value="Dropped">Dropped</option>
+        </select>
       </td>
 
       {/* Actions */}

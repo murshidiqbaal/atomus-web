@@ -1,7 +1,19 @@
 import { supabase } from "@/lib/supabase";
 import { generateParentPassword } from "@/lib/utils/password_utils";
+import { uploadToDrive, cleanupDriveFile } from "@/lib/utils/drive_upload";
+import { convertToWebP } from "@/lib/utils/image_utils";
 import { Parent, LinkedStudent } from "../types";
 import { ParentFormValues } from "../schemas";
+
+async function uploadParentPhoto(file: File): Promise<{ url: string; fileId: string } | null> {
+  try {
+    const compressed = await convertToWebP(file, 0.8).catch(() => file);
+    const result = await uploadToDrive(compressed, "/api/upload/parent-photo");
+    return { url: result.imageUrl, fileId: result.fileId };
+  } catch {
+    return null;
+  }
+}
 
 const SELECT_WITH_STUDENTS = `
   *,
@@ -92,7 +104,7 @@ export const parentService = {
     return (data ?? []) as unknown as LinkedStudent[];
   },
 
-  async create(values: ParentFormValues): Promise<CreateParentResult> {
+  async create(values: ParentFormValues, photoFile?: File): Promise<CreateParentResult> {
     const existing = await this.findByEmail(values.email);
     if (existing) {
       if (values.student_ids.length) {
@@ -137,6 +149,8 @@ export const parentService = {
       }
     }
 
+    const upload = photoFile ? await uploadParentPhoto(photoFile) : null;
+
     const { error } = await supabase
       .from("parents")
       .insert([{
@@ -147,6 +161,8 @@ export const parentService = {
         username: values.phone_number.replace(/\D/g, ""),
         password_hash: password,
         account_status: values.account_status,
+        profile_photo_url: upload?.url ?? null,
+        profile_photo_drive_id: upload?.fileId ?? null,
       }]);
 
     if (error) throw error;
@@ -160,7 +176,7 @@ export const parentService = {
     return { parent: refreshed, password, emailSent, existed: false };
   },
 
-  async update(id: string, values: Partial<ParentFormValues>): Promise<Parent> {
+  async update(id: string, values: Partial<ParentFormValues>, photoFile?: File): Promise<Parent> {
     const patch: Record<string, any> = {};
     if (values.full_name !== undefined) patch.full_name = values.full_name;
     if (values.email !== undefined) patch.email = values.email;
@@ -169,6 +185,21 @@ export const parentService = {
       patch.username = values.phone_number.replace(/\D/g, "");
     }
     if (values.account_status !== undefined) patch.account_status = values.account_status;
+
+    let previousDriveId: string | null = null;
+    if (photoFile) {
+      const { data: prev } = await supabase
+        .from("parents")
+        .select("profile_photo_drive_id")
+        .eq("id", id)
+        .maybeSingle();
+      previousDriveId = (prev as { profile_photo_drive_id?: string | null } | null)?.profile_photo_drive_id ?? null;
+      const upload = await uploadParentPhoto(photoFile);
+      if (upload) {
+        patch.profile_photo_url = upload.url;
+        patch.profile_photo_drive_id = upload.fileId;
+      }
+    }
 
     const { data, error } = await supabase
       .from("parents")
@@ -180,6 +211,10 @@ export const parentService = {
 
     if (values.student_ids) {
       await this.linkStudents(id, values.student_ids);
+    }
+
+    if (previousDriveId && patch.profile_photo_drive_id && previousDriveId !== patch.profile_photo_drive_id) {
+      void cleanupDriveFile(previousDriveId);
     }
 
     return data as Parent;

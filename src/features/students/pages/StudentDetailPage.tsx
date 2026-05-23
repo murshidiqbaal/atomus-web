@@ -7,9 +7,10 @@ import {
   CheckCircle2, Clock, Award, FileText, Settings, Download, Share2, 
   ArrowUpRight, AlertCircle, TrendingUp, Info, UserCircle
 } from "lucide-react";
-import { useStudent, useStudentAttendance, useStudentMarks } from "../hooks";
+import { useStudent, useStudentAttendance, useStudentMarks, useSubjectsByCourse } from "../hooks";
 import StudentModal from "../components/StudentModal";
 import { AcademicStatus } from "../types";
+import { StudentFeeProfile } from "@/features/fees/components/StudentFeeProfile";
 
 interface Props {
   id: string;
@@ -64,9 +65,38 @@ export default function StudentDetailPage({ id }: Props) {
   const { data: student, isLoading } = useStudent(id);
   const { data: attendance = [] }     = useStudentAttendance(id, !!student);
   const { data: marks = [] }          = useStudentMarks(id, !!student);
+  const { data: subjects = [] }        = useSubjectsByCourse(student?.course_id ?? "", !!student);
   
   const [modalOpen, setModalOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<"overview" | "attendance" | "marks" | "fees">("overview");
+
+  // Filters for attendance vertical timeline
+  const [subjectFilter, setSubjectFilter] = useState<string>("");
+  const [roleFilter, setRoleFilter] = useState<string>("");
+
+  const handleDownloadPhoto = () => {
+    if (!student?.profile_photo_url) return;
+
+    // 1. Try to extract Google Drive file ID
+    let fileId = student.profile_photo_drive_id || null;
+    if (!fileId) {
+      try {
+        const u = new URL(student.profile_photo_url, window.location.origin);
+        fileId = u.searchParams.get("id");
+      } catch {
+        fileId = null;
+      }
+    }
+
+    if (fileId) {
+      // Direct high-speed download from Google Drive
+      window.open(`https://drive.google.com/uc?export=download&id=${fileId}`, "_blank");
+    } else {
+      // Fallback to local media proxy download with attachment header
+      const separator = student.profile_photo_url.includes("?") ? "&" : "?";
+      window.open(`${student.profile_photo_url}${separator}download=true`, "_blank");
+    }
+  };
 
   if (isLoading) return <div className="p-8 animate-pulse space-y-8">
     <div className="h-40 bg-slate-100 rounded-[2.5rem]" />
@@ -108,10 +138,16 @@ export default function StudentDetailPage({ id }: Props) {
           </div>
         </div>
         <div className="flex items-center gap-3 w-full sm:w-auto">
-          <button className="flex-1 sm:flex-none flex items-center justify-center gap-2 bg-white border border-slate-200 text-slate-600 px-5 py-3 rounded-2xl text-sm font-black hover:bg-slate-50 transition-all shadow-sm">
-            <Share2 size={18} />
-            Share
-          </button>
+          {student.profile_photo_url && (
+            <button 
+              onClick={handleDownloadPhoto}
+              title="Download Profile Picture directly from Google Drive"
+              className="flex-1 sm:flex-none flex items-center justify-center gap-2 bg-white border border-slate-200 text-slate-600 px-5 py-3 rounded-2xl text-sm font-black hover:bg-slate-50 transition-all shadow-sm active:scale-95 group"
+            >
+              <Download size={18} className="text-slate-400 group-hover:text-[#0B3C5D] transition-colors" />
+              Download Photo
+            </button>
+          )}
           <button 
             onClick={() => setModalOpen(true)}
             className="flex-1 sm:flex-none flex items-center justify-center gap-2 bg-[#0B3C5D] text-white px-6 py-3 rounded-2xl text-sm font-black hover:bg-[#0B3C5D]/90 transition-all shadow-xl shadow-[#0B3C5D]/20 active:scale-95"
@@ -126,16 +162,35 @@ export default function StudentDetailPage({ id }: Props) {
       <div className="bg-white rounded-[2.5rem] border border-slate-200 shadow-sm overflow-hidden relative group">
         <div className="absolute inset-0 bg-gradient-to-br from-[#0B3C5D]/5 via-transparent to-[#D4AF37]/5 pointer-events-none" />
         <div className="p-8 sm:p-12 flex flex-col md:flex-row items-center gap-10 relative z-10">
-          <div className="relative">
-            <div className="w-40 h-40 rounded-[3rem] overflow-hidden border-8 border-white shadow-2xl transition-transform duration-700 group-hover:scale-105">
-              {student.photo_url ? (
-                <img src={student.photo_url} alt={student.full_name} className="w-full h-full object-cover" />
+          <div className="relative group/avatar">
+            <div className="w-40 h-40 rounded-[3rem] overflow-hidden border-8 border-white shadow-2xl transition-transform duration-700 group-hover/avatar:scale-105 relative">
+              {student.profile_photo_url ? (
+                <>
+                  <img src={student.profile_photo_url} alt={student.full_name} className="w-full h-full object-cover" />
+                  <button
+                    onClick={handleDownloadPhoto}
+                    title="Download Profile Picture"
+                    className="absolute inset-0 bg-black/40 flex flex-col items-center justify-center gap-2 opacity-0 group-hover/avatar:opacity-100 transition-all duration-300 text-white font-black text-xs uppercase tracking-wider"
+                  >
+                    <Download size={22} className="animate-bounce" />
+                    Save Image
+                  </button>
+                </>
               ) : (
                 <div className="w-full h-full bg-[#0B3C5D]/5 flex items-center justify-center">
                   <UserCircle size={64} className="text-[#0B3C5D]/10" />
                 </div>
               )}
             </div>
+            {student.profile_photo_url && (
+              <button
+                onClick={handleDownloadPhoto}
+                title="Download Profile Picture"
+                className="absolute -top-2 -left-2 bg-white p-2.5 rounded-xl border border-slate-200 text-slate-500 hover:text-[#0B3C5D] hover:border-[#0B3C5D] shadow-md transition-all md:hidden flex items-center justify-center active:scale-95"
+              >
+                <Download size={16} />
+              </button>
+            )}
             <div className={`absolute -bottom-2 -right-2 p-3 rounded-2xl border-4 border-white shadow-xl ${status.bg} ${status.text}`}>
               <StatusIcon size={24} />
             </div>
@@ -260,9 +315,15 @@ export default function StudentDetailPage({ id }: Props) {
                 <h3 className="text-lg font-black text-slate-900 tracking-tight capitalize">{activeTab} Analytics</h3>
                 <p className="text-xs text-slate-400 font-semibold mt-0.5">Comprehensive scholar data visualization</p>
               </div>
-              <button className="p-3 bg-slate-50 text-slate-400 hover:text-[#0B3C5D] hover:bg-[#0B3C5D]/5 rounded-2xl transition-all">
-                <Download size={18} />
-              </button>
+              {student.profile_photo_url && (
+                <button 
+                  onClick={handleDownloadPhoto}
+                  title="Download Profile Picture directly from Google Drive"
+                  className="p-3 bg-slate-50 text-slate-400 hover:text-[#0B3C5D] hover:bg-[#0B3C5D]/5 rounded-2xl transition-all active:scale-95"
+                >
+                  <Download size={18} />
+                </button>
+              )}
             </div>
             
             <div className="flex-1 p-8">
@@ -327,17 +388,138 @@ export default function StudentDetailPage({ id }: Props) {
                 </div>
               )}
 
-              {activeTab === "attendance" && (
-                <div className="animate-in slide-in-from-right-4 duration-500">
-                  <div className="py-20 text-center">
-                    <div className="bg-emerald-50 w-20 h-20 rounded-[2rem] flex items-center justify-center mx-auto mb-6 text-emerald-500">
-                      <CheckCircle2 size={32} />
+              {activeTab === "attendance" && (() => {
+                const filteredAttendance = attendance.filter((rec: any) => {
+                  const matchSubject = !subjectFilter || rec.subject_id === subjectFilter;
+                  const matchRole = !roleFilter || rec.attendance_marker_role === roleFilter;
+                  return matchSubject && matchRole;
+                });
+
+                return (
+                  <div className="animate-in slide-in-from-right-4 duration-500 space-y-6">
+                    {/* Filters header bar */}
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 bg-slate-50 border border-slate-200 rounded-2xl">
+                      <div className="flex flex-wrap items-center gap-4">
+                        {/* Subject Filter */}
+                        <div className="flex flex-col">
+                          <label className="text-[10px] font-black uppercase tracking-wider text-slate-400 mb-1">Subject</label>
+                          <select
+                            value={subjectFilter}
+                            onChange={(e) => setSubjectFilter(e.target.value)}
+                            className="px-3 py-2 text-xs bg-white border border-slate-200 rounded-xl outline-none focus:border-[#0B3C5D]"
+                          >
+                            <option value="">All Subjects</option>
+                            {subjects.map((sub: any) => (
+                              <option key={sub.id} value={sub.id}>{sub.name}</option>
+                            ))}
+                          </select>
+                        </div>
+
+                        {/* Marker Role Filter */}
+                        <div className="flex flex-col">
+                          <label className="text-[10px] font-black uppercase tracking-wider text-slate-400 mb-1">Marked By</label>
+                          <select
+                            value={roleFilter}
+                            onChange={(e) => setRoleFilter(e.target.value)}
+                            className="px-3 py-2 text-xs bg-white border border-slate-200 rounded-xl outline-none focus:border-[#0B3C5D]"
+                          >
+                            <option value="">All Markers</option>
+                            <option value="Teacher">Teachers</option>
+                            <option value="Admin">Admin (ATOMUS)</option>
+                          </select>
+                        </div>
+                      </div>
+
+                      <div className="text-right shrink-0">
+                        <p className="text-xs font-bold text-slate-400">Total Scoped Records</p>
+                        <p className="text-lg font-black text-slate-800">{filteredAttendance.length}</p>
+                      </div>
                     </div>
-                    <p className="text-slate-600 font-black">Consolidated Attendance Metrics</p>
-                    <p className="text-sm text-slate-400 font-medium max-w-xs mx-auto mt-2">Attendance data for the current session is being visualized below.</p>
+
+                    {/* Vertical Chronological Timeline */}
+                    {filteredAttendance.length === 0 ? (
+                      <div className="py-16 text-center border border-dashed border-slate-200 rounded-2xl bg-slate-50/30">
+                        <div className="bg-slate-100 w-14 h-14 rounded-full flex items-center justify-center mx-auto mb-3 text-slate-400">
+                          <BookOpen size={20} />
+                        </div>
+                        <p className="text-sm font-bold text-slate-600">No attendance registers match filters</p>
+                        <p className="text-xs text-slate-400 mt-1">Try resetting the subject or marker role filters.</p>
+                      </div>
+                    ) : (
+                      <div className="relative pl-6 sm:pl-8 before:absolute before:left-[11px] before:sm:left-[15px] before:top-2 before:bottom-2 before:w-[2px] before:bg-slate-100 space-y-6">
+                        {filteredAttendance.map((rec: any) => {
+                          const subName = rec.subject_id
+                            ? subjects.find((s: any) => s.id === rec.subject_id)?.name ?? "Subject Scoped"
+                            : "Overall Attendance";
+                          
+                          const statusConfig = ({
+                            Present: { dot: "bg-emerald-500 ring-emerald-100", text: "text-emerald-700 bg-emerald-50 border-emerald-100" },
+                            Absent:  { dot: "bg-rose-500 ring-rose-100",     text: "text-rose-700 bg-rose-50 border-rose-100" },
+                            Late:    { dot: "bg-amber-400 ring-amber-100",   text: "text-amber-700 bg-amber-50 border-amber-100" },
+                            Leave:   { dot: "bg-sky-500 ring-sky-100",       text: "text-sky-700 bg-sky-50 border-sky-100" },
+                            Unmarked:{ dot: "bg-slate-300 ring-slate-100",   text: "text-slate-500 bg-slate-50 border-slate-100" },
+                          } as any)[rec.status as string] ?? { dot: "bg-slate-300 ring-slate-100", text: "text-slate-500 bg-slate-50 border-slate-100" };
+
+                          return (
+                            <div key={rec.id} className="relative group animate-in fade-in duration-300">
+                              {/* Timeline bullet indicator node */}
+                              <div className={`absolute -left-[29px] -left:sm-[33px] top-1.5 w-3 h-3 sm:w-4 sm:h-4 rounded-full ${statusConfig.dot} ring-4 transition-all duration-300 group-hover:scale-125 z-10`} />
+
+                              <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-sm hover:shadow-md hover:border-slate-300 transition-all duration-200">
+                                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                                  <div>
+                                    <div className="flex items-center gap-2 flex-wrap">
+                                      <span className="text-xs font-black text-slate-800 flex items-center gap-1">
+                                        <Calendar size={12} className="text-slate-400" />
+                                        {new Date(rec.attendance_date ?? rec.date).toLocaleDateString("en-US", {
+                                          month: "short", day: "numeric", year: "numeric"
+                                        })}
+                                      </span>
+                                      <span className="text-[10px] font-mono text-slate-400">
+                                        {new Date(rec.attendance_date ?? rec.date).toLocaleDateString("en-US", { weekday: "long" })}
+                                      </span>
+                                    </div>
+
+                                    <div className="flex items-center gap-2 mt-1.5 flex-wrap">
+                                      <span className="text-xs font-black text-[#0B3C5D] bg-[#0B3C5D]/5 px-2 py-0.5 rounded border border-[#0B3C5D]/10 flex items-center gap-1.5">
+                                        <BookOpen size={11} className="text-[#0B3C5D]/60" />
+                                        {subName}
+                                      </span>
+                                      
+                                      {rec.attendance_marker_name && (
+                                        <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full border shadow-sm
+                                          ${rec.attendance_marker_role === "Admin" 
+                                            ? "bg-slate-900 text-amber-400 border-slate-800" 
+                                            : rec.attendance_marker_role === "Teacher"
+                                            ? "bg-emerald-50 text-emerald-700 border-emerald-100"
+                                            : "bg-slate-50 text-slate-500 border-slate-200"}`}>
+                                          Marked by {rec.attendance_marker_name}
+                                        </span>
+                                      )}
+                                    </div>
+                                  </div>
+
+                                  <div className="shrink-0 self-start sm:self-center">
+                                    <span className={`text-[10px] font-black uppercase tracking-wider px-2.5 py-1 rounded-full border ${statusConfig.text}`}>
+                                      {rec.status}
+                                    </span>
+                                  </div>
+                                </div>
+
+                                {rec.remarks && (
+                                  <div className="mt-3 text-xs text-slate-500 font-medium italic border-t border-slate-100 pt-2.5">
+                                    "{rec.remarks}"
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
                   </div>
-                </div>
-              )}
+                );
+              })()}
 
               {activeTab === "marks" && (
                 <div className="animate-in slide-in-from-right-4 duration-500">
@@ -348,6 +530,16 @@ export default function StudentDetailPage({ id }: Props) {
                     <p className="text-slate-600 font-black">Scholastic Achievement Summary</p>
                     <p className="text-sm text-slate-400 font-medium max-w-xs mx-auto mt-2">Examination and assessment results overview.</p>
                   </div>
+                </div>
+              )}
+
+              {activeTab === "fees" && (
+                <div className="animate-in slide-in-from-right-4 duration-500">
+                  <StudentFeeProfile
+                    studentId={student.id}
+                    campusId={student.campus_id}
+                    courseId={student.course_id}
+                  />
                 </div>
               )}
             </div>

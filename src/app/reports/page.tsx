@@ -1,7 +1,8 @@
 "use client";
 
-import React, { useState } from "react";
-import { BarChart3, TrendingUp, PieChart, Download, FileText, Calendar, Users, CreditCard, GraduationCap } from "lucide-react";
+import React, { useState, useEffect, useMemo } from "react";
+import { BarChart3, TrendingUp, PieChart, Download, FileText, Calendar, Users, CreditCard, GraduationCap, Loader2 } from "lucide-react";
+import { supabase } from "@/lib/supabase";
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
   AreaChart, Area, LineChart, Line, PieChart as RePieChart, Pie, Cell, Legend
@@ -147,30 +148,205 @@ function PerformanceReport() {
 
 // ── Attendance Report ─────────────────────────────────────────────────────────
 function AttendanceReport() {
+  const [data, setData] = useState<any[]>([]);
+  const [subjects, setSubjects] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    async function loadData() {
+      try {
+        setLoading(true);
+        const [attRes, subjRes] = await Promise.all([
+          supabase.from("attendance").select("*").limit(2000),
+          supabase.from("subjects").select("id, name"),
+        ]);
+        setData(attRes.data ?? []);
+        setSubjects(subjRes.data ?? []);
+      } catch (err) {
+        console.error("Error loading analytics data:", err);
+      } finally {
+        setLoading(false);
+      }
+    }
+    loadData();
+  }, []);
+
+  const stats = useMemo(() => {
+    if (data.length === 0) {
+      return {
+        overallAvg: "0%",
+        totalRecords: 0,
+        activeMarkers: 0,
+        adminCount: 0,
+        teacherCount: 0,
+        teacherData: [],
+        subjectData: [],
+        overrideDistribution: [],
+      };
+    }
+
+    let present = 0;
+    let total = 0;
+    const markers = new Set<string>();
+    let adminCount = 0;
+    let teacherCount = 0;
+
+    const teacherCounts: Record<string, number> = {};
+    const subjectStats: Record<string, { present: number; total: number }> = {};
+
+    for (const r of data) {
+      if (r.status === "Unmarked") continue;
+      total++;
+      if (r.status === "Present" || r.status === "Late" || r.status === "Leave") {
+        present++;
+      }
+
+      if (r.attendance_marker_name) {
+        markers.add(r.attendance_marker_name);
+        teacherCounts[r.attendance_marker_name] = (teacherCounts[r.attendance_marker_name] || 0) + 1;
+      }
+
+      if (r.attendance_marker_role === "Admin") {
+        adminCount++;
+      } else if (r.attendance_marker_role === "Teacher") {
+        teacherCount++;
+      }
+
+      if (r.subject_id) {
+        if (!subjectStats[r.subject_id]) {
+          subjectStats[r.subject_id] = { present: 0, total: 0 };
+        }
+        subjectStats[r.subject_id].total++;
+        if (r.status === "Present" || r.status === "Late" || r.status === "Leave") {
+          subjectStats[r.subject_id].present++;
+        }
+      }
+    }
+
+    const overallAvg = total > 0 ? `${Math.round((present / total) * 100)}%` : "100%";
+
+    const teacherData = Object.entries(teacherCounts).map(([name, count]) => ({
+      name,
+      count,
+    })).sort((a, b) => b.count - a.count).slice(0, 10);
+
+    const subjectData = Object.entries(subjectStats).map(([subjId, s]) => {
+      const subjectObj = subjects.find(sub => sub.id === subjId);
+      const name = subjectObj ? subjectObj.name : "Unknown Subject";
+      return {
+        name,
+        percentage: s.total > 0 ? Math.round((s.present / s.total) * 100) : 100,
+      };
+    }).sort((a, b) => b.percentage - a.percentage);
+
+    const overrideDistribution = [
+      { name: "Teacher Marked", value: teacherCount, color: "#10b981" },
+      { name: "Admin Overridden (ATOMUS)", value: adminCount, color: "#0B3C5D" },
+    ].filter(d => d.value > 0);
+
+    if (overrideDistribution.length === 0 && total > 0) {
+      overrideDistribution.push({ name: "Unclassified", value: total, color: "#94a3b8" });
+    }
+
+    return {
+      overallAvg,
+      totalRecords: total,
+      activeMarkers: markers.size,
+      adminCount,
+      teacherCount,
+      teacherData,
+      subjectData,
+      overrideDistribution,
+    };
+  }, [data, subjects]);
+
+  if (loading) {
+    return (
+      <div className="py-20 text-center space-y-4">
+        <Loader2 size={36} className="animate-spin text-[#0B3C5D] mx-auto" />
+        <p className="text-sm font-bold text-slate-400">Loading Database Analytics...</p>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6">
       <SummaryRow items={[
-        { label: "Current Month Avg", value: "96%", color: "text-emerald-600" },
-        { label: "Perfect Attendance", value: "312 students", color: "text-[#0B3C5D]" },
-        { label: "Chronic Absentees", value: "23 students", color: "text-rose-600" },
-        { label: "Late Arrivals (May)", value: "48", color: "text-amber-600" },
+        { label: "Overall Attendance %", value: stats.overallAvg, color: "text-[#0B3C5D]" },
+        { label: "Active Markers", value: `${stats.activeMarkers} Profiles`, color: "text-emerald-600" },
+        { label: "Admin Overrides (ATOMUS)", value: `${stats.adminCount} Records`, color: "text-amber-600" },
+        { label: "Teacher Placements", value: `${stats.teacherCount} Records`, color: "text-purple-600" },
       ]} />
-      <ChartCard title="Monthly Attendance Trend" desc="Average attendance % across all batches">
-        <ResponsiveContainer width="100%" height={280}>
-          <AreaChart data={attendanceMonthly}>
-            <defs>
-              <linearGradient id="attRep" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="5%" stopColor="#10b981" stopOpacity={0.15} />
-                <stop offset="95%" stopColor="#10b981" stopOpacity={0} />
-              </linearGradient>
-            </defs>
-            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-            <XAxis dataKey="month" axisLine={false} tickLine={false} tick={{ fill: '#94a3b8', fontSize: 11, fontWeight: 700 }} dy={8} />
-            <YAxis domain={[75, 100]} axisLine={false} tickLine={false} tick={{ fill: '#94a3b8', fontSize: 11 }} tickFormatter={v => `${v}%`} />
-            <Tooltip contentStyle={{ borderRadius: 12, border: 'none', fontSize: 12 }} formatter={(v) => [`${v}%`, 'Attendance']} />
-            <Area type="monotone" dataKey="pct" stroke="#10b981" strokeWidth={3} fillOpacity={1} fill="url(#attRep)" dot={{ fill: '#10b981', r: 4 }} />
-          </AreaChart>
-        </ResponsiveContainer>
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Subject Attendance Trends */}
+        <ChartCard title="Subject Attendance Averages" desc="Mean attendance percentages aggregated per course subject">
+          {stats.subjectData.length === 0 ? (
+            <div className="h-[280px] flex items-center justify-center text-xs text-slate-400 font-bold border border-dashed rounded-xl">
+              No subject-scoped logs found.
+            </div>
+          ) : (
+            <ResponsiveContainer width="100%" height={280}>
+              <BarChart data={stats.subjectData} barCategoryGap={30}>
+                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fill: '#94a3b8', fontSize: 11, fontWeight: 700 }} />
+                <YAxis domain={[50, 100]} axisLine={false} tickLine={false} tick={{ fill: '#94a3b8', fontSize: 11 }} tickFormatter={v => `${v}%`} />
+                <Tooltip contentStyle={{ borderRadius: 12, border: 'none', fontSize: 12 }} formatter={(v) => [`${v}%`, 'Attendance Rate']} />
+                <Bar dataKey="percentage" fill="#10b981" radius={[8, 8, 0, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          )}
+        </ChartCard>
+
+        {/* Ownership Tracking / Overrides */}
+        <ChartCard title="Attendance Ownership Shares" desc="Breakdown of teacher marked vs admin overridden (ATOMUS) registries">
+          {stats.overrideDistribution.length === 0 ? (
+            <div className="h-[280px] flex items-center justify-center text-xs text-slate-400 font-bold border border-dashed rounded-xl">
+              No marked logs found.
+            </div>
+          ) : (
+            <div className="flex flex-col sm:flex-row items-center justify-center gap-6 h-[280px]">
+              <div className="relative w-[180px] h-[180px] shrink-0">
+                <ResponsiveContainer width="100%" height="100%">
+                  <RePieChart>
+                    <Pie data={stats.overrideDistribution} cx="50%" cy="50%" innerRadius={55} outerRadius={75} paddingAngle={4} dataKey="value">
+                      {stats.overrideDistribution.map((e, i) => <Cell key={i} fill={e.color} />)}
+                    </Pie>
+                    <Tooltip contentStyle={{ borderRadius: 12, border: 'none', fontSize: 12 }} formatter={(v) => [`${v} records`, '']} />
+                  </RePieChart>
+                </ResponsiveContainer>
+              </div>
+              <div className="space-y-3">
+                {stats.overrideDistribution.map(item => (
+                  <div key={item.name} className="flex items-center gap-2">
+                    <div className="w-3 h-3 rounded-full shrink-0" style={{ backgroundColor: item.color }} />
+                    <span className="text-xs font-bold text-slate-500">{item.name}</span>
+                    <span className="text-xs font-black text-[#0B3C5D]">{item.value} ({Math.round(item.value / stats.totalRecords * 100)}%)</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </ChartCard>
+      </div>
+
+      {/* Teacher-wise Marked Counts */}
+      <ChartCard title="Marked Logs per Session Marker" desc="Registry transactions executed per teacher profile & admin roles">
+        {stats.teacherData.length === 0 ? (
+          <div className="h-[280px] flex items-center justify-center text-xs text-slate-400 font-bold border border-dashed rounded-xl">
+            No marker actions found.
+          </div>
+        ) : (
+          <ResponsiveContainer width="100%" height={280}>
+            <BarChart data={stats.teacherData} layout="vertical" barCategoryGap={15}>
+              <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#f1f5f9" />
+              <XAxis type="number" axisLine={false} tickLine={false} tick={{ fill: '#94a3b8', fontSize: 11 }} />
+              <YAxis dataKey="name" type="category" axisLine={false} tickLine={false} tick={{ fill: '#475569', fontSize: 11, fontWeight: 700 }} width={120} />
+              <Tooltip contentStyle={{ borderRadius: 12, border: 'none', fontSize: 12 }} formatter={(v) => [`${v} records`, 'Marked Count']} />
+              <Bar dataKey="count" fill="#0B3C5D" radius={[0, 6, 6, 0]} />
+            </BarChart>
+          </ResponsiveContainer>
+        )}
       </ChartCard>
     </div>
   );

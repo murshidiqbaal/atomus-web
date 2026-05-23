@@ -4,31 +4,60 @@ import React, { useCallback, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import QueryProvider from '@/providers/QueryProvider';
-import { useAuth } from '@/providers/AuthProvider';
+import { useAuth, ROLE_HOME, AppRole } from '@/providers/AuthProvider';
 import {
   LayoutDashboard, Users, UserCircle, GraduationCap, BookOpen,
   BookMarked, CalendarCheck, FileSpreadsheet, CreditCard, Megaphone,
   BarChart3, Settings, Menu, X, Bell, Search, ChevronDown,
-  LogOut, Calculator
+  LogOut, Calculator, Award, Timer
 } from 'lucide-react';
 
-type NavItem = { href: string; label: string; icon: any };
+type NavItem = { href: string; label: string; icon: any; roles?: Exclude<AppRole, null>[] };
 
 const navItems: readonly NavItem[] = [
-  { href: '/admin', label: 'Dashboard', icon: LayoutDashboard },
-  { href: '/students', label: 'Students', icon: Users },
-  { href: '/parents', label: 'Parents', icon: UserCircle },
-  { href: '/teachers', label: 'Teachers', icon: GraduationCap },
-  { href: '/courses', label: 'Courses', icon: BookOpen },
-  { href: '/subjects', label: 'Subjects', icon: BookMarked },
-  { href: '/attendance', label: 'Attendance', icon: CalendarCheck },
-  { href: '/marks', label: 'Marks', icon: FileSpreadsheet },
-  { href: '/fees', label: 'Fees', icon: CreditCard },
-  { href: '/expenses', label: 'Expenses', icon: Calculator },
-  { href: '/announcements', label: 'Announcements', icon: Megaphone },
-  { href: '/reports', label: 'Reports', icon: BarChart3 },
-  { href: '/settings', label: 'Settings', icon: Settings },
+  { href: '/admin', label: 'Dashboard', icon: LayoutDashboard, roles: ['admin'] },
+  { href: '/students', label: 'Students', icon: Users, roles: ['admin', 'staff'] },
+  { href: '/parents', label: 'Parents', icon: UserCircle, roles: ['admin', 'staff'] },
+  { href: '/teachers', label: 'Teachers', icon: GraduationCap, roles: ['admin', 'staff'] },
+  { href: '/courses', label: 'Courses', icon: BookOpen, roles: ['admin', 'staff'] },
+  { href: '/subjects', label: 'Subjects', icon: BookMarked, roles: ['admin', 'staff'] },
+  { href: '/attendance', label: 'Attendance', icon: CalendarCheck, roles: ['admin', 'staff'] },
+  { href: '/teacher-attendance', label: 'Teacher Attendance', icon: Timer, roles: ['admin', 'staff'] },
+  { href: '/marks', label: 'Marks', icon: FileSpreadsheet, roles: ['admin', 'staff'] },
+  { href: '/fees', label: 'Fees', icon: CreditCard, roles: ['admin'] },
+  { href: '/expenses', label: 'Expenses', icon: Calculator, roles: ['admin'] },
+  { href: '/announcements', label: 'Announcements', icon: Megaphone, roles: ['admin', 'staff'] },
+  { href: '/reports', label: 'Reports', icon: BarChart3, roles: ['admin'] },
+  { href: '/performance', label: 'Performance', icon: Award, roles: ['admin'] },
+  { href: '/settings', label: 'Settings', icon: Settings, roles: ['admin'] },
+  { href: '/teacher-dashboard', label: 'My Classes', icon: LayoutDashboard, roles: ['teacher'] },
+  { href: '/parent-dashboard', label: 'My Children', icon: LayoutDashboard, roles: ['parent'] },
 ];
+
+const ROLE_PATH_RULES: { prefix: string; allow: Exclude<AppRole, null>[] }[] = [
+  { prefix: '/admin', allow: ['admin'] },
+  { prefix: '/students', allow: ['admin', 'staff'] },
+  { prefix: '/parents', allow: ['admin', 'staff'] },
+  { prefix: '/teachers', allow: ['admin', 'staff'] },
+  { prefix: '/courses', allow: ['admin', 'staff'] },
+  { prefix: '/subjects', allow: ['admin', 'staff'] },
+  { prefix: '/attendance', allow: ['admin', 'staff'] },
+  { prefix: '/teacher-attendance', allow: ['admin', 'staff'] },
+  { prefix: '/marks', allow: ['admin', 'staff'] },
+  { prefix: '/fees', allow: ['admin'] },
+  { prefix: '/expenses', allow: ['admin'] },
+  { prefix: '/announcements', allow: ['admin', 'staff'] },
+  { prefix: '/reports', allow: ['admin'] },
+  { prefix: '/settings', allow: ['admin', 'teacher', 'parent'] },
+  { prefix: '/teacher-dashboard', allow: ['teacher', 'admin'] },
+  { prefix: '/parent-dashboard', allow: ['parent', 'admin'] },
+];
+
+function isPathAllowed(pathname: string, role: Exclude<AppRole, null>): boolean {
+  const rule = ROLE_PATH_RULES.find((r) => pathname === r.prefix || pathname.startsWith(r.prefix + '/'));
+  if (!rule) return true; // unknown routes default to allowed (admin shell shows them)
+  return rule.allow.includes(role);
+}
 
 function isItemActive(href: string, pathname: string) {
   return href === '/' ? pathname === '/' : pathname === href || pathname.startsWith(href + '/');
@@ -64,21 +93,30 @@ const SidebarItem = React.memo(function SidebarItem({
 export default function ClientLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
-  const { session, loading, signOut } = useAuth();
+  const { session, user, role, loading, signOut } = useAuth();
+  const authed = !!session || !!user; // user covers the master-admin override
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
 
   const isLoginPage = pathname === '/login';
 
-  // Route protection
+  // Route protection + role-based gating
   React.useEffect(() => {
     if (loading) return;
-    if (!session && !isLoginPage) {
-      router.push('/login');
-    } else if (session && isLoginPage) {
-      router.push('/admin');
+
+    if (!authed && !isLoginPage) {
+      router.replace('/login');
+      return;
     }
-  }, [session, loading, isLoginPage, router]);
+    if (authed && isLoginPage) {
+      const home = role ? ROLE_HOME[role] : '/admin';
+      router.replace(home);
+      return;
+    }
+    if (authed && role && !isPathAllowed(pathname, role)) {
+      router.replace(ROLE_HOME[role]);
+    }
+  }, [authed, role, loading, isLoginPage, pathname, router]);
 
   // Global Ctrl+Shift+A navigation shortcut to admin panel
   React.useEffect(() => {
@@ -104,17 +142,19 @@ export default function ClientLayout({ children }: { children: React.ReactNode }
   }, [signOut]);
 
   const sidebarNav = useMemo(
-    () => navItems.map((item) => (
-      <SidebarItem
-        key={item.href}
-        href={item.href}
-        label={item.label}
-        icon={item.icon}
-        active={isItemActive(item.href, pathname)}
-        onClick={closeSidebar}
-      />
-    )),
-    [pathname, closeSidebar],
+    () => navItems
+      .filter((item) => !item.roles || (role && item.roles.includes(role)))
+      .map((item) => (
+        <SidebarItem
+          key={item.href}
+          href={item.href}
+          label={item.label}
+          icon={item.icon}
+          active={isItemActive(item.href, pathname)}
+          onClick={closeSidebar}
+        />
+      )),
+    [pathname, role, closeSidebar],
   );
 
   if (loading) {
@@ -126,7 +166,7 @@ export default function ClientLayout({ children }: { children: React.ReactNode }
   }
 
   if (isLoginPage) return <>{children}</>;
-  if (!session) return null; // Prevent flash of content
+  if (!authed) return null; // Prevent flash of content
 
   return (
     <div className="flex h-screen overflow-hidden">
@@ -203,23 +243,25 @@ export default function ClientLayout({ children }: { children: React.ReactNode }
                 className="flex items-center gap-2 bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-100 transition-colors"
               >
                 <div className="w-6 h-6 rounded-lg bg-[#0B3C5D] text-white text-[10px] font-black flex items-center justify-center">
-                  AD
+                  {role === 'teacher' ? 'TC' : role === 'parent' ? 'PR' : role === 'staff' ? 'ST' : 'AD'}
                 </div>
-                <span className="hidden sm:block">Admin</span>
+                <span className="hidden sm:block capitalize">{role ?? 'Admin'}</span>
                 <ChevronDown size={14} className="text-slate-400" />
               </button>
 
               {profileOpen && (
                 <div className="absolute right-0 top-full mt-2 w-48 bg-white border border-slate-200 rounded-2xl shadow-xl z-50 overflow-hidden">
                   <div className="p-4 border-b border-slate-100">
-                    <p className="text-sm font-bold text-slate-800">Admin User</p>
-                    <p className="text-xs text-slate-400">Super Admin</p>
+                    <p className="text-sm font-bold text-slate-800">{role === 'staff' ? 'Staff Member' : 'Admin User'}</p>
+                    <p className="text-xs text-slate-400">{role === 'staff' ? 'Coaching Center Staff' : 'Super Admin'}</p>
                   </div>
                   <div className="p-2">
-                    <Link href="/settings" onClick={closeProfile} className="flex items-center gap-2 px-3 py-2 text-sm text-slate-600 hover:bg-slate-50 rounded-xl transition-colors">
-                      <Settings size={15} />
-                      Settings
-                    </Link>
+                    {role !== 'staff' && (
+                      <Link href="/settings" onClick={closeProfile} className="flex items-center gap-2 px-3 py-2 text-sm text-slate-600 hover:bg-slate-50 rounded-xl transition-colors">
+                        <Settings size={15} />
+                        Settings
+                      </Link>
+                    )}
                     <button
                       onClick={handleSignOut}
                       className="w-full flex items-center gap-2 px-3 py-2 text-sm text-rose-600 hover:bg-rose-50 rounded-xl transition-colors"

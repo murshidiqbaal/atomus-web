@@ -1,9 +1,11 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { X, Upload, Check, AlertCircle, Image as ImageIcon, Loader2 } from 'lucide-react';
+import { X, Upload, Check, AlertCircle, Loader2 } from 'lucide-react';
 import { Announcement, AnnouncementType, TargetAudience } from '../types';
 import { announcementService } from '../services/announcement_service';
+import { uploadToDrive, cleanupDriveFile } from '@/lib/utils/drive_upload';
+import { convertToWebP } from '@/lib/utils/image_utils';
 
 interface ModalProps {
   announcement: Announcement | null;
@@ -24,6 +26,7 @@ export function AnnouncementModal({ announcement, isOpen, onClose, onSuccess }: 
     type: 'General Announcement' as AnnouncementType,
     target_audience: 'All' as TargetAudience,
     image_url: '' as string | null,
+    image_drive_id: null as string | null,
     is_popup: false,
     is_active: true,
     start_date: new Date().toISOString().slice(0, 16),
@@ -40,6 +43,7 @@ export function AnnouncementModal({ announcement, isOpen, onClose, onSuccess }: 
         type: announcement.type,
         target_audience: announcement.target_audience,
         image_url: announcement.image_url,
+        image_drive_id: announcement.image_drive_id ?? null,
         is_popup: announcement.is_popup,
         is_active: announcement.is_active,
         start_date: new Date(announcement.start_date).toISOString().slice(0, 16),
@@ -54,6 +58,7 @@ export function AnnouncementModal({ announcement, isOpen, onClose, onSuccess }: 
         type: 'General Announcement',
         target_audience: 'All',
         image_url: null,
+        image_drive_id: null,
         is_popup: false,
         is_active: true,
         start_date: new Date().toISOString().slice(0, 16),
@@ -70,11 +75,16 @@ export function AnnouncementModal({ announcement, isOpen, onClose, onSuccess }: 
 
     setUploading(true);
     try {
-      const url = await announcementService.uploadPoster(file);
-      setFormData(prev => ({ ...prev, image_url: url }));
+      const compressed = await convertToWebP(file, 0.85).catch(() => file);
+      const result = await uploadToDrive(compressed, '/api/upload/announcement');
+      const previousDriveId = formData.image_drive_id;
+      setFormData(prev => ({ ...prev, image_url: result.imageUrl, image_drive_id: result.fileId }));
+      if (previousDriveId && previousDriveId !== result.fileId) {
+        void cleanupDriveFile(previousDriveId);
+      }
     } catch (error) {
       console.error('Upload failed:', error);
-      alert('Failed to upload image');
+      alert(error instanceof Error ? error.message : 'Failed to upload image');
     } finally {
       setUploading(false);
     }
@@ -243,9 +253,13 @@ export function AnnouncementModal({ announcement, isOpen, onClose, onSuccess }: 
                 {formData.image_url ? (
                   <>
                     <img src={formData.image_url} alt="Poster" className="w-full h-full object-cover" />
-                    <button 
+                    <button
                       type="button"
-                      onClick={() => setFormData({ ...formData, image_url: null })}
+                      onClick={() => {
+                        const idToClean = formData.image_drive_id;
+                        setFormData({ ...formData, image_url: null, image_drive_id: null });
+                        if (idToClean) void cleanupDriveFile(idToClean);
+                      }}
                       className="absolute top-4 right-4 p-2 bg-white/90 backdrop-blur-md rounded-2xl text-rose-500 shadow-xl hover:scale-110 transition-all"
                     >
                       <X size={20} />

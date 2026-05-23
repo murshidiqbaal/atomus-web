@@ -67,8 +67,8 @@ function MobileCard({ student, onEdit }: { student: StudentWithRelations; onEdit
     <div className="bg-white rounded-[2rem] border border-slate-200 p-6 space-y-4 shadow-sm active:scale-[0.98] transition-all">
       <div className="flex items-start gap-4">
         <div className="relative">
-          {student.photo_url ? (
-            <img src={student.photo_url} alt={student.full_name} className="w-14 h-14 rounded-2xl object-cover border-2 border-white shadow-md" />
+          {student.profile_photo_url ? (
+            <img src={student.profile_photo_url} alt={student.full_name} className="w-14 h-14 rounded-2xl object-cover border-2 border-white shadow-md" />
           ) : (
             <div className="w-14 h-14 rounded-2xl bg-[#0B3C5D]/5 text-[#0B3C5D] flex items-center justify-center text-xl font-black border border-[#0B3C5D]/10">
               {student.full_name.charAt(0).toUpperCase()}
@@ -181,6 +181,24 @@ export default function StudentsPage() {
     [allBatches, filters.campus_id, filters.course_id]
   );
 
+  const uniqueAvailableBatches = useMemo(() => {
+    const seen = new Set<string>();
+    const list: typeof availableBatches = [];
+    for (const b of availableBatches) {
+      const norm = b.name.trim().toLowerCase();
+      if (!seen.has(norm)) {
+        seen.add(norm);
+        list.push(b);
+      }
+    }
+    return list;
+  }, [availableBatches]);
+
+  const selectedBatchName = useMemo(() => {
+    if (!filters.batch_id) return null;
+    return allBatches.find((b) => b.id === filters.batch_id)?.name;
+  }, [filters.batch_id, allBatches]);
+
   const stats = useMemo(() => {
     const total = students.length;
     const active = students.filter((s) => s.academic_status === "Active").length;
@@ -215,11 +233,16 @@ export default function StudentsPage() {
       if (q && !s.full_name.toLowerCase().includes(q) && !s.roll_number.toLowerCase().includes(q)) return false;
       if (filters.campus_id && s.campus_id !== filters.campus_id) return false;
       if (filters.course_id && s.course_id !== filters.course_id) return false;
-      if (filters.batch_id && s.batch_id !== filters.batch_id) return false;
+      if (filters.batch_id) {
+        if (selectedBatchName) {
+          if (s.batches?.name !== selectedBatchName) return false;
+        } else {
+          if (s.batch_id !== filters.batch_id) return false;
+        }
+      }
       if (filters.gender && s.gender !== filters.gender) return false;
       if (filters.academic_status && s.academic_status !== filters.academic_status) return false;
-      if (filters.status === "active"   && s.academic_status !== "Active") return false;
-      if (filters.status === "inactive" && s.academic_status === "Active") return false;
+      if (filters.status !== "all" && s.academic_status !== filters.status) return false;
       return true;
     });
   }, [students, filters]);
@@ -356,7 +379,7 @@ export default function StudentsPage() {
                   className="bg-transparent text-xs font-black text-slate-700 outline-none cursor-pointer py-2 appearance-none pr-2"
                 >
                   <option value="">All Batches</option>
-                  {availableBatches.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
+                  {uniqueAvailableBatches.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
                 </select>
               </div>
 
@@ -365,12 +388,14 @@ export default function StudentsPage() {
                 <Filter size={16} className="text-slate-400 group-hover:text-[#0B3C5D] transition-colors" />
                 <select
                   value={filters.status}
-                  onChange={(e) => setFilter("status", e.target.value as StudentFilters["status"])}
+                  onChange={(e) => setFilter("status", e.target.value)}
                   className="bg-transparent text-xs font-black text-slate-700 outline-none cursor-pointer py-2 appearance-none pr-2"
                 >
                   <option value="all">Any Status</option>
-                  <option value="active">Active Scholars</option>
-                  <option value="inactive">Non-Active</option>
+                  <option value="Active">Active</option>
+                  <option value="Inactive">Inactive</option>
+                  <option value="Graduated">Graduated</option>
+                  <option value="Dropped">Dropped</option>
                 </select>
               </div>
 

@@ -24,24 +24,24 @@ interface TabDef {
     search?: boolean;
     campus?: boolean;
     course?: boolean;
-    batch?: boolean;
     status?: boolean;
     dateRange?: boolean;
     method?: boolean;
+    academicStatus?: boolean;
   } | null;
 }
 
 const TABS: TabDef[] = [
   { id: "overview",   label: "Overview",     icon: BarChart3, filter: null },
   { id: "structures", label: "Structures",   icon: Receipt,
-    filter: { campus: true, course: true, batch: true } },
+    filter: { campus: true, course: true } },
   { id: "students",   label: "Student Fees", icon: Wallet,
-    filter: { search: true, campus: true, course: true, batch: true, status: true } },
+    filter: { search: true, campus: true, course: true, status: true, academicStatus: true } },
   { id: "collect",    label: "Collect",      icon: CreditCard, filter: null },
   { id: "dues",       label: "Pending Dues", icon: AlertCircle,
-    filter: { search: true, campus: true, course: true, batch: true } },
+    filter: { search: true, campus: true, course: true } },
   { id: "history",    label: "History",      icon: History,
-    filter: { search: true, campus: true, course: true, batch: true, method: true, dateRange: true } },
+    filter: { search: true, campus: true, course: true, method: true, dateRange: true } },
 ];
 
 export default function FeesPage() {

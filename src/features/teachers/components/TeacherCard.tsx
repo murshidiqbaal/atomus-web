@@ -31,8 +31,8 @@ function TeacherCard({ teacher, onEdit, onToggleStatus }: Props) {
   return (
     <div className="bg-white rounded-2xl border border-slate-200 p-4 space-y-3">
       <div className="flex items-start gap-3">
-        {teacher.profile_image ? (
-          <img src={teacher.profile_image} alt={teacher.full_name} className="w-11 h-11 rounded-xl object-cover border border-slate-200 shrink-0" />
+        {teacher.profile_photo_url ? (
+          <img src={teacher.profile_photo_url} alt={teacher.full_name} className="w-11 h-11 rounded-xl object-cover border border-slate-200 shrink-0" />
         ) : (
           <div className="w-11 h-11 rounded-xl bg-[#0B3C5D] text-white flex items-center justify-center font-black text-sm shrink-0">
             {initials(teacher.full_name)}
@@ -55,6 +55,13 @@ function TeacherCard({ teacher, onEdit, onToggleStatus }: Props) {
         <div className="flex items-center gap-2"><Mail size={12} /><span className="truncate">{teacher.email}</span></div>
         <div className="flex items-center gap-2"><Phone size={12} /><span className="font-mono">{teacher.phone_number ?? "—"}</span></div>
       </div>
+
+      {teacher.password_hash && (
+        <div className="text-[10px] text-slate-400 font-bold bg-amber-50 px-2.5 py-1.5 rounded-xl border border-amber-200/50 flex items-center justify-between">
+          <span>PASSWORD:</span>
+          <span className="font-mono text-[#D4AF37] select-all">{teacher.password_hash}</span>
+        </div>
+      )}
 
       <div className="grid grid-cols-3 gap-2 pt-1">
         <div className="bg-slate-50 rounded-lg py-2 text-center">

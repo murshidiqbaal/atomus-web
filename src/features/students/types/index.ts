@@ -8,7 +8,8 @@ export interface Student {
   admission_number?: string | null;
   gender?: Gender | null;
   dob?: string | null;
-  photo_url?: string | null;
+  profile_photo_url?: string | null;
+  profile_photo_drive_id?: string | null;
   campus_id: string;
   course_id: string;
   batch_id: string;
@@ -56,5 +57,5 @@ export interface StudentFilters {
   batch_id: string;
   gender: string;
   academic_status: string;
-  status: "all" | "active" | "inactive";
+  status: string;
 }

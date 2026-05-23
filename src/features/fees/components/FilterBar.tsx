@@ -1,30 +1,29 @@
 "use client";
 
 import { useEffect, useMemo } from "react";
-import { Building2, BookOpen, Layers, Search, X } from "lucide-react";
+import { Building2, BookOpen, Search, X } from "lucide-react";
 import type { FeeFilters, PaymentMethod, PaymentStatus } from "../types";
 import { PAYMENT_METHODS, PAYMENT_STATUSES } from "../types";
-import { useFeeBatches, useFeeCampuses, useFeeCourses } from "../hooks";
+import { useFeeCampuses, useFeeCourses } from "../hooks";
 import { Card, fieldCls, Label } from "./ui";
 
 interface Props {
   value: FeeFilters;
   onChange: (next: FeeFilters) => void;
-  /** Which filter inputs to expose — keeps the bar tight per tab. */
   show?: {
     search?: boolean;
     campus?: boolean;
     course?: boolean;
-    batch?: boolean;
     status?: boolean;
     dateRange?: boolean;
     method?: boolean;
+    academicStatus?: boolean;
   };
 }
 
 const DEFAULT_SHOW = {
-  search: true, campus: true, course: true, batch: true,
-  status: false, dateRange: false, method: false,
+  search: true, campus: true, course: true,
+  status: false, dateRange: false, method: false, academicStatus: false,
 };
 
 export function FilterBar({ value, onChange, show }: Props) {
@@ -32,36 +31,29 @@ export function FilterBar({ value, onChange, show }: Props) {
 
   const { data: campuses = [] } = useFeeCampuses();
   const { data: courses = [] } = useFeeCourses(value.campus_id);
-  const { data: batches = [] } = useFeeBatches(value.course_id, value.campus_id);
 
-  // Clear stale ids if the loaded list no longer contains them.
+  // Clear stale course if it disappears from the list.
   useEffect(() => {
     if (value.course_id && courses.length && !courses.some((c) => c.id === value.course_id)) {
-      onChange({ ...value, course_id: "", batch_id: "" });
+      onChange({ ...value, course_id: "" });
     }
   }, [courses, value, onChange]);
-  useEffect(() => {
-    if (value.batch_id && batches.length && !batches.some((b) => b.id === value.batch_id)) {
-      onChange({ ...value, batch_id: "" });
-    }
-  }, [batches, value, onChange]);
 
   const set = <K extends keyof FeeFilters>(key: K, v: FeeFilters[K]) => {
     const next: FeeFilters = { ...value, [key]: v };
-    if (key === "campus_id") { next.course_id = ""; next.batch_id = ""; }
-    if (key === "course_id") { next.batch_id = ""; }
+    if (key === "campus_id") { next.course_id = ""; }
     onChange(next);
   };
 
   const isDirty =
-    !!value.search || !!value.campus_id || !!value.course_id || !!value.batch_id ||
+    !!value.search || !!value.campus_id || !!value.course_id ||
     value.status !== "All" || !!value.date_from || !!value.date_to ||
-    value.method !== "All";
+    value.method !== "All" || value.academic_status !== "Active";
 
   const clearAll = () => onChange({
-    campus_id: "", course_id: "", batch_id: "",
+    campus_id: "", course_id: "",
     status: "All", search: "", date_from: "", date_to: "",
-    method: "All",
+    method: "All", academic_status: "Active",
   });
 
   return (
@@ -122,25 +114,6 @@ export function FilterBar({ value, onChange, show }: Props) {
           </div>
         )}
 
-        {enabled.batch && (
-          <div className="min-w-[150px]">
-            <Label>
-              <span className="inline-flex items-center gap-1">
-                <Layers size={11} /> Batch
-              </span>
-            </Label>
-            <select
-              value={value.batch_id}
-              onChange={(e) => set("batch_id", e.target.value)}
-              disabled={!value.course_id && !value.campus_id}
-              className={`${fieldCls} disabled:opacity-50 disabled:cursor-not-allowed`}
-            >
-              <option value="">All batches</option>
-              {batches.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
-            </select>
-          </div>
-        )}
-
         {enabled.status && (
           <div className="min-w-[140px]">
             <Label>Status</Label>
@@ -151,6 +124,23 @@ export function FilterBar({ value, onChange, show }: Props) {
             >
               <option value="All">All statuses</option>
               {PAYMENT_STATUSES.map((s) => <option key={s} value={s}>{s}</option>)}
+            </select>
+          </div>
+        )}
+
+        {enabled.academicStatus && (
+          <div className="min-w-[140px]">
+            <Label>Student Status</Label>
+            <select
+              value={value.academic_status}
+              onChange={(e) => set("academic_status", e.target.value)}
+              className={fieldCls}
+            >
+              <option value="All">All Students</option>
+              <option value="Active">Active Only</option>
+              <option value="Inactive">Inactive Only</option>
+              <option value="Graduated">Graduated Only</option>
+              <option value="Dropped">Dropped Only</option>
             </select>
           </div>
         )}

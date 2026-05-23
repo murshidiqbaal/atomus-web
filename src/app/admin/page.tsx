@@ -48,8 +48,10 @@ const upcomingExams = [
   { name: "English Literature", batch: "Class 8 – Batch A", date: "01 Jun" },
 ];
 
+import { supabase } from "@/lib/supabase";
+
 export default function DashboardOverview() {
-  const [stats] = useState({
+  const [stats, setStats] = useState({
     totalStudents: 1248,
     totalParents: 982,
     totalTeachers: 42,
@@ -58,6 +60,82 @@ export default function DashboardOverview() {
     pendingFees: 4520,
     attendanceAvg: 94.2,
   });
+
+  const [perfDist, setPerfDist] = useState([
+    { name: "Excellent", value: 32, color: "#10b981" },
+    { name: "Good", value: 40, color: "#0B3C5D" },
+    { name: "Average", value: 20, color: "#f59e0b" },
+    { name: "Needs Imp.", value: 8, color: "#ef4444" },
+  ]);
+
+  useEffect(() => {
+    async function loadStats() {
+      try {
+        const [
+          { count: studentsCount },
+          { count: parentsCount },
+          { count: teachersCount },
+          { count: coursesCount },
+          { count: batchesCount }
+        ] = await Promise.all([
+          supabase.from("students").select("id", { count: "exact", head: true }),
+          supabase.from("parents").select("id", { count: "exact", head: true }),
+          supabase.from("teachers").select("id", { count: "exact", head: true }),
+          supabase.from("courses").select("id", { count: "exact", head: true }),
+          supabase.from("batches").select("id", { count: "exact", head: true })
+        ]);
+
+        const { data: perfRecords } = await supabase
+          .from("student_academic_performance")
+          .select("attendance_percentage, progress_status");
+
+        let attSum = 0;
+        let excellent = 0;
+        let good = 0;
+        let average = 0;
+        let needsImp = 0;
+        let atRisk = 0;
+
+        if (perfRecords && perfRecords.length > 0) {
+          for (const r of perfRecords) {
+            attSum += Number(r.attendance_percentage ?? 0);
+            if (r.progress_status === "Excellent") excellent++;
+            else if (r.progress_status === "Good") good++;
+            else if (r.progress_status === "Average") average++;
+            else if (r.progress_status === "Needs Improvement") needsImp++;
+            else if (r.progress_status === "At Risk") atRisk++;
+          }
+        }
+
+        const avgAttendance = perfRecords && perfRecords.length > 0 ? Math.round((attSum / perfRecords.length) * 10) / 10 : 94.2;
+
+        setStats({
+          totalStudents: studentsCount ?? 1248,
+          totalParents: parentsCount ?? 982,
+          totalTeachers: teachersCount ?? 42,
+          activeCourses: coursesCount ?? 34,
+          activeBatches: batchesCount ?? 112,
+          pendingFees: 4520,
+          attendanceAvg: avgAttendance,
+        });
+
+        if (perfRecords && perfRecords.length > 0) {
+          const totalValid = excellent + good + average + needsImp + atRisk || 1;
+          setPerfDist([
+            { name: "Excellent", value: Math.round((excellent / totalValid) * 100), color: "#10b981" },
+            { name: "Good", value: Math.round((good / totalValid) * 100), color: "#0B3C5D" },
+            { name: "Average", value: Math.round((average / totalValid) * 100), color: "#f59e0b" },
+            { name: "Needs Imp.", value: Math.round(((needsImp + atRisk) / totalValid) * 100), color: "#ef4444" },
+          ]);
+        }
+      } catch (err) {
+        console.error("Failed to load real stats:", err);
+      }
+    }
+    loadStats();
+  }, []);
+
+  const passRate = perfDist[0].value + perfDist[1].value + perfDist[2].value;
 
   const kpiCards = [
     { label: "Total Students", value: stats.totalStudents.toLocaleString(), icon: Users, color: "text-blue-600", bg: "bg-blue-50", href: "/students", change: "+18" },
@@ -151,8 +229,8 @@ export default function DashboardOverview() {
           <div className="relative flex items-center justify-center h-[160px]">
             <ResponsiveContainer width="100%" height="100%">
               <PieChart>
-                <Pie data={performanceDist} cx="50%" cy="50%" innerRadius={52} outerRadius={70} paddingAngle={6} dataKey="value">
-                  {performanceDist.map((entry, i) => (
+                <Pie data={perfDist} cx="50%" cy="50%" innerRadius={52} outerRadius={70} paddingAngle={6} dataKey="value">
+                  {perfDist.map((entry, i) => (
                     <Cell key={i} fill={entry.color} />
                   ))}
                 </Pie>
@@ -160,12 +238,12 @@ export default function DashboardOverview() {
               </PieChart>
             </ResponsiveContainer>
             <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
-              <span className="text-2xl font-black text-[#0B3C5D]">72%</span>
+              <span className="text-2xl font-black text-[#0B3C5D]">{passRate}%</span>
               <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Pass Rate</span>
             </div>
           </div>
           <div className="mt-4 space-y-2">
-            {performanceDist.map((item) => (
+            {perfDist.map((item) => (
               <div key={item.name} className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <div className="w-2 h-2 rounded-full" style={{ backgroundColor: item.color }} />

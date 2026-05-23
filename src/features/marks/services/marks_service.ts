@@ -2,7 +2,8 @@ import { supabase } from "@/lib/supabase";
 import {
   Exam, Course, Batch, Subject, StudentLite, Mark,
   DashboardStats, ExamPerformancePoint, SubjectAvg, BatchAvg, TopperRow,
-  ExamScope,
+  ExamScope, ExamDirectoryRow, ExamSummaryRow, ExamCreator,
+  ExamsDirectoryFilters, CreatorRole,
 } from "../types";
 
 export const marksService = {
@@ -71,18 +72,164 @@ export const marksService = {
     exam_date: string;
     total_marks: number;
   }): Promise<Exam> {
-    const { data, error } = await supabase
-      .from("exams")
-      .insert([payload])
-      .select("*, courses(name), batches(name)")
-      .single();
-    if (error) throw error;
-    return data as Exam;
+    const res = await fetch("/api/exams", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+      credentials: "include",
+    });
+    const json = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(json.error || `Failed to create exam (HTTP ${res.status})`);
+    return json as Exam;
   },
 
   async deleteExam(id: string): Promise<void> {
-    const { error } = await supabase.from("exams").delete().eq("id", id);
+    const res = await fetch(`/api/exams?id=${id}`, {
+      method: "DELETE",
+      credentials: "include",
+    });
+    if (!res.ok) {
+      const json = await res.json().catch(() => ({}));
+      throw new Error(json.error || `Failed to delete exam (HTTP ${res.status})`);
+    }
+  },
+
+  // ── Exams directory (admin view across creators) ────────────────
+  /**
+   * Returns exams matching the filter set, each enriched with the
+   * exam_summary view's analytics row (avg / top / pass / counts).
+   * Used by the "Total Exams" directory modal.
+   */
+  async getExamsDirectory(filters: ExamsDirectoryFilters): Promise<ExamDirectoryRow[]> {
+    let q = supabase
+      .from("exams")
+      .select("*, courses(name), batches(name)")
+      .order("exam_date", { ascending: false, nullsFirst: false })
+      .order("created_at", { ascending: false })
+      .limit(500);
+
+    if (filters.course_id) q = q.eq("course_id", filters.course_id);
+    if (filters.batch_id) q = q.eq("batch_id", filters.batch_id);
+    if (filters.creator_role) q = q.eq("creator_role", filters.creator_role);
+    if (filters.created_by) q = q.eq("created_by", filters.created_by);
+    if (filters.date_from) q = q.gte("exam_date", filters.date_from);
+    if (filters.date_to) q = q.lte("exam_date", filters.date_to);
+    if (filters.search) q = q.ilike("name", `%${filters.search}%`);
+
+    const { data: exams, error } = await q;
     if (error) throw error;
+    if (!exams || exams.length === 0) return [];
+
+    const examIds = exams.map((e) => e.id);
+    const { data: stats } = await supabase
+      .from("exam_summary")
+      .select("*")
+      .in("exam_id", examIds);
+
+    const statsById = new Map<string, ExamSummaryRow>();
+    for (const s of (stats ?? []) as ExamSummaryRow[]) statsById.set(s.exam_id, s);
+
+    return exams.map((e) => ({
+      ...(e as Exam),
+      stats: statsById.get(e.id) ?? null,
+    }));
+  },
+
+  /**
+   * Distinct creators across the exams table — used to populate the
+   * creator filter dropdown. Ordered by exam count desc so the most
+   * active creators surface first.
+   */
+  async getExamCreators(): Promise<ExamCreator[]> {
+    const { data, error } = await supabase
+      .from("exams")
+      .select("created_by, creator_name, creator_role")
+      .not("created_by", "is", null);
+    if (error) throw error;
+
+    const acc = new Map<string, ExamCreator>();
+    for (const row of (data ?? []) as { created_by: string; creator_name: string | null; creator_role: CreatorRole | null }[]) {
+      if (!row.created_by || !row.creator_role) continue;
+      const existing = acc.get(row.created_by);
+      if (existing) {
+        existing.exam_count += 1;
+      } else {
+        acc.set(row.created_by, {
+          id: row.created_by,
+          name: row.creator_name ?? "Unknown",
+          role: row.creator_role,
+          exam_count: 1,
+        });
+      }
+    }
+    return Array.from(acc.values()).sort((a, b) => b.exam_count - a.exam_count);
+  },
+
+  /**
+   * Top N performers for a specific exam, ordered by percentage desc.
+   * Aggregates across subject-scoped rows (sum marks_obtained / sum total).
+   */
+  async getExamToppers(examId: string, limit = 10): Promise<TopperRow[]> {
+    const { data, error } = await supabase
+      .from("marks")
+      .select(`
+        student_id, percentage, marks_obtained, total_marks, subject_id,
+        students!inner(id, full_name, roll_number, batches(name))
+      `)
+      .eq("exam_id", examId);
+    if (error) throw error;
+
+    type Row = {
+      student_id: string;
+      percentage: number | null;
+      marks_obtained: number | null;
+      total_marks: number | null;
+      subject_id: string | null;
+      students: {
+        id: string;
+        full_name: string;
+        roll_number: string | null;
+        batches: { name: string } | null;
+      };
+    };
+
+    // Aggregate per student across (possibly multiple) subject rows.
+    const acc = new Map<string, {
+      studentId: string;
+      studentName: string;
+      rollNumber: string | null;
+      batchName: string | null;
+      obtained: number;
+      total: number;
+    }>();
+
+    for (const r of (data ?? []) as unknown as Row[]) {
+      const key = r.students.id;
+      const cur = acc.get(key) ?? {
+        studentId: r.students.id,
+        studentName: r.students.full_name,
+        rollNumber: r.students.roll_number,
+        batchName: r.students.batches?.name ?? null,
+        obtained: 0,
+        total: 0,
+      };
+      cur.obtained += Number(r.marks_obtained ?? 0);
+      cur.total += Number(r.total_marks ?? 0);
+      acc.set(key, cur);
+    }
+
+    return Array.from(acc.values())
+      .map((s) => ({
+        studentId: s.studentId,
+        studentName: s.studentName,
+        rollNumber: s.rollNumber,
+        batchName: s.batchName,
+        marksObtained: s.obtained,
+        totalMarks: s.total,
+        percentage: s.total > 0 ? (s.obtained / s.total) * 100 : 0,
+      }))
+      .sort((a, b) => b.percentage - a.percentage)
+      .slice(0, limit);
   },
 
   // ── Students ─────────────────────────────────────────────────────
@@ -116,28 +263,60 @@ export const marksService = {
     const valid = records.filter((r) => r.exam_id && r.student_id);
     if (!valid.length) return;
 
-    const sanitized = valid.map((r) => ({
-      ...(r.id ? { id: r.id } : {}),
-      exam_id: r.exam_id,
-      student_id: r.student_id,
-      subject_id: r.subject_id ?? null,
-      marks_obtained: r.marks_obtained ?? 0,
-      total_marks: r.total_marks ?? 100,
-      remarks: r.remarks ?? null,
-    }));
-
-    // Split: existing rows -> update by id; new rows -> insert (DB unique
-    // index on exam/student/subject prevents duplicates).
-    const updates = sanitized.filter((r) => r.id);
-    const inserts = sanitized.filter((r) => !r.id);
-
-    if (updates.length) {
-      const { error } = await supabase.from("marks").upsert(updates);
-      if (error) throw error;
+    // Group by exam_id and subject_id to batch reads
+    const groups = new Map<string, Mark[]>();
+    for (const r of valid) {
+      const key = `${r.exam_id}-${r.subject_id || 'none'}`;
+      const arr = groups.get(key);
+      if (arr) arr.push(r);
+      else groups.set(key, [r]);
     }
-    if (inserts.length) {
-      const { error } = await supabase.from("marks").insert(inserts);
-      if (error) throw error;
+
+    for (const group of groups.values()) {
+      const sample = group[0];
+      let readQ = supabase
+        .from("marks")
+        .select("id, student_id")
+        .eq("exam_id", sample.exam_id)
+        .in("student_id", group.map((r) => r.student_id));
+      
+      if (sample.subject_id) {
+        readQ = readQ.eq("subject_id", sample.subject_id);
+      } else {
+        readQ = readQ.is("subject_id", null);
+      }
+
+      const { data: existing, error: readErr } = await readQ;
+      if (readErr) throw new Error(`Failed to read existing marks: ${readErr.message}`);
+
+      const existingMap = new Map<string, string>();
+      for (const row of existing ?? []) {
+        existingMap.set(row.student_id, row.id);
+      }
+
+      const toInsert: any[] = [];
+      for (const r of group) {
+        const payload = {
+          exam_id: r.exam_id,
+          student_id: r.student_id,
+          subject_id: r.subject_id || null,
+          marks_obtained: r.marks_obtained,
+          total_marks: r.total_marks,
+          remarks: r.remarks || null,
+        };
+        const id = existingMap.get(r.student_id);
+        if (id) {
+          const { error: upErr } = await supabase.from("marks").update(payload).eq("id", id);
+          if (upErr) throw new Error(`Marks update failed: ${upErr.message}`);
+        } else {
+          toInsert.push(payload);
+        }
+      }
+
+      if (toInsert.length > 0) {
+        const { error: insErr } = await supabase.from("marks").insert(toInsert);
+        if (insErr) throw new Error(`Marks insert failed: ${insErr.message}`);
+      }
     }
   },
 
@@ -396,3 +575,36 @@ export const marksService = {
     });
   },
 };
+
+// ── Helpers ────────────────────────────────────────────────────
+/**
+ * Resolve the current creator's id/name/role for stamping onto a new exam.
+ * - Reads auth user metadata for role + full_name.
+ * - If role is teacher and full_name is missing, falls back to the teachers
+ *   table (lookup by auth_id).
+ * - Returns nulls if no auth session (e.g. master-admin override).
+ */
+async function resolveCreator(): Promise<{
+  id: string | null;
+  name: string | null;
+  role: CreatorRole | null;
+}> {
+  const { data } = await supabase.auth.getUser();
+  const user = data?.user;
+  if (!user) return { id: null, name: null, role: null };
+
+  const meta = (user.user_metadata ?? {}) as Record<string, unknown>;
+  const role = (meta.role === "admin" || meta.role === "teacher") ? meta.role : null;
+  let name = typeof meta.full_name === "string" ? meta.full_name : null;
+
+  if (role === "teacher" && !name) {
+    const { data: t } = await supabase
+      .from("teachers")
+      .select("full_name")
+      .eq("auth_id", user.id)
+      .maybeSingle();
+    name = t?.full_name ?? null;
+  }
+
+  return { id: user.id, name, role };
+}

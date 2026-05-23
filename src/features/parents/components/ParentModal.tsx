@@ -1,9 +1,9 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { X, Loader2, Search, CheckCircle2, User, Mail, Phone, Users, AlertCircle } from "lucide-react";
+import { X, Loader2, Search, CheckCircle2, User, Mail, Phone, Users, AlertCircle, Camera, UserCircle } from "lucide-react";
 import { parentSchema, ParentFormValues } from "../schemas";
 import { Parent, LinkedStudent } from "../types";
 import { generateParentPassword } from "@/lib/utils/password_utils";
@@ -33,6 +33,22 @@ export default function ParentModal({ parent, onClose, onCreated }: Props) {
 
   const [studentSearch, setStudentSearch] = useState("");
   const [serverError, setServerError] = useState<string | null>(null);
+  const [photoFile, setPhotoFile] = useState<File | null>(null);
+  const [photoPreview, setPhotoPreview] = useState<string | null>(parent?.profile_photo_url ?? null);
+  const photoInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    return () => {
+      if (photoPreview?.startsWith("blob:")) URL.revokeObjectURL(photoPreview);
+    };
+  }, [photoPreview]);
+
+  function handlePhotoChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setPhotoFile(file);
+    setPhotoPreview(URL.createObjectURL(file));
+  }
 
   const presetStudents: LinkedStudent[] = parent?.students ?? [];
   const presetIds = presetStudents.map((s) => s.id);
@@ -100,10 +116,10 @@ export default function ParentModal({ parent, onClose, onCreated }: Props) {
     setServerError(null);
     try {
       if (isEdit) {
-        await update.mutateAsync({ id: parent!.id, values });
+        await update.mutateAsync({ id: parent!.id, values, photoFile: photoFile ?? undefined });
         onClose();
       } else {
-        const result = await create.mutateAsync(values);
+        const result = await create.mutateAsync({ values, photoFile: photoFile ?? undefined });
         onCreated?.(result);
         onClose();
       }
@@ -140,6 +156,36 @@ export default function ParentModal({ parent, onClose, onCreated }: Props) {
                 <p className="text-xs text-rose-700 font-medium">{serverError}</p>
               </div>
             )}
+
+            <div className="flex items-center gap-4">
+              <div className="relative">
+                <div className="w-20 h-20 rounded-2xl overflow-hidden border-2 border-white shadow-md bg-[#0B3C5D]/5 flex items-center justify-center">
+                  {photoPreview ? (
+                    <img src={photoPreview} alt="Preview" className="w-full h-full object-cover" />
+                  ) : (
+                    <UserCircle size={36} className="text-[#0B3C5D]/30" />
+                  )}
+                </div>
+                <button
+                  type="button"
+                  onClick={() => photoInputRef.current?.click()}
+                  className="absolute -bottom-1 -right-1 w-8 h-8 bg-[#0B3C5D] text-white rounded-xl flex items-center justify-center shadow-lg hover:scale-110 active:scale-90 transition-all border-2 border-white"
+                >
+                  <Camera size={14} />
+                </button>
+                <input
+                  ref={photoInputRef}
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={handlePhotoChange}
+                />
+              </div>
+              <div>
+                <p className="text-xs font-bold text-slate-700">Profile Photo</p>
+                <p className="text-[10px] text-slate-400">JPG, PNG or WebP, up to 5 MB. Stored on Google Drive.</p>
+              </div>
+            </div>
 
             <div className="grid grid-cols-2 gap-4">
               <div className="col-span-2">

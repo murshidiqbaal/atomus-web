@@ -2,13 +2,13 @@
 
 import React, { useMemo, useState } from "react";
 import {
-  Trophy, RotateCcw, ArrowUp, ArrowDown, BarChart3, Medal,
+  Trophy, RotateCcw, ArrowUp, ArrowDown, BarChart3,
 } from "lucide-react";
 import {
   BarChart, Bar, CartesianGrid, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell,
 } from "recharts";
 import {
-  useAllExams, useBatches, useCourses, useSubjects, useToppers,
+  useAllExams, useCourses, useSubjects, useToppers,
 } from "../hooks";
 import { Card, EmptyState, fieldCls, Label, StatCard } from "./ui";
 import { GRADE_CFG } from "../utils/grade";
@@ -61,9 +61,6 @@ function ToppersLeaderboard({ rows, isLoading }: { rows: TopperRow[]; isLoading:
                 Student
               </th>
               <th className="py-3 px-4 text-[11px] font-bold uppercase tracking-widest text-slate-500">
-                Batch
-              </th>
-              <th className="py-3 px-4 text-[11px] font-bold uppercase tracking-widest text-slate-500">
                 Score
               </th>
               <th className="py-3 px-4 text-[11px] font-bold uppercase tracking-widest text-slate-500">
@@ -93,7 +90,6 @@ function ToppersLeaderboard({ rows, isLoading }: { rows: TopperRow[]; isLoading:
                     <p className="text-sm font-semibold text-slate-800">{r.studentName}</p>
                     <p className="text-[10px] font-mono text-slate-400">{r.rollNumber ?? "—"}</p>
                   </td>
-                  <td className="py-3 px-4 text-sm text-slate-600">{r.batchName ?? "—"}</td>
                   <td className="py-3 px-4 text-sm font-bold text-[#0B3C5D] tabular-nums">
                     {r.marksObtained}<span className="text-slate-400 font-normal"> / {r.totalMarks}</span>
                   </td>
@@ -122,29 +118,24 @@ function ToppersLeaderboard({ rows, isLoading }: { rows: TopperRow[]; isLoading:
 
 export function MarksAnalytics() {
   const [course, setCourse] = useState("");
-  const [batch, setBatch] = useState("");
   const [exam, setExam] = useState("");
   const [subject, setSubject] = useState("");
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
 
   const { data: courses = [] } = useCourses();
-  const { data: batches = [] } = useBatches(course);
   const { data: subjects = [] } = useSubjects(course);
   const { data: exams = [] } = useAllExams();
 
-  // Filter exams locally based on course/batch
   const filteredExams = useMemo(() => {
     return exams.filter((e) => {
       if (course && e.course_id !== course) return false;
-      if (batch && e.batch_id && e.batch_id !== batch) return false;
       return true;
     });
-  }, [exams, course, batch]);
+  }, [exams, course]);
 
   const filters = {
     course_id: course || undefined,
-    batch_id: batch || undefined,
     exam_id: exam || undefined,
     subject_id: subject || undefined,
     date_from: dateFrom || undefined,
@@ -161,31 +152,11 @@ export function MarksAnalytics() {
     const min = Math.min(...pcts);
     const avg = pcts.reduce((a, b) => a + b, 0) / pcts.length;
     const passRate = (pcts.filter((p) => p >= 50).length / pcts.length) * 100;
-    // top batch from top results
-    const map = new Map<string, { sum: number; n: number }>();
-    for (const t of toppers) {
-      const name = t.batchName ?? "—";
-      const cur = map.get(name) ?? { sum: 0, n: 0 };
-      cur.sum += t.percentage;
-      cur.n += 1;
-      map.set(name, cur);
-    }
-    let topBatch = "—";
-    let topBatchAvg = 0;
-    for (const [name, v] of map) {
-      const a = v.sum / v.n;
-      if (a > topBatchAvg) {
-        topBatchAvg = a;
-        topBatch = name;
-      }
-    }
     return {
       highest: max.toFixed(1),
       lowest: min.toFixed(1),
       avg: avg.toFixed(1),
       passRate: passRate.toFixed(1),
-      topBatch,
-      topBatchAvg: topBatchAvg.toFixed(1),
     };
   }, [toppers]);
 
@@ -199,28 +170,21 @@ export function MarksAnalytics() {
   );
 
   const resetFilters = () => {
-    setCourse(""); setBatch(""); setExam(""); setSubject(""); setDateFrom(""); setDateTo("");
+    setCourse(""); setExam(""); setSubject(""); setDateFrom(""); setDateTo("");
   };
 
-  const hasFilters = course || batch || exam || subject || dateFrom || dateTo;
+  const hasFilters = course || exam || subject || dateFrom || dateTo;
 
   return (
     <div className="space-y-5">
       {/* Filters */}
       <Card className="p-4">
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
           <div className="lg:col-span-1">
             <Label>Course</Label>
-            <select value={course} onChange={(e) => { setCourse(e.target.value); setBatch(""); setExam(""); setSubject(""); }} className={fieldCls}>
+            <select value={course} onChange={(e) => { setCourse(e.target.value); setExam(""); setSubject(""); }} className={fieldCls}>
               <option value="">All</option>
               {courses.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-            </select>
-          </div>
-          <div>
-            <Label>Batch</Label>
-            <select value={batch} onChange={(e) => setBatch(e.target.value)} className={fieldCls} disabled={!course}>
-              <option value="">All</option>
-              {batches.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
             </select>
           </div>
           <div>
@@ -266,7 +230,7 @@ export function MarksAnalytics() {
       </Card>
 
       {/* KPI Cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
         <StatCard
           label="Highest"
           value={summary ? `${summary.highest}%` : "—"}
@@ -290,13 +254,6 @@ export function MarksAnalytics() {
           value={summary ? `${summary.passRate}%` : "—"}
           icon={<Trophy size={18} />}
           accent="bg-amber-400"
-        />
-        <StatCard
-          label="Top Batch"
-          value={summary?.topBatch ?? "—"}
-          sub={summary ? `${summary.topBatchAvg}% avg` : "No data"}
-          icon={<Medal size={18} />}
-          accent="bg-[#D4AF37]"
         />
       </div>
 

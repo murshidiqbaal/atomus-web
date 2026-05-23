@@ -53,11 +53,11 @@ export interface AttendanceRecord {
   subject_id: string | null;
   teacher_id: string | null;
   attendance_date: string;
-  period_number: number;
-  period_label: string | null;
   status: AttendanceStatus;
   remarks: string | null;
   marked_by: string | null;
+  attendance_marker_role?: "Teacher" | "Admin" | "System" | null;
+  attendance_marker_name?: string | null;
   created_at: string;
   updated_at: string | null;
 }
@@ -87,32 +87,11 @@ export interface AttendanceUpsertRow {
   subject_id: string | null;
   teacher_id?: string | null;
   attendance_date: string;
-  period_number: number;
-  period_label?: string | null;
   status: AttendanceStatus;
   remarks?: string | null;
   marked_by?: string | null;
-}
-
-// ── Periods ──────────────────────────────────────────────────────
-/**
- * Default per-day period count. Configurable later per campus/batch via a
- * schedule table; for now a static 1..N keeps the UI simple.
- */
-export const DEFAULT_PERIOD_COUNT = 5;
-
-export function defaultPeriods(count = DEFAULT_PERIOD_COUNT): Period[] {
-  return Array.from({ length: count }, (_, i) => ({
-    number: i + 1,
-    label: `Hour ${i + 1}`,
-    short: `H${i + 1}`,
-  }));
-}
-
-export interface Period {
-  number: number;
-  label: string;
-  short: string;
+  attendance_marker_role?: "Teacher" | "Admin" | "System" | null;
+  attendance_marker_name?: string | null;
 }
 
 // ── Date helpers ─────────────────────────────────────────────────
@@ -127,12 +106,11 @@ export function isFutureDate(iso: string): boolean {
 }
 
 // ── Cell key helpers ─────────────────────────────────────────────
-/** Stable key for (student, period) within a single grid session. */
-export function cellKey(studentId: string, period: number): string {
-  return `${studentId}|${period}`;
+/** Stable key for a student within a single grid session. */
+export function cellKey(studentId: string): string {
+  return studentId;
 }
 
-export function parseCellKey(key: string): { studentId: string; period: number } {
-  const [studentId, p] = key.split("|");
-  return { studentId, period: Number(p) };
+export function parseCellKey(key: string): { studentId: string } {
+  return { studentId: key };
 }

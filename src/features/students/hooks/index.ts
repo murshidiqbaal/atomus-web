@@ -1,7 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { studentService } from "../services/student_service";
 import { StudentFormValues } from "../schemas";
-import { Student } from "../types";
+import { Student, AcademicStatus } from "../types";
 import { supabase } from "@/lib/supabase";
 
 const QK = "students";
@@ -182,7 +182,27 @@ export function useToggleStudent() {
       await qc.cancelQueries({ queryKey: [QK] });
       const prev = qc.getQueryData<Student[]>([QK]);
       qc.setQueryData<Student[]>([QK], (old = []) =>
-        old.map((s) => (s.id === id ? { ...s, is_active } : s))
+        old.map((s) => (s.id === id ? { ...s, academic_status: (is_active ? "Active" : "Inactive") as AcademicStatus } : s))
+      );
+      return { prev };
+    },
+    onError: (_err, _vars, ctx) => {
+      if (ctx?.prev) qc.setQueryData([QK], ctx.prev);
+    },
+    onSettled: () => qc.invalidateQueries({ queryKey: [QK] }),
+  });
+}
+
+export function useUpdateStudentStatus() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, status }: { id: string; status: string }) =>
+      studentService.updateStatus(id, status),
+    onMutate: async ({ id, status }) => {
+      await qc.cancelQueries({ queryKey: [QK] });
+      const prev = qc.getQueryData<Student[]>([QK]);
+      qc.setQueryData<Student[]>([QK], (old = []) =>
+        old.map((s) => (s.id === id ? { ...s, academic_status: status as AcademicStatus } : s))
       );
       return { prev };
     },

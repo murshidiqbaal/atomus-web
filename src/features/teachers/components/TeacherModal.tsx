@@ -44,7 +44,7 @@ export default function TeacherModal({ teacher, onClose }: Props) {
 
   const [passwordMode, setPasswordMode] = useState<"auto" | "manual">("auto");
   const [photoFile, setPhotoFile]       = useState<File | null>(null);
-  const [photoPreview, setPhotoPreview] = useState<string | null>(teacher?.profile_image ?? null);
+  const [photoPreview, setPhotoPreview] = useState<string | null>(teacher?.profile_photo_url ?? null);
   const photoInputRef = useRef<HTMLInputElement>(null);
 
   const [serverError, setServerError] = useState<string | null>(null);

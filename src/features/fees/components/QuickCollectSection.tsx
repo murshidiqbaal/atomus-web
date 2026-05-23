@@ -202,8 +202,8 @@ function CollectForm({
           </p>
           <p className="text-[11px] font-mono text-slate-400">
             {row.students?.admission_number ?? "—"} ·{" "}
-            {row.students?.courses?.name ?? "—"} /{" "}
-            {row.students?.batches?.name ?? "—"}
+            {row.students?.courses?.name ?? "—"} ·{" "}
+            {row.students?.campuses?.name ?? "—"}
           </p>
         </div>
         <StatusPill status={row.payment_status} />

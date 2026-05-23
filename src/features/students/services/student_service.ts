@@ -1,5 +1,7 @@
 import { supabase } from "@/lib/supabase";
 import { generateParentPassword } from "@/lib/utils/password_utils";
+import { uploadToDrive, cleanupDriveFile } from "@/lib/utils/drive_upload";
+import { convertToWebP } from "@/lib/utils/image_utils";
 import { Student, StudentWithRelations, AttendanceRecord, MarksRecord } from "../types";
 import { StudentFormValues } from "../schemas";
 
@@ -151,10 +153,17 @@ export const studentService = {
 
     const student = data as StudentMutationResult;
     if (photoFile) {
-      const url = await this.uploadPhoto(photoFile, student.id);
-      if (url) {
-        await supabase.from("students").update({ photo_url: url }).eq("id", student.id);
-        student.photo_url = url;
+      const upload = await this.uploadPhoto(photoFile);
+      if (upload) {
+        await supabase
+          .from("students")
+          .update({
+            profile_photo_url: upload.url,
+            profile_photo_drive_id: upload.fileId,
+          })
+          .eq("id", student.id);
+        student.profile_photo_url = upload.url;
+        student.profile_photo_drive_id = upload.fileId;
       }
     }
     student._parentCredentials = link.credentials;
@@ -179,10 +188,21 @@ export const studentService = {
 
     const student = data as StudentMutationResult;
     if (photoFile) {
-      const url = await this.uploadPhoto(photoFile, id);
-      if (url) {
-        await supabase.from("students").update({ photo_url: url }).eq("id", id);
-        student.photo_url = url;
+      const previousDriveId = student.profile_photo_drive_id ?? null;
+      const upload = await this.uploadPhoto(photoFile);
+      if (upload) {
+        await supabase
+          .from("students")
+          .update({
+            profile_photo_url: upload.url,
+            profile_photo_drive_id: upload.fileId,
+          })
+          .eq("id", id);
+        student.profile_photo_url = upload.url;
+        student.profile_photo_drive_id = upload.fileId;
+        if (previousDriveId && previousDriveId !== upload.fileId) {
+          void cleanupDriveFile(previousDriveId);
+        }
       }
     }
     student._parentCredentials = link.credentials;
@@ -193,6 +213,17 @@ export const studentService = {
     const { data, error } = await supabase
       .from("students")
       .update({ academic_status: is_active ? "Active" : "Inactive" })
+      .eq("id", id)
+      .select(STUDENT_SELECT)
+      .single();
+    if (error) throw error;
+    return data as StudentWithRelations;
+  },
+
+  async updateStatus(id: string, status: string): Promise<StudentWithRelations> {
+    const { data, error } = await supabase
+      .from("students")
+      .update({ academic_status: status })
       .eq("id", id)
       .select(STUDENT_SELECT)
       .single();
@@ -215,7 +246,7 @@ export const studentService = {
       .from("attendance")
       .select("*")
       .eq("student_id", student_id)
-      .order("date", { ascending: false })
+      .order("attendance_date", { ascending: false })
       .limit(60);
     return (data ?? []) as AttendanceRecord[];
   },
@@ -239,17 +270,11 @@ export const studentService = {
     return data ?? [];
   },
 
-  async uploadPhoto(file: File, studentId: string): Promise<string | null> {
+  async uploadPhoto(file: File): Promise<{ url: string; fileId: string } | null> {
     try {
-      const ext = file.name.split(".").pop() ?? "jpg";
-      const { error } = await supabase.storage
-        .from("student-photos")
-        .upload(`${studentId}.${ext}`, file, { upsert: true });
-      if (error) return null;
-      const { data } = supabase.storage
-        .from("student-photos")
-        .getPublicUrl(`${studentId}.${ext}`);
-      return data.publicUrl;
+      const compressed = await convertToWebP(file, 0.8).catch(() => file);
+      const result = await uploadToDrive(compressed, "/api/upload/student-photo");
+      return { url: result.imageUrl, fileId: result.fileId };
     } catch {
       return null;
     }

@@ -9,7 +9,8 @@
       "PowerShell(npx tsc --noEmit; Write-Output \"EXIT_CODE=$LASTEXITCODE\")",
       "PowerShell(npx eslint src/features/marks src/app/marks 2>&1; Write-Output \"EXIT_CODE=$LASTEXITCODE\")",
       "Bash(echo \"EXIT=$?\")",
-      "Bash(npx eslint *)"
+      "Bash(npx eslint *)",
+      "Bash(echo \"exit=$?\")"
     ]
   }
 }

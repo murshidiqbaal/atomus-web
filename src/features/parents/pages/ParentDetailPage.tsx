@@ -293,6 +293,17 @@ export default function ParentDetailPage({ id }: { id: string }) {
                   <p className="text-sm font-black text-slate-700 font-mono tracking-tight">{parent.username || "—"}</p>
                 </div>
               </div>
+              {parent.password_hash && (
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-amber-50 flex items-center justify-center text-amber-500 border border-amber-200">
+                    <KeyRound size={16} />
+                  </div>
+                  <div>
+                    <p className="text-[10px] font-black text-amber-500 uppercase tracking-widest leading-none mb-1">Password</p>
+                    <p className="text-sm font-black text-[#D4AF37] font-mono tracking-tight select-all bg-amber-50 px-1.5 py-0.5 rounded border border-amber-200/50">{parent.password_hash}</p>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         </div>

@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useMemo } from "react";
+import React, { useMemo, useState } from "react";
 import {
   BookOpen, FileSpreadsheet, GraduationCap, Trophy, TrendingUp,
 } from "lucide-react";
@@ -9,10 +9,11 @@ import {
   CartesianGrid, XAxis, YAxis, Tooltip, ResponsiveContainer, Legend,
 } from "recharts";
 import {
-  useBatchAverages, useDashboardStats, useExamTrend, useSubjectAverages,
+  useDashboardStats, useExamTrend, useSubjectAverages,
 } from "../hooks";
 import { Card, EmptyState, StatCard } from "./ui";
 import { GRADE_CFG } from "../utils/grade";
+import { ExamsDirectoryModal } from "./ExamsDirectoryModal";
 
 const SUBJECT_PALETTE = ["#0B3C5D", "#1E5F8E", "#2C7CBF", "#4FA3D9", "#7EBFE5"];
 
@@ -20,7 +21,7 @@ export function MarksDashboard({ courseFilter }: { courseFilter: string }) {
   const dash = useDashboardStats();
   const trend = useExamTrend();
   const subjects = useSubjectAverages(courseFilter);
-  const batches = useBatchAverages(courseFilter);
+  const [directoryOpen, setDirectoryOpen] = useState(false);
 
   const stats = dash.data;
   const trendData = useMemo(
@@ -41,14 +42,6 @@ export function MarksDashboard({ courseFilter }: { courseFilter: string }) {
     [subjects.data]
   );
 
-  const batchData = useMemo(
-    () =>
-      (batches.data ?? [])
-        .slice(0, 8)
-        .map((b) => ({ name: b.name, Average: Number(b.avg.toFixed(1)) })),
-    [batches.data]
-  );
-
   const pieData = useMemo(() => {
     // Approximate distribution from subject averages — falls back to grade buckets
     const buckets = { Excellent: 0, Good: 0, Average: 0, "Needs Improvement": 0 } as Record<string, number>;
@@ -66,8 +59,8 @@ export function MarksDashboard({ courseFilter }: { courseFilter: string }) {
   if (dash.isLoading) {
     return (
       <div className="space-y-4">
-        <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
-          {Array(5).fill(0).map((_, i) => (
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+          {Array(4).fill(0).map((_, i) => (
             <div key={i} className="h-20 bg-slate-100 rounded-2xl animate-pulse" />
           ))}
         </div>
@@ -78,13 +71,17 @@ export function MarksDashboard({ courseFilter }: { courseFilter: string }) {
 
   return (
     <div className="space-y-5">
+      <ExamsDirectoryModal isOpen={directoryOpen} onClose={() => setDirectoryOpen(false)} />
+
       {/* KPI cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
         <StatCard
           label="Total Exams"
           value={stats?.totalExams ?? 0}
           icon={<FileSpreadsheet size={18} />}
           accent="bg-[#0B3C5D]"
+          onClick={() => setDirectoryOpen(true)}
+          ctaLabel="View directory"
         />
         <StatCard
           label="Active Courses"
@@ -103,13 +100,6 @@ export function MarksDashboard({ courseFilter }: { courseFilter: string }) {
           value={`${(stats?.avgPerformance ?? 0).toFixed(1)}%`}
           icon={<TrendingUp size={18} />}
           accent="bg-amber-400"
-        />
-        <StatCard
-          label="Top Batch"
-          value={stats?.topBatch?.name ?? "—"}
-          sub={stats?.topBatch ? `${stats.topBatch.avg.toFixed(1)}% avg` : "No data"}
-          icon={<Trophy size={18} />}
-          accent="bg-[#D4AF37]"
         />
       </div>
 
@@ -220,35 +210,6 @@ export function MarksDashboard({ courseFilter }: { courseFilter: string }) {
         </Card>
       </div>
 
-      {/* Batch Performance */}
-      <Card className="p-5">
-        <p className="text-sm font-bold text-slate-800 mb-1">Batch Performance Comparison</p>
-        <p className="text-xs text-slate-400 mb-3">Average percentage across exams · top 8 batches</p>
-        {batchData.length === 0 ? (
-          <EmptyState icon={<GraduationCap size={26} />} title="No batch data" />
-        ) : (
-          <div className="h-64">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart
-                data={batchData}
-                layout="vertical"
-                margin={{ top: 0, right: 15, left: 10, bottom: 0 }}
-              >
-                <CartesianGrid strokeDasharray="3 3" stroke="#eef2f7" />
-                <XAxis type="number" domain={[0, 100]} tick={{ fontSize: 11, fill: "#64748b" }} />
-                <YAxis
-                  dataKey="name"
-                  type="category"
-                  tick={{ fontSize: 11, fill: "#64748b" }}
-                  width={90}
-                />
-                <Tooltip contentStyle={{ borderRadius: 12, fontSize: 12, border: "1px solid #e2e8f0" }} />
-                <Bar dataKey="Average" fill="#0B3C5D" radius={[0, 8, 8, 0]} />
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
-        )}
-      </Card>
     </div>
   );
 }

@@ -200,7 +200,7 @@ export default function StudentModal({ student, onClose }: Props) {
   }, [watchedCourse, setValue]);
 
   useEffect(() => {
-    setPhotoPreview(student?.photo_url ?? null);
+    setPhotoPreview(student?.profile_photo_url ?? null);
     setPhotoFile(null);
     setRollError(null);
   }, [student]);

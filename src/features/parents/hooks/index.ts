@@ -33,8 +33,8 @@ export function useUnlinkedStudents() {
 
 export function useCreateParent() {
   const qc = useQueryClient();
-  return useMutation<CreateParentResult, Error, ParentFormValues>({
-    mutationFn: (values) => parentService.create(values),
+  return useMutation<CreateParentResult, Error, { values: ParentFormValues; photoFile?: File }>({
+    mutationFn: ({ values, photoFile }) => parentService.create(values, photoFile),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: [QK] });
       qc.invalidateQueries({ queryKey: [UNLINKED_QK] });
@@ -46,8 +46,8 @@ export function useCreateParent() {
 export function useUpdateParent() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ id, values }: { id: string; values: Partial<ParentFormValues> }) =>
-      parentService.update(id, values),
+    mutationFn: ({ id, values, photoFile }: { id: string; values: Partial<ParentFormValues>; photoFile?: File }) =>
+      parentService.update(id, values, photoFile),
     onSuccess: (updated) => {
       qc.setQueryData<Parent[]>([QK], (old = []) =>
         old.map((p) => (p.id === updated.id ? updated : p))

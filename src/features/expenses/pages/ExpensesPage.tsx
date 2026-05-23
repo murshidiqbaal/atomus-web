@@ -5,6 +5,7 @@ import type React from "react";
 import {
   Calculator, Plus, Trash2, RotateCcw, TrendingUp, Wallet,
   PieChart as PieIcon, BarChart3, Save, CheckCircle2, ChevronLeft, Calendar,
+  Building2,
 } from "lucide-react";
 import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip,
@@ -14,9 +15,11 @@ import {
   CUSTOM_PALETTE, DEFAULT_ITEMS, ExpenseItem, ICONS, IconKey,
 } from "../types";
 import {
-  currentMonth, formatINR, loadItems, loadPeriod, saveItems, savePeriod, getYearlyData,
+  ALL_CAMPUSES, currentMonth, formatINR, getYearlyData, loadCampus, loadItems,
+  loadPeriod, saveCampus, saveItems, savePeriod,
 } from "../utils/storage";
 import { DistributionPie, RankingBar } from "../components/ExpenseCharts";
+import { useExpCampuses } from "../hooks";
 
 const fieldCls =
   "w-full px-3 py-2.5 text-sm bg-white border border-slate-200 rounded-xl outline-none focus:border-[#0B3C5D] focus:ring-2 focus:ring-[#0B3C5D]/10 transition-all";
@@ -53,11 +56,12 @@ function StatCard({
 }
 
 function ExpenseRow({
-  item, onChange, onRemove,
+  item, onChange, onRemove, readOnly = false,
 }: {
   item: ExpenseItem;
   onChange: (next: Partial<ExpenseItem>) => void;
   onRemove?: () => void;
+  readOnly?: boolean;
 }) {
   const Icon = ICONS[item.iconKey];
   return (
@@ -71,7 +75,7 @@ function ExpenseRow({
         </div>
         <div className="flex-1 min-w-0">
           <div className="flex items-center justify-between gap-2">
-            {item.custom ? (
+            {item.custom && !readOnly ? (
               <input
                 type="text"
                 value={item.label}
@@ -82,7 +86,7 @@ function ExpenseRow({
             ) : (
               <p className="text-sm font-bold text-slate-800 truncate">{item.label}</p>
             )}
-            {onRemove && (
+            {onRemove && !readOnly && (
               <button
                 onClick={onRemove}
                 className="p-1.5 text-slate-300 hover:text-rose-500 transition-colors shrink-0"
@@ -95,24 +99,38 @@ function ExpenseRow({
 
           <div className="mt-2 flex items-center gap-2">
             <span className="text-slate-400 text-sm font-semibold">₹</span>
-            <input
-              type="number"
-              inputMode="decimal"
-              min={0}
-              value={item.amount || ""}
-              onChange={(e) => onChange({ amount: Number(e.target.value) || 0 })}
-              placeholder="0"
-              className={`${fieldCls} font-bold text-slate-800 tabular-nums`}
-            />
+            {readOnly ? (
+              <p className="w-full px-3 py-2.5 text-sm font-bold text-slate-800 tabular-nums bg-slate-50 border border-slate-100 rounded-xl">
+                {(item.amount || 0).toLocaleString("en-IN")}
+              </p>
+            ) : (
+              <input
+                type="number"
+                inputMode="decimal"
+                min={0}
+                value={item.amount || ""}
+                onChange={(e) => onChange({ amount: Number(e.target.value) || 0 })}
+                placeholder="0"
+                className={`${fieldCls} font-bold text-slate-800 tabular-nums`}
+              />
+            )}
           </div>
 
-          <input
-            type="text"
-            value={item.notes ?? ""}
-            onChange={(e) => onChange({ notes: e.target.value })}
-            placeholder="Notes (optional)"
-            className="mt-2 w-full px-2 py-1.5 text-xs text-slate-500 bg-slate-50 border border-slate-100 rounded-lg outline-none focus:border-slate-300"
-          />
+          {readOnly ? (
+            item.notes ? (
+              <p className="mt-2 w-full px-2 py-1.5 text-xs text-slate-500 bg-slate-50 border border-slate-100 rounded-lg truncate" title={item.notes}>
+                {item.notes}
+              </p>
+            ) : null
+          ) : (
+            <input
+              type="text"
+              value={item.notes ?? ""}
+              onChange={(e) => onChange({ notes: e.target.value })}
+              placeholder="Notes (optional)"
+              className="mt-2 w-full px-2 py-1.5 text-xs text-slate-500 bg-slate-50 border border-slate-100 rounded-lg outline-none focus:border-slate-300"
+            />
+          )}
         </div>
       </div>
     </Card>
@@ -122,9 +140,12 @@ function ExpenseRow({
 export default function ExpensesPage() {
   const [items, setItems] = useState<ExpenseItem[]>(DEFAULT_ITEMS);
   const [period, setPeriod] = useState<string>(currentMonth());
+  const [campusId, setCampusId] = useState<string>(ALL_CAMPUSES);
   const [justSaved, setJustSaved] = useState(false);
   const [hydrated, setHydrated] = useState(false);
   const [showYearlyAnalysis, setShowYearlyAnalysis] = useState(false);
+
+  const { data: campuses = [] } = useExpCampuses();
 
   const currentYear = useMemo(() => {
     try {
@@ -136,6 +157,14 @@ export default function ExpensesPage() {
 
   const [selectedYear, setSelectedYear] = useState<number>(currentYear);
 
+  const activeCampusName = useMemo(() => {
+    if (campusId === ALL_CAMPUSES) return "All Campuses";
+    return campuses.find((c) => c.id === campusId)?.name ?? "All Campuses";
+  }, [campusId, campuses]);
+
+  // "All Campuses" is a computed aggregate, not an editable bucket.
+  const isAggregate = campusId === ALL_CAMPUSES;
+
   // Sync selected year if period changes
   useEffect(() => {
     setSelectedYear(currentYear);
@@ -144,25 +173,42 @@ export default function ExpensesPage() {
   // Hydrate from localStorage on mount. localStorage isn't available during SSR.
   useEffect(() => {
     const p = loadPeriod();
+    const c = loadCampus();
     setPeriod(p);
-    setItems(loadItems(p));
+    setCampusId(c);
+    setItems(loadItems(p, c));
     setHydrated(true);
   }, []);
 
-  // Save current items to current period automatically whenever they change.
+  // Save current items to current period+campus automatically whenever they change.
   useEffect(() => {
     if (!hydrated) return;
-    saveItems(period, items);
+    if (campusId === ALL_CAMPUSES) return; // aggregate view is computed — never persist
+    saveItems(period, campusId, items);
     setJustSaved(true);
     const t = setTimeout(() => setJustSaved(false), 1500);
     return () => clearTimeout(t);
-  }, [items, period, hydrated]);
+  }, [items, period, campusId, hydrated]);
+
+  // Re-aggregate when the user lands on (or returns to) All Campuses so the
+  // view reflects the latest per-campus data.
+  useEffect(() => {
+    if (!hydrated) return;
+    if (campusId !== ALL_CAMPUSES) return;
+    setItems(loadItems(period, ALL_CAMPUSES));
+  }, [hydrated, campusId, period]);
 
   // Save period choice.
   useEffect(() => {
     if (!hydrated) return;
     savePeriod(period);
   }, [period, hydrated]);
+
+  // Save campus choice.
+  useEffect(() => {
+    if (!hydrated) return;
+    saveCampus(campusId);
+  }, [campusId, hydrated]);
 
   const total = useMemo(() => items.reduce((a, b) => a + (b.amount || 0), 0), [items]);
   const filledCount = useMemo(() => items.filter((i) => i.amount > 0).length, [items]);
@@ -175,11 +221,22 @@ export default function ExpensesPage() {
   // Monthly change transaction to prevent race conditions.
   const handlePeriodChange = (nextPeriod: string) => {
     if (!hydrated) return;
-    saveItems(period, items); // save old month
+    saveItems(period, campusId, items); // save old month for current campus
     setPeriod(nextPeriod);
     savePeriod(nextPeriod);
-    const loaded = loadItems(nextPeriod); // load new month
+    const loaded = loadItems(nextPeriod, campusId); // load new month for current campus
     setItems(loaded);
+  };
+
+  // Campus change — persist current items to the previous (period, campus)
+  // pair, then swap to the new campus's data for the same period.
+  const handleCampusChange = (nextCampusId: string) => {
+    if (!hydrated) return;
+    if (nextCampusId === campusId) return;
+    saveItems(period, campusId, items);
+    setCampusId(nextCampusId);
+    saveCampus(nextCampusId);
+    setItems(loadItems(period, nextCampusId));
   };
 
   const updateItem = (id: string, next: Partial<ExpenseItem>) => {
@@ -216,8 +273,11 @@ export default function ExpensesPage() {
     setItems((prev) => prev.map((p) => ({ ...p, amount: 0, notes: "" })));
   };
 
-  // Yearly data calculations
-  const yearlyData = useMemo(() => getYearlyData(selectedYear), [selectedYear]);
+  // Yearly data calculations (scoped to currently selected campus)
+  const yearlyData = useMemo(
+    () => getYearlyData(selectedYear, campusId),
+    [selectedYear, campusId],
+  );
 
   const yearlyTotal = useMemo(() => yearlyData.reduce((acc, curr) => acc + curr.total, 0), [yearlyData]);
 
@@ -262,12 +322,31 @@ export default function ExpensesPage() {
                 Yearly Analysis ({selectedYear})
               </h1>
               <p className="text-xs text-slate-400 mt-0.5">
-                Overview of annual spending, seasonal trends, and department-wise cost allocations.
+                {activeCampusName} · Overview of annual spending, seasonal trends, and department-wise cost allocations.
               </p>
             </div>
           </div>
 
           <div className="flex items-center gap-2">
+            <div className="relative">
+              <Building2
+                size={14}
+                className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none"
+              />
+              <select
+                value={campusId}
+                onChange={(e) => handleCampusChange(e.target.value)}
+                className="pl-7 pr-3 py-2.5 text-sm font-semibold text-slate-700 bg-white border border-slate-200 rounded-xl outline-none focus:border-[#0B3C5D] focus:ring-2 focus:ring-[#0B3C5D]/10"
+                title="Campus"
+              >
+                <option value={ALL_CAMPUSES}>All Campuses</option>
+                {campuses.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.name}
+                  </option>
+                ))}
+              </select>
+            </div>
             <select
               value={selectedYear}
               onChange={(e) => setSelectedYear(Number(e.target.value))}
@@ -295,7 +374,7 @@ export default function ExpensesPage() {
             value={formatINR(yearlyTotal)}
             icon={<Wallet size={18} />}
             accent="bg-[#0B3C5D]"
-            sub={`Total for year ${selectedYear}`}
+            sub={`${activeCampusName} · ${selectedYear}`}
           />
           <StatCard
             label="Monthly Average"
@@ -468,7 +547,7 @@ export default function ExpensesPage() {
                         <button
                           onClick={() => {
                             setPeriod(d.monthKey);
-                            setItems(loadItems(d.monthKey));
+                            setItems(loadItems(d.monthKey, campusId));
                             setShowYearlyAnalysis(false);
                           }}
                           className="px-3 py-1 text-xs font-bold text-[#0B3C5D] border border-[#0B3C5D]/20 hover:border-[#0B3C5D] hover:bg-[#0B3C5D]/5 rounded-lg transition-all"
@@ -500,15 +579,43 @@ export default function ExpensesPage() {
               Expense Calculator
             </h1>
             <p className="text-xs text-slate-400 mt-0.5">
-              Track recurring monthly outlays — electricity, internet, books, salaries — and see them at a glance.
+              {activeCampusName} · Track recurring monthly outlays — electricity, internet, books, salaries — and see them at a glance.
             </p>
           </div>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
           <div className="hidden sm:flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-widest text-slate-400">
-            <Save size={12} className={justSaved ? "text-emerald-500" : ""} />
-            {justSaved ? "Saved" : "Auto-saved"}
+            {isAggregate ? (
+              <>
+                <Calculator size={12} className="text-[#0B3C5D]" />
+                Computed
+              </>
+            ) : (
+              <>
+                <Save size={12} className={justSaved ? "text-emerald-500" : ""} />
+                {justSaved ? "Saved" : "Auto-saved"}
+              </>
+            )}
+          </div>
+          <div className="relative">
+            <Building2
+              size={14}
+              className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none"
+            />
+            <select
+              value={campusId}
+              onChange={(e) => handleCampusChange(e.target.value)}
+              className="pl-7 pr-3 py-2 text-sm font-semibold text-slate-700 bg-white border border-slate-200 rounded-xl outline-none focus:border-[#0B3C5D]"
+              title="Campus"
+            >
+              <option value={ALL_CAMPUSES}>All Campuses</option>
+              {campuses.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.name}
+                </option>
+              ))}
+            </select>
           </div>
           <input
             type="month"
@@ -526,16 +633,18 @@ export default function ExpensesPage() {
           </button>
           <button
             onClick={clearAmounts}
-            className="flex items-center gap-1.5 px-3 py-2 text-sm font-semibold text-slate-600 bg-white border border-slate-200 rounded-xl hover:bg-slate-50"
-            title="Clear amounts"
+            disabled={isAggregate}
+            className="flex items-center gap-1.5 px-3 py-2 text-sm font-semibold text-slate-600 bg-white border border-slate-200 rounded-xl hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed"
+            title={isAggregate ? "Switch to a specific campus to clear" : "Clear amounts"}
           >
             <RotateCcw size={14} />
             <span className="hidden sm:inline">Clear</span>
           </button>
           <button
             onClick={resetAll}
-            className="flex items-center gap-1.5 px-3 py-2 text-sm font-semibold text-rose-600 bg-white border border-rose-200 rounded-xl hover:bg-rose-50"
-            title="Reset to defaults"
+            disabled={isAggregate}
+            className="flex items-center gap-1.5 px-3 py-2 text-sm font-semibold text-rose-600 bg-white border border-rose-200 rounded-xl hover:bg-rose-50 disabled:opacity-40 disabled:cursor-not-allowed"
+            title={isAggregate ? "Switch to a specific campus to reset" : "Reset to defaults"}
           >
             <Trash2 size={14} />
             <span className="hidden sm:inline">Reset</span>
@@ -550,7 +659,7 @@ export default function ExpensesPage() {
           value={formatINR(total)}
           icon={<Wallet size={18} />}
           accent="bg-[#0B3C5D]"
-          sub={`${period} period`}
+          sub={`${activeCampusName} · ${period}`}
         />
         <StatCard
           label="Categories Used"
@@ -603,27 +712,34 @@ export default function ExpensesPage() {
       {/* Inputs grid */}
       <div>
         <div className="flex items-center justify-between mb-3">
-          <p className="text-sm font-bold text-slate-800">Enter your expenses</p>
-          <button
-            onClick={addCustom}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-[#0B3C5D] bg-[#0B3C5D]/10 rounded-xl hover:bg-[#0B3C5D]/20"
-          >
-            <Plus size={14} />
-            Add Custom
-          </button>
+          <p className="text-sm font-bold text-slate-800">
+            {isAggregate ? "Aggregated across all campuses" : "Enter your expenses"}
+          </p>
+          {!isAggregate && (
+            <button
+              onClick={addCustom}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-[#0B3C5D] bg-[#0B3C5D]/10 rounded-xl hover:bg-[#0B3C5D]/20"
+            >
+              <Plus size={14} />
+              Add Custom
+            </button>
+          )}
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
           {items.map((item) => (
             <ExpenseRow
               key={item.id}
               item={item}
+              readOnly={isAggregate}
               onChange={(next) => updateItem(item.id, next)}
-              onRemove={item.custom ? () => removeItem(item.id) : undefined}
+              onRemove={!isAggregate && item.custom ? () => removeItem(item.id) : undefined}
             />
           ))}
         </div>
         <p className="mt-3 text-[11px] text-slate-400">
-          Amounts are saved locally on this device. Use the same browser to retain values.
+          {isAggregate
+            ? "Totals are summed live from every campus that has saved data for this period. Pick a campus to edit its numbers."
+            : "Amounts are saved locally on this device. Use the same browser to retain values."}
         </p>
       </div>
     </div>

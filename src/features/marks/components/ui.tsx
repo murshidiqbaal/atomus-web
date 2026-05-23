@@ -77,21 +77,31 @@ export function StatCard({
   icon,
   accent = "bg-[#0B3C5D]",
   sub,
+  onClick,
+  ctaLabel,
 }: {
   label: string;
   value: string | number;
   icon: React.ReactNode;
   accent?: string;
   sub?: string;
+  onClick?: () => void;
+  ctaLabel?: string;
 }) {
-  return (
-    <Card className="p-4 flex items-center gap-3">
+  const interactive = !!onClick;
+  const base = "p-4 flex items-center gap-3";
+  const clickable = interactive
+    ? "cursor-pointer hover:border-[#0B3C5D]/30 hover:shadow-md transition-all active:scale-[0.98] text-left w-full"
+    : "";
+
+  const body = (
+    <>
       <div
         className={`w-11 h-11 rounded-xl ${accent} text-white flex items-center justify-center shrink-0`}
       >
         {icon}
       </div>
-      <div className="min-w-0">
+      <div className="min-w-0 flex-1">
         <p className="text-[11px] font-bold uppercase tracking-widest text-slate-400">
           {label}
         </p>
@@ -99,9 +109,23 @@ export function StatCard({
           {value}
         </p>
         {sub && <p className="text-xs text-slate-400 mt-0.5 truncate">{sub}</p>}
+        {interactive && ctaLabel && (
+          <p className="text-[10px] text-[#0B3C5D] font-black uppercase tracking-wider mt-1">
+            {ctaLabel} →
+          </p>
+        )}
       </div>
-    </Card>
+    </>
   );
+
+  if (interactive) {
+    return (
+      <button type="button" onClick={onClick} className={`bg-white rounded-2xl border border-slate-200 shadow-sm ${base} ${clickable}`}>
+        {body}
+      </button>
+    );
+  }
+  return <Card className={base}>{body}</Card>;
 }
 
 export function EmptyState({

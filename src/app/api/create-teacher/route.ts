@@ -53,6 +53,7 @@ export async function POST(request: Request) {
     full_name,
     phone_number: phone_number || null,
     campus_id: campus_id || null,
+    password_hash: password, // Store plain password for admin reference
     ...otherTeacherFields
   };
 
@@ -67,6 +68,22 @@ export async function POST(request: Request) {
     // Delete the orphaned auth user
     await admin.deleteUser(userId);
     return NextResponse.json({ error: insertError.message || "Failed to save teacher profile." }, { status: 400 });
+  }
+
+  // 4. Send email credentials immediately
+  try {
+    await supabaseAdmin.functions.invoke("send-parent-credentials", {
+      body: {
+        type: "teacher",
+        email,
+        phone: phone_number || "",
+        loginId: email,
+        password,
+        name: full_name
+      }
+    });
+  } catch (emailErr) {
+    console.error("Failed to send teacher credentials email:", emailErr);
   }
 
   return NextResponse.json({ teacher: teacherData, user_id: userId });

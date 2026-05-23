@@ -18,16 +18,16 @@ export const QK = {
     ["attendance", "batches", courseId, campusId, restrict ? restrict.join(",") : "*"] as const,
   subjects: (courseId: string, restrict: string[] | null) =>
     ["attendance", "subjects", courseId, restrict ? restrict.join(",") : "*"] as const,
-  students: (campusId: string, courseId: string, batchId: string) =>
-    ["attendance", "students", campusId, courseId, batchId] as const,
+  students: (campusId: string, courseId: string, batchId?: string) =>
+    ["attendance", "students", campusId, courseId, batchId ?? "all"] as const,
   records: (
     campusId: string,
     courseId: string,
-    batchId: string,
+    batchId: string | undefined,
     date: string,
     subjectId: string | null,
   ) =>
-    ["attendance", "records", campusId, courseId, batchId, date, subjectId ?? "overall"] as const,
+    ["attendance", "records", campusId, courseId, batchId ?? "all", date, subjectId ?? "overall"] as const,
 };
 
 export function useCurrentUser() {
@@ -91,7 +91,7 @@ export function useAttCourses(campus_id: string) {
   return useQuery({
     queryKey: QK.courses(campus_id, r.courseFilter),
     queryFn: () => attendanceService.listCoursesByCampus(campus_id, r.courseFilter),
-    enabled: !!campus_id && r.ready,
+    enabled: r.ready,
     staleTime: 60_000,
   });
 }
@@ -101,7 +101,7 @@ export function useAttBatches(course_id: string, campus_id: string) {
   return useQuery({
     queryKey: QK.batches(course_id, campus_id, r.batchFilter),
     queryFn: () => attendanceService.listBatchesByCourseAndCampus(course_id, campus_id, r.batchFilter),
-    enabled: !!course_id && !!campus_id && r.ready,
+    enabled: r.ready,
     staleTime: 60_000,
   });
 }
@@ -111,16 +111,16 @@ export function useAttSubjects(course_id: string) {
   return useQuery({
     queryKey: QK.subjects(course_id, r.subjectFilter),
     queryFn: () => attendanceService.listSubjectsByCourse(course_id, r.subjectFilter),
-    enabled: !!course_id && r.ready,
+    enabled: r.ready,
     staleTime: 60_000,
   });
 }
 
-export function useAttStudents(campus_id: string, course_id: string, batch_id: string) {
+export function useAttStudents(campus_id: string, course_id: string, batch_id?: string) {
   return useQuery({
     queryKey: QK.students(campus_id, course_id, batch_id),
     queryFn: () => attendanceService.listStudents({ campus_id, course_id, batch_id }),
-    enabled: !!(campus_id || course_id || batch_id),
+    enabled: true,
     staleTime: 30_000,
   });
 }
@@ -128,7 +128,7 @@ export function useAttStudents(campus_id: string, course_id: string, batch_id: s
 export function useAttRecords(
   campus_id: string,
   course_id: string,
-  batch_id: string,
+  batch_id: string | undefined,
   attendance_date: string,
   subject_id: string | null,
 ) {
@@ -142,7 +142,7 @@ export function useAttRecords(
         attendance_date,
         subject_id,
       }),
-    enabled: !!attendance_date && !!(campus_id || course_id || batch_id),
+    enabled: !!attendance_date,
     staleTime: 10_000,
   });
 }
@@ -157,7 +157,7 @@ export function useAttRecords(
 export function useSaveAttendance(
   campus_id: string,
   course_id: string,
-  batch_id: string,
+  batch_id: string | undefined,
   attendance_date: string,
   subject_id: string | null,
 ) {
@@ -171,22 +171,25 @@ export function useSaveAttendance(
       await qc.cancelQueries({ queryKey: key });
       const prev = qc.getQueryData<AttendanceRecord[]>(key) ?? [];
 
-      // Build a lookup keyed by (student, period) for O(1) patching.
+      // Lookup keyed by (student, subject_id) so an edit doesn't overwrite a different
+      // subject's row in the cache. The DB enforces the same uniqueness via
+      // (student, COALESCE(subject, sentinel), date).
+      const cellKey = (sid: string, subjectId: string | null) =>
+        `${sid}|${subjectId ?? "null"}`;
       const lookup = new Map<string, number>();
       prev.forEach((r, idx) => {
-        lookup.set(`${r.student_id}|${r.period_number}`, idx);
+        lookup.set(cellKey(r.student_id, r.subject_id), idx);
       });
 
       const next = prev.slice();
       for (const r of rows) {
-        const k = `${r.student_id}|${r.period_number}`;
+        const k = cellKey(r.student_id, r.subject_id);
         const idx = lookup.get(k);
         if (idx != null) {
           next[idx] = {
             ...next[idx],
             status: r.status,
             remarks: r.remarks ?? next[idx].remarks,
-            period_label: r.period_label ?? next[idx].period_label,
             teacher_id: r.teacher_id ?? next[idx].teacher_id,
             marked_by: r.marked_by ?? next[idx].marked_by,
             updated_at: new Date().toISOString(),
@@ -194,7 +197,7 @@ export function useSaveAttendance(
         } else {
           // Synthetic optimistic row — replaced after invalidation succeeds.
           next.push({
-            id: `optimistic-${k}-${Date.now()}`,
+            id: `optimistic-${r.student_id}|${r.subject_id ?? "null"}-${Date.now()}`,
             student_id: r.student_id,
             campus_id: r.campus_id,
             course_id: r.course_id,
@@ -202,8 +205,6 @@ export function useSaveAttendance(
             subject_id: r.subject_id,
             teacher_id: r.teacher_id ?? null,
             attendance_date: r.attendance_date,
-            period_number: r.period_number,
-            period_label: r.period_label ?? null,
             status: r.status,
             remarks: r.remarks ?? null,
             marked_by: r.marked_by ?? null,

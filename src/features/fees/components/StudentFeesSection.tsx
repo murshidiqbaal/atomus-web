@@ -4,11 +4,11 @@ import { memo, useState } from "react";
 import {
   CreditCard, Percent, Loader2, Wallet, Users,
 } from "lucide-react";
-import { useApplyDiscount, useRecordPayment, useStudentFees } from "../hooks";
+import { useApplyDiscount, useRecordPayment, useStudentFees, useUpdatePaymentStatus } from "../hooks";
 import {
-  FeeFilters, PAYMENT_METHODS, PaymentMethod, StudentFee, formatINR, todayISO,
+  FeeFilters, PAYMENT_METHODS, PaymentMethod, StudentFee, formatINR, todayISO, PAYMENT_STATUSES,
 } from "../types";
-import { Card, EmptyState, StatusPill, fieldCls, Label } from "./ui";
+import { Card, EmptyState, fieldCls, Label } from "./ui";
 
 interface Props {
   filters: FeeFilters;
@@ -35,7 +35,7 @@ export function StudentFeesSection({ filters, onToast }: Props) {
       <EmptyState
         icon={<Users size={26} />}
         title="No student fees yet"
-        hint="Assign a fee structure to a batch from the Structures tab."
+        hint="Create a fee structure and assign it from the Structures tab."
       />
     );
   }
@@ -67,9 +67,10 @@ interface CardProps {
 export const StudentFeeCard = memo(function StudentFeeCardImpl({
   row, expanded, onToggle, onToast,
 }: CardProps) {
+  const updateStatus = useUpdatePaymentStatus();
   const studentName = row.students?.full_name ?? "Unknown";
   const course = row.students?.courses?.name ?? "—";
-  const batch = row.students?.batches?.name ?? "—";
+  const campus = row.students?.campuses?.name ?? "—";
   const pct = Number(row.total_fee) > 0
     ? Math.min(100, Math.round((Number(row.paid_amount) / Number(row.total_fee)) * 100))
     : 0;
@@ -87,7 +88,7 @@ export const StudentFeeCard = memo(function StudentFeeCardImpl({
                 {studentName}
               </p>
               <p className="text-[11px] font-mono text-slate-400 truncate">
-                {row.students?.admission_number ?? "—"} · {course} / {batch}
+                {row.students?.admission_number ?? "—"} · {course} · {campus}
               </p>
             </div>
           </div>
@@ -99,7 +100,24 @@ export const StudentFeeCard = memo(function StudentFeeCardImpl({
           </div>
 
           <div className="flex items-center gap-2 md:shrink-0">
-            <StatusPill status={row.payment_status} />
+            <select
+              value={row.payment_status}
+              onChange={(e) => updateStatus.mutate(
+                { student_id: row.student_id, status: e.target.value },
+                {
+                  onSuccess: () => onToast("success", `Updated payment status to ${e.target.value}.`),
+                  onError: (err) => onToast("error", err instanceof Error ? err.message : "Update failed."),
+                }
+              )}
+              disabled={updateStatus.isPending}
+              className="text-xs font-black border border-slate-200 rounded-xl px-2.5 py-1.5 outline-none focus:border-[#0B3C5D] cursor-pointer bg-white text-slate-700 shadow-sm hover:border-slate-300 transition-colors"
+            >
+              {PAYMENT_STATUSES.map((s) => (
+                <option key={s} value={s}>
+                  {s}
+                </option>
+              ))}
+            </select>
             <button
               onClick={onToggle}
               className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-white bg-[#0B3C5D] rounded-xl hover:bg-[#0B3C5D]/90 transition-all"

@@ -21,6 +21,8 @@ export interface Parent {
   username: string | null;
   password_hash: string | null;
   account_status: AccountStatus;
+  profile_photo_url?: string | null;
+  profile_photo_drive_id?: string | null;
   created_at: string;
   students?: LinkedStudent[];
 }

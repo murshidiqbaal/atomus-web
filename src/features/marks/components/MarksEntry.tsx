@@ -9,7 +9,7 @@ import {
   useExams, useMarks, useSaveMarks,
   useStudentsForExam, useSubjects,
 } from "../hooks";
-import { useCampuses, useCoursesByCampus, useAllBatches, useCourses as useGlobalCourses } from "../../students/hooks";
+import { useCampuses, useCoursesByCampus, useCourses as useGlobalCourses } from "../../students/hooks";
 import { Mark, MarksMap, StudentLite, Grade } from "../types";
 import { Card, EmptyState, fieldCls, Label } from "./ui";
 import { calcPct, getGrade, GRADE_CFG } from "../utils/grade";
@@ -24,7 +24,6 @@ export function MarksEntry({
 }) {
   const [selectedCampus, setSelectedCampus] = useState("");
   const [selectedCourse, setSelectedCourse] = useState("");
-  const [selectedBatch, setSelectedBatch] = useState("");
   const [selectedSubject, setSelectedSubject] = useState("");
   const [selectedExam, setSelectedExam] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
@@ -37,21 +36,14 @@ export function MarksEntry({
   const { data: campusCourses = [] } = useCoursesByCampus(selectedCampus);
   const courses = selectedCampus ? campusCourses : globalCourses;
 
-  const { data: allBatches = [] } = useAllBatches();
-  const batches = useMemo(() => {
-    return allBatches.filter((b) => {
-      if (selectedCampus && b.campus_id !== selectedCampus) return false;
-      if (selectedCourse && b.course_id !== selectedCourse) return false;
-      return true;
-    });
-  }, [allBatches, selectedCampus, selectedCourse]);
-  const { data: subjects = [] } = useSubjects(selectedCourse);
-  const { data: exams = [] } = useExams(selectedCourse, selectedBatch);
+  const { data: exams = [] } = useExams(selectedCourse);
 
   const selectedExamObj = useMemo(
     () => exams.find((e) => e.id === selectedExam) ?? null,
     [exams, selectedExam]
   );
+
+  const { data: subjects = [] } = useSubjects(selectedCourse || selectedExamObj?.course_id || "");
   const defaultTotal = selectedExamObj?.total_marks ?? 100;
 
   const { data: students = [], isLoading: studentsLoading } =
@@ -261,7 +253,7 @@ export function MarksEntry({
     <div className="space-y-5">
       {/* Filters */}
       <Card className="p-4">
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
           <div>
             <Label optional>Campus</Label>
             <select
@@ -269,7 +261,6 @@ export function MarksEntry({
               onChange={(e) => {
                 setSelectedCampus(e.target.value);
                 setSelectedCourse("");
-                setSelectedBatch("");
                 setSelectedExam("");
                 setSelectedSubject("");
               }}
@@ -290,7 +281,6 @@ export function MarksEntry({
               value={selectedCourse}
               onChange={(e) => {
                 setSelectedCourse(e.target.value);
-                setSelectedBatch("");
                 setSelectedExam("");
                 setSelectedSubject("");
               }}
@@ -306,34 +296,12 @@ export function MarksEntry({
           </div>
 
           <div>
-            <Label>Batch</Label>
-            <select
-              value={selectedBatch}
-              onChange={(e) => {
-                setSelectedBatch(e.target.value);
-                setSelectedExam("");
-              }}
-              disabled={!selectedCourse}
-              className={`${fieldCls} disabled:opacity-50`}
-            >
-              <option value="">
-                {selectedCourse ? "Select batch" : "Select course first"}
-              </option>
-              {batches.map((b) => (
-                <option key={b.id} value={b.id}>
-                  {b.name}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          <div>
             <Label optional>Subject</Label>
             <select
               value={selectedSubject}
               onChange={(e) => setSelectedSubject(e.target.value)}
               className={fieldCls}
-              disabled={!selectedCourse}
+              disabled={!(selectedCourse || selectedExamObj?.course_id)}
             >
               <option value="">Overall</option>
               {subjects.map((s) => (
@@ -349,11 +317,10 @@ export function MarksEntry({
             <select
               value={selectedExam}
               onChange={(e) => setSelectedExam(e.target.value)}
-              disabled={!selectedBatch}
-              className={`${fieldCls} disabled:opacity-50`}
+              className={fieldCls}
             >
               <option value="">
-                {selectedBatch ? "Select exam" : "Select batch first"}
+                Select exam
               </option>
               {exams.map((e) => (
                 <option key={e.id} value={e.id}>
@@ -533,13 +500,7 @@ export function MarksEntry({
       )}
 
       {/* Table / Empty / Loading */}
-      {!selectedBatch ? (
-        <EmptyState
-          icon={<FileSpreadsheet size={26} />}
-          title="Select course → batch → exam to start"
-          hint="The marks grid will appear once an exam is selected."
-        />
-      ) : !selectedExam ? (
+      {!selectedExam ? (
         <EmptyState
           icon={<FileSpreadsheet size={26} />}
           title="No exam selected"
@@ -578,7 +539,7 @@ export function MarksEntry({
           title={
             searchQuery
               ? "No students match your search."
-              : "No students in this batch."
+              : "No students in this course."
           }
         />
       ) : (

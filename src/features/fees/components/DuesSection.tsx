@@ -24,23 +24,58 @@ export function DuesSection({ filters, onToast }: Props) {
   const allFilters = useMemo(() => ({ ...filters, status: "All" as const }), [filters]);
   const { data: rows = [], isLoading } = useStudentFees(allFilters);
 
+  const [selectedTerm, setSelectedTerm] = useState("");
+
+  const termNames = useMemo(() => {
+    const names = new Set<string>();
+    for (const r of rows) {
+      if (r.term_status && Array.isArray(r.term_status)) {
+        for (const t of r.term_status) {
+          if (t.term_name) {
+            names.add(t.term_name);
+          }
+        }
+      }
+    }
+    return Array.from(names).sort();
+  }, [rows]);
+
+  const activeTerm = selectedTerm && termNames.includes(selectedTerm) ? selectedTerm : "";
+
   const buckets = useMemo(() => {
     let overdue = 0, partial = 0, pending = 0, totalDue = 0;
     for (const r of rows) {
-      const bal = Number(r.balance_amount);
-      if (bal <= 0) continue;
-      totalDue += bal;
-      if (r.payment_status === "Overdue") overdue++;
-      else if (r.payment_status === "Partial") partial++;
-      else pending++;
+      if (activeTerm) {
+        const t = r.term_status?.find((x) => x.term_name === activeTerm);
+        if (t) {
+          const bal = Number(t.amount_due) - Number(t.amount_paid);
+          if (bal <= 0) continue;
+          totalDue += bal;
+          if (t.status === "Overdue") overdue++;
+          else if (t.status === "Partial") partial++;
+          else pending++;
+        }
+      } else {
+        const bal = Number(r.balance_amount);
+        if (bal <= 0) continue;
+        totalDue += bal;
+        if (r.payment_status === "Overdue") overdue++;
+        else if (r.payment_status === "Partial") partial++;
+        else pending++;
+      }
     }
     return { overdue, partial, pending, totalDue };
-  }, [rows]);
+  }, [rows, activeTerm]);
 
-  const due = useMemo(
-    () => rows.filter((r) => Number(r.balance_amount) > 0),
-    [rows],
-  );
+  const due = useMemo(() => {
+    return rows.filter((r) => {
+      if (activeTerm) {
+        const t = r.term_status?.find((x) => x.term_name === activeTerm);
+        return t ? (t.status !== "Paid" && (Number(t.amount_due) - Number(t.amount_paid)) > 0) : false;
+      }
+      return Number(r.balance_amount) > 0;
+    });
+  }, [rows, activeTerm]);
 
   const [openFor, setOpenFor] = useState<string | null>(null);
 
@@ -59,9 +94,34 @@ export function DuesSection({ filters, onToast }: Props) {
 
   return (
     <div className="space-y-4">
+      {/* Term Selector Filter */}
+      {termNames.length > 0 && (
+        <div className="flex items-center justify-between flex-wrap gap-3 bg-white p-4 border border-slate-200 rounded-2xl shadow-sm">
+          <div className="min-w-0">
+            <h3 className="text-sm font-black text-[#0B3C5D]">Term Dues Filter</h3>
+            <p className="text-[11px] text-slate-400">Narrow down outstanding dues by specific term templates</p>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Select Term:</span>
+            <select
+              value={activeTerm}
+              onChange={(e) => setSelectedTerm(e.target.value)}
+              className="text-xs font-black border border-slate-200 rounded-xl px-3.5 py-2 outline-none focus:border-[#0B3C5D] cursor-pointer bg-slate-50 text-slate-700 hover:border-slate-300 transition-colors shadow-sm"
+            >
+              <option value="">All Terms</option>
+              {termNames.map((name) => (
+                <option key={name} value={name}>
+                  {name}
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
+      )}
+
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
         <DueCard
-          label="Total Outstanding"
+          label={activeTerm ? `Outstanding (${activeTerm})` : "Total Outstanding"}
           value={formatINR(buckets.totalDue)}
           tone="amber"
           icon={<AlertCircle size={18} />}
@@ -102,7 +162,9 @@ export function DuesSection({ filters, onToast }: Props) {
             <StatusPill status="Partial" />
             <StatusPill status="Pending" />
             <span className="ml-1">
-              Showing students with non-zero balance. Use the campus/course/batch filters above to narrow.
+              {activeTerm 
+                ? `Showing students with unpaid dues for "${activeTerm}". Use the dropdown above to switch.`
+                : "Showing students with non-zero overall balance. Use the dropdown above or campus/course filters to narrow."}
             </span>
           </Card>
 

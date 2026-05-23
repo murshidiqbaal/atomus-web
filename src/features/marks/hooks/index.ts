@@ -1,13 +1,13 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { marksService } from "../services/marks_service";
-import { Exam, Mark } from "../types";
+import { Exam, Mark, ExamsDirectoryFilters } from "../types";
 
 const QK = {
   courses: ["marks", "courses"] as const,
   batches: (courseId: string) => ["marks", "batches", courseId] as const,
   subjects: (courseId: string) => ["marks", "subjects", courseId] as const,
-  exams: (courseId: string, batchId: string) =>
-    ["marks", "exams", courseId, batchId] as const,
+  exams: (courseId?: string, batchId?: string) =>
+    ["marks", "exams", courseId || "all", batchId || "all"] as const,
   examsAll: ["marks", "exams-all"] as const,
   students: (examId: string) => ["marks", "students", examId] as const,
   marks: (examId: string, subjectId: string) =>
@@ -19,6 +19,12 @@ const QK = {
   batchAvgs: (courseId: string) => ["marks", "batch-avg", courseId] as const,
   toppers: (filters: Record<string, string | number | undefined>) =>
     ["marks", "toppers", filters] as const,
+
+  directory: (filters: ExamsDirectoryFilters) =>
+    ["marks", "exams-directory", filters] as const,
+  creators: ["marks", "exam-creators"] as const,
+  examToppers: (examId: string, limit: number) =>
+    ["marks", "exam-toppers", examId, limit] as const,
 };
 
 export function useCourses() {
@@ -47,11 +53,10 @@ export function useSubjects(courseId: string) {
   });
 }
 
-export function useExams(courseId: string, batchId: string) {
+export function useExams(courseId?: string, batchId?: string) {
   return useQuery({
     queryKey: QK.exams(courseId, batchId),
     queryFn: () => marksService.getExams({ course_id: courseId, batch_id: batchId }),
-    enabled: !!courseId && !!batchId,
     staleTime: 30_000,
   });
 }
@@ -90,6 +95,8 @@ export function useCreateExam() {
       qc.invalidateQueries({ queryKey: ["marks", "exams"], exact: false });
       qc.invalidateQueries({ queryKey: QK.examsAll });
       qc.invalidateQueries({ queryKey: QK.dashboard });
+      qc.invalidateQueries({ queryKey: ["marks", "exams-directory"], exact: false });
+      qc.invalidateQueries({ queryKey: QK.creators });
     },
   });
 }
@@ -102,6 +109,8 @@ export function useDeleteExam() {
       qc.invalidateQueries({ queryKey: ["marks", "exams"], exact: false });
       qc.invalidateQueries({ queryKey: QK.examsAll });
       qc.invalidateQueries({ queryKey: QK.dashboard });
+      qc.invalidateQueries({ queryKey: ["marks", "exams-directory"], exact: false });
+      qc.invalidateQueries({ queryKey: QK.creators });
     },
   });
 }
@@ -147,6 +156,33 @@ export function useBatchAverages(courseId: string) {
     queryKey: QK.batchAvgs(courseId || "all"),
     queryFn: () => marksService.getBatchAverages(courseId || undefined),
     staleTime: 60_000,
+  });
+}
+
+export function useExamsDirectory(filters: ExamsDirectoryFilters, enabled = true) {
+  return useQuery({
+    queryKey: QK.directory(filters),
+    queryFn: () => marksService.getExamsDirectory(filters),
+    enabled,
+    staleTime: 30_000,
+  });
+}
+
+export function useExamCreators(enabled = true) {
+  return useQuery({
+    queryKey: QK.creators,
+    queryFn: () => marksService.getExamCreators(),
+    enabled,
+    staleTime: 60_000,
+  });
+}
+
+export function useExamToppers(examId: string | null, limit = 10) {
+  return useQuery({
+    queryKey: QK.examToppers(examId ?? "none", limit),
+    queryFn: () => marksService.getExamToppers(examId!, limit),
+    enabled: !!examId,
+    staleTime: 30_000,
   });
 }
 

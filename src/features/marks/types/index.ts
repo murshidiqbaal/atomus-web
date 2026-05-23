@@ -6,6 +6,8 @@ export type Grade =
   | "Average"
   | "Needs Improvement";
 
+export type CreatorRole = "admin" | "teacher";
+
 export interface Exam {
   id: string;
   name: string;
@@ -15,8 +17,42 @@ export interface Exam {
   exam_date: string | null;
   total_marks: number;
   created_at: string;
+  created_by: string | null;
+  creator_name: string | null;
+  creator_role: CreatorRole | null;
   courses?: { name: string } | null;
   batches?: { name: string } | null;
+}
+
+export interface ExamSummaryRow {
+  exam_id: string;
+  marks_count: number;
+  student_count: number;
+  avg_pct: number | null;
+  top_pct: number | null;
+  low_pct: number | null;
+  pass_pct: number | null;
+}
+
+export interface ExamDirectoryRow extends Exam {
+  stats: ExamSummaryRow | null;
+}
+
+export interface ExamCreator {
+  id: string;
+  name: string;
+  role: CreatorRole;
+  exam_count: number;
+}
+
+export interface ExamsDirectoryFilters {
+  course_id?: string;
+  batch_id?: string;
+  creator_role?: CreatorRole | "";
+  created_by?: string;
+  date_from?: string;
+  date_to?: string;
+  search?: string;
 }
 
 export interface Course {

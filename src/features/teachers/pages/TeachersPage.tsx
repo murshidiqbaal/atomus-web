@@ -110,6 +110,24 @@ export default function TeachersPage() {
     [batchOptionsRaw, filters.course_id]
   );
 
+  const uniqueBatchOptions = useMemo(() => {
+    const seen = new Set<string>();
+    const list: typeof batchOptions = [];
+    for (const b of batchOptions) {
+      const norm = b.name.trim().toLowerCase();
+      if (!seen.has(norm)) {
+        seen.add(norm);
+        list.push(b);
+      }
+    }
+    return list;
+  }, [batchOptions]);
+
+  const selectedBatchName = useMemo(() => {
+    if (!filters.batch_id) return null;
+    return allBatches.find((b) => b.id === filters.batch_id)?.name;
+  }, [filters.batch_id, allBatches]);
+
   const filtered = useMemo(() => {
     const q = filters.search.toLowerCase();
     return teachers.filter((t) => {
@@ -117,7 +135,13 @@ export default function TeachersPage() {
       if (filters.campus_id && t.campus_id !== filters.campus_id) return false;
       if (filters.course_id && !(t.teacher_courses ?? []).some((c) => c.courses?.id === filters.course_id)) return false;
       if (filters.subject_id && !(t.teacher_subjects ?? []).some((s) => s.subjects?.id === filters.subject_id)) return false;
-      if (filters.batch_id && !(t.teacher_batches ?? []).some((b) => b.batches?.id === filters.batch_id)) return false;
+      if (filters.batch_id) {
+        if (selectedBatchName) {
+          if (!(t.teacher_batches ?? []).some((b) => b.batches?.name === selectedBatchName)) return false;
+        } else {
+          if (!(t.teacher_batches ?? []).some((b) => b.batches?.id === filters.batch_id)) return false;
+        }
+      }
 
       if (!q) return true;
       return (
@@ -290,7 +314,7 @@ export default function TeachersPage() {
             className="px-3 py-2 border border-slate-200 rounded-xl text-sm outline-none focus:border-[#0B3C5D] focus:ring-2 focus:ring-[#0B3C5D]/10 bg-white transition-all"
           >
             <option value="">All Batches</option>
-            {batchOptions.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
+            {uniqueBatchOptions.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
           </select>
 
           <div className="flex gap-1.5">

@@ -28,7 +28,6 @@ export default function MarksPage() {
         isOpen={examModalOpen}
         onClose={() => setExamModalOpen(false)}
         defaultCourse=""
-        defaultBatch=""
         onCreated={() => {
           // user can now switch to Entry tab to fill marks
           setTab("entry");

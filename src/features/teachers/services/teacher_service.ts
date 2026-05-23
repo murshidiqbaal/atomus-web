@@ -1,5 +1,7 @@
 import { supabase } from "@/lib/supabase";
 import { generateTeacherPassword } from "@/lib/utils/password_utils";
+import { uploadToDrive, cleanupDriveFile } from "@/lib/utils/drive_upload";
+import { convertToWebP } from "@/lib/utils/image_utils";
 import { Teacher } from "../types";
 import { TeacherFormValues } from "../schemas";
 
@@ -98,10 +100,17 @@ export const teacherService = {
 
     const teacherId = auth.teacher.id;
 
-    let profileUrl: string | null = null;
-    if (photoFile) profileUrl = await this.uploadPhoto(photoFile, teacherId);
-    if (profileUrl) {
-      await supabase.from("teachers").update({ profile_image: profileUrl }).eq("id", teacherId);
+    if (photoFile) {
+      const upload = await this.uploadPhoto(photoFile);
+      if (upload) {
+        await supabase
+          .from("teachers")
+          .update({
+            profile_photo_url: upload.url,
+            profile_photo_drive_id: upload.fileId,
+          })
+          .eq("id", teacherId);
+      }
     }
 
     await syncAssignments(teacherId, values);
@@ -118,8 +127,23 @@ export const teacherService = {
     if (error) throw error;
 
     if (photoFile) {
-      const url = await this.uploadPhoto(photoFile, id);
-      if (url) await supabase.from("teachers").update({ profile_image: url }).eq("id", id);
+      const { data: prev } = await supabase
+        .from("teachers")
+        .select("profile_photo_drive_id")
+        .eq("id", id)
+        .maybeSingle();
+      const upload = await this.uploadPhoto(photoFile);
+      if (upload) {
+        await supabase
+          .from("teachers")
+          .update({
+            profile_photo_url: upload.url,
+            profile_photo_drive_id: upload.fileId,
+          })
+          .eq("id", id);
+        const prevId = (prev as { profile_photo_drive_id?: string | null } | null)?.profile_photo_drive_id ?? null;
+        if (prevId && prevId !== upload.fileId) void cleanupDriveFile(prevId);
+      }
     }
 
     await syncAssignments(id, values);
@@ -142,14 +166,11 @@ export const teacherService = {
     return !error;
   },
 
-  async uploadPhoto(file: File, teacherId: string): Promise<string | null> {
+  async uploadPhoto(file: File): Promise<{ url: string; fileId: string } | null> {
     try {
-      const ext = file.name.split(".").pop() ?? "jpg";
-      const path = `${teacherId}.${ext}`;
-      const { error } = await supabase.storage.from("teacher-photos").upload(path, file, { upsert: true });
-      if (error) return null;
-      const { data } = supabase.storage.from("teacher-photos").getPublicUrl(path);
-      return data.publicUrl;
+      const compressed = await convertToWebP(file, 0.8).catch(() => file);
+      const result = await uploadToDrive(compressed, "/api/upload/teacher-photo");
+      return { url: result.imageUrl, fileId: result.fileId };
     } catch {
       return null;
     }

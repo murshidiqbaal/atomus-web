@@ -1,6 +1,5 @@
 import { supabase } from "@/lib/supabase";
 import { Announcement, AnnouncementStats } from "../types";
-import { convertToWebP } from "@/lib/utils/image_utils";
 
 export const announcementService = {
   async getAnnouncements(): Promise<Announcement[]> {
@@ -43,29 +42,6 @@ export const announcementService = {
       .eq('id', id);
 
     if (error) throw error;
-  },
-
-  async uploadPoster(file: File): Promise<string> {
-    // Convert to WebP and compress
-    const webpBlob = await convertToWebP(file, 0.7);
-    
-    const fileName = `${Math.random().toString(36).substring(2)}_${Date.now()}.webp`;
-    const filePath = `posters/${fileName}`;
-
-    const { error: uploadError } = await supabase.storage
-      .from('announcements')
-      .upload(filePath, webpBlob, {
-        contentType: 'image/webp',
-        upsert: true
-      });
-
-    if (uploadError) throw uploadError;
-
-    const { data } = supabase.storage
-      .from('announcements')
-      .getPublicUrl(filePath);
-
-    return data.publicUrl;
   },
 
   async getStats(): Promise<AnnouncementStats> {

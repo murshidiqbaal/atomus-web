@@ -6,6 +6,7 @@ export interface Announcement {
   title: string;
   description: string;
   image_url: string | null;
+  image_drive_id?: string | null;
   type: AnnouncementType;
   target_audience: TargetAudience;
   course_id?: string | null;

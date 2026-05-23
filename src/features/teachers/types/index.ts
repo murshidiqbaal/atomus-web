@@ -11,12 +11,14 @@ export interface Teacher {
   phone_number: string | null;
   qualification: string | null;
   gender: Gender | null;
-  profile_image: string | null;
+  profile_photo_url: string | null;
+  profile_photo_drive_id: string | null;
   address: string | null;
   experience_years: number | null;
   account_status: AccountStatus;
   subject_specialization: string | null;
   campus_id: string | null;
+  password_hash?: string | null;
   created_at: string;
 
   campuses?: NamedRef | null;

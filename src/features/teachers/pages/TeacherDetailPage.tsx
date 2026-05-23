@@ -124,8 +124,8 @@ export default function TeacherDetailPage({ id }: { id: string }) {
 
       <div className="bg-white rounded-2xl border border-slate-200 p-6">
         <div className="flex flex-col md:flex-row md:items-start gap-5">
-          {teacher.profile_image ? (
-            <img src={teacher.profile_image} alt={teacher.full_name} className="w-16 h-16 rounded-2xl object-cover border border-slate-200 shrink-0 shadow-md shadow-blue-900/15" />
+          {teacher.profile_photo_url ? (
+            <img src={teacher.profile_photo_url} alt={teacher.full_name} className="w-16 h-16 rounded-2xl object-cover border border-slate-200 shrink-0 shadow-md shadow-blue-900/15" />
           ) : (
             <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-[#0B3C5D] to-[#0B3C5D]/80 text-white text-xl font-black flex items-center justify-center shrink-0 shadow-md shadow-blue-900/15">
               {initials(teacher.full_name)}
@@ -231,8 +231,21 @@ export default function TeacherDetailPage({ id }: { id: string }) {
               <KeyRound size={13} className="text-[#D4AF37] shrink-0" />
               <div className="flex-1 min-w-0">
                 <p className="text-[9px] font-bold text-slate-400 uppercase tracking-wide">Password</p>
-                <p className="text-xs italic text-slate-400">Not stored — use reset password to re-issue</p>
+                {teacher.password_hash ? (
+                  <p className="text-sm font-semibold text-slate-700 truncate font-mono select-all bg-amber-50 px-1 rounded border border-amber-200/50">{teacher.password_hash}</p>
+                ) : (
+                  <p className="text-xs italic text-slate-400">Not stored — use reset password to re-issue</p>
+                )}
               </div>
+              {teacher.password_hash && (
+                <button
+                  onClick={() => copyValue("password", teacher.password_hash!)}
+                  className="p-1.5 text-slate-400 hover:text-[#0B3C5D] hover:bg-slate-50 rounded-lg transition-colors"
+                  title="Copy password"
+                >
+                  {copied === "password" ? <Check size={13} className="text-emerald-500" /> : <Copy size={13} />}
+                </button>
+              )}
             </div>
           </div>
         </div>

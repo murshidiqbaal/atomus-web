@@ -3,14 +3,18 @@
 import React, { useState } from "react";
 import {
   Settings, Shield, Bell, Palette, Database, Key,
-  Save, Eye, EyeOff, CheckCircle2, RefreshCw, Globe
+  Save, Eye, EyeOff, CheckCircle2, RefreshCw, Globe,
+  Plus, Trash2, MapPin, ToggleLeft, ToggleRight, Edit2
 } from "lucide-react";
+import { campusRepository } from "@/lib/repositories/campus_repository";
+import { Campus } from "@/lib/types";
 
 const TABS = [
   { id: "general", label: "General", icon: Settings },
   { id: "security", label: "Security", icon: Shield },
   { id: "notifications", label: "Notifications", icon: Bell },
   { id: "appearance", label: "Appearance", icon: Palette },
+  { id: "campuses", label: "Campuses", icon: Globe },
   { id: "database", label: "Database", icon: Database },
 ];
 
@@ -57,6 +61,7 @@ export default function SettingsPage() {
           {activeTab === "security" && <SecuritySettings onSave={handleSave} />}
           {activeTab === "notifications" && <NotificationSettings onSave={handleSave} />}
           {activeTab === "appearance" && <AppearanceSettings onSave={handleSave} />}
+          {activeTab === "campuses" && <CampusesSettings />}
           {activeTab === "database" && <DatabaseSettings />}
         </div>
       </div>
@@ -319,6 +324,263 @@ function DatabaseSettings() {
           </p>
         </div>
       </SectionCard>
+    </div>
+  );
+}
+
+function CampusesSettings() {
+  const [campuses, setCampuses] = React.useState<Campus[]>([]);
+  const [loading, setLoading] = React.useState(true);
+  const [error, setError] = React.useState("");
+  
+  // Form state for new campus
+  const [name, setName] = React.useState("");
+  const [location, setLocation] = React.useState("");
+  
+  // Edit state
+  const [editingId, setEditingId] = React.useState<string | null>(null);
+  const [editName, setEditName] = React.useState("");
+  const [editLocation, setEditLocation] = React.useState("");
+
+  const loadCampuses = async () => {
+    try {
+      setLoading(true);
+      setError("");
+      const data = await campusRepository.getCampuses();
+      setCampuses(data);
+    } catch (err: any) {
+      setError(err.message || "Failed to load campuses");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  React.useEffect(() => {
+    loadCampuses();
+  }, []);
+
+  const handleAdd = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!name.trim()) return;
+    try {
+      setError("");
+      await campusRepository.addCampus({
+        name: name.trim(),
+        location: location.trim() || null,
+        isActive: true
+      });
+      setName("");
+      setLocation("");
+      await loadCampuses();
+    } catch (err: any) {
+      setError(err.message || "Failed to add campus");
+    }
+  };
+
+  const handleToggleActive = async (campus: Campus) => {
+    try {
+      setError("");
+      await campusRepository.updateCampus(campus.id, {
+        isActive: !campus.isActive
+      });
+      await loadCampuses();
+    } catch (err: any) {
+      setError(err.message || "Failed to update campus status");
+    }
+  };
+
+  const handleUpdate = async (id: string) => {
+    if (!editName.trim()) return;
+    try {
+      setError("");
+      await campusRepository.updateCampus(id, {
+        name: editName.trim(),
+        location: editLocation.trim() || null
+      });
+      setEditingId(null);
+      await loadCampuses();
+    } catch (err: any) {
+      setError(err.message || "Failed to update campus");
+    }
+  };
+
+  const handleDelete = async (id: string) => {
+    if (!window.confirm("Are you sure you want to delete this campus? This may affect linked courses, batches and students.")) return;
+    try {
+      setError("");
+      await campusRepository.deleteCampus(id);
+      await loadCampuses();
+    } catch (err: any) {
+      setError(err.message || "Failed to delete campus");
+    }
+  };
+
+  const startEdit = (campus: Campus) => {
+    setEditingId(campus.id);
+    setEditName(campus.name);
+    setEditLocation(campus.location || "");
+  };
+
+  return (
+    <div className="space-y-6">
+      {error && (
+        <div className="bg-rose-50 border border-rose-200 text-rose-700 px-4 py-3 rounded-xl text-sm font-medium">
+          {error}
+        </div>
+      )}
+
+      {/* Add Campus Form */}
+      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+        <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between">
+          <div>
+            <h3 className="font-bold text-[#0B3C5D] text-base">Add New Campus</h3>
+            <p className="text-xs text-slate-400 mt-0.5">Register a new physical branch or tuition centre campus</p>
+          </div>
+        </div>
+        <form onSubmit={handleAdd} className="p-6 grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
+          <div className="space-y-1.5 col-span-1">
+            <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Campus Name *</label>
+            <input
+              required
+              type="text"
+              placeholder="e.g. Piravom Campus"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              className="w-full border border-slate-200 rounded-xl px-4 py-2 text-sm outline-none focus:border-[#0B3C5D]"
+            />
+          </div>
+          <div className="space-y-1.5 col-span-1">
+            <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Location / City</label>
+            <input
+              type="text"
+              placeholder="e.g. Ernakulam, Kerala"
+              value={location}
+              onChange={(e) => setLocation(e.target.value)}
+              className="w-full border border-slate-200 rounded-xl px-4 py-2 text-sm outline-none focus:border-[#0B3C5D]"
+            />
+          </div>
+          <button
+            type="submit"
+            className="bg-[#0B3C5D] text-white px-6 py-2.5 rounded-xl font-bold hover:bg-[#0B3C5D]/90 transition-all shadow-md flex items-center justify-center gap-2 h-[38px]"
+          >
+            <Plus size={16} />
+            Create Campus
+          </button>
+        </form>
+      </div>
+
+      {/* Campus List */}
+      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+        <div className="px-6 py-4 border-b border-slate-100">
+          <h3 className="font-bold text-[#0B3C5D] text-base">Registered Campuses</h3>
+          <p className="text-xs text-slate-400 mt-0.5">Manage existing branches and branches status</p>
+        </div>
+        
+        <div className="p-6">
+          {loading ? (
+            <div className="flex items-center justify-center py-12">
+              <RefreshCw className="animate-spin text-slate-400" size={24} />
+            </div>
+          ) : campuses.length === 0 ? (
+            <div className="text-center py-12 text-slate-400 text-sm">
+              No campuses registered yet. Use the form above to add your first campus.
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {campuses.map((campus) => (
+                <div
+                  key={campus.id}
+                  className={`border rounded-2xl p-4 transition-all flex flex-col justify-between ${
+                    campus.isActive ? "border-slate-200 bg-slate-50/30" : "border-slate-100 bg-slate-50/10 opacity-70"
+                  }`}
+                >
+                  {editingId === campus.id ? (
+                    <div className="space-y-3 flex-1">
+                      <input
+                        type="text"
+                        value={editName}
+                        onChange={(e) => setEditName(e.target.value)}
+                        className="w-full border border-slate-200 rounded-xl px-3 py-1.5 text-sm outline-none font-bold text-[#0B3C5D]"
+                      />
+                      <input
+                        type="text"
+                        value={editLocation}
+                        onChange={(e) => setEditLocation(e.target.value)}
+                        placeholder="Location"
+                        className="w-full border border-slate-200 rounded-xl px-3 py-1.5 text-xs outline-none text-slate-500"
+                      />
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => handleUpdate(campus.id)}
+                          className="bg-emerald-600 text-white px-3 py-1.5 rounded-lg text-xs font-bold hover:bg-emerald-700"
+                        >
+                          Save
+                        </button>
+                        <button
+                          onClick={() => setEditingId(null)}
+                          className="bg-slate-200 text-slate-600 px-3 py-1.5 rounded-lg text-xs font-bold hover:bg-slate-300"
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="flex-1">
+                      <div className="flex items-start justify-between gap-2">
+                        <h4 className="font-black text-slate-800 text-sm">{campus.name}</h4>
+                        <span
+                          className={`text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded-lg ${
+                            campus.isActive ? "bg-emerald-100 text-emerald-800" : "bg-slate-200 text-slate-600"
+                          }`}
+                        >
+                          {campus.isActive ? "Active" : "Inactive"}
+                        </span>
+                      </div>
+                      
+                      {campus.location && (
+                        <div className="flex items-center gap-1 text-slate-400 text-xs mt-1">
+                          <MapPin size={12} className="shrink-0" />
+                          <span className="truncate">{campus.location}</span>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  <div className="border-t border-slate-100 mt-4 pt-3 flex items-center justify-between">
+                    <div className="flex items-center gap-1">
+                      <button
+                        onClick={() => handleToggleActive(campus)}
+                        title={campus.isActive ? "Deactivate Campus" : "Activate Campus"}
+                        className="text-slate-400 hover:text-[#0B3C5D] p-1.5 rounded-lg transition-colors"
+                      >
+                        {campus.isActive ? <ToggleRight size={20} className="text-emerald-500" /> : <ToggleLeft size={20} />}
+                      </button>
+                      
+                      {editingId !== campus.id && (
+                        <button
+                          onClick={() => startEdit(campus)}
+                          title="Edit Campus"
+                          className="text-slate-400 hover:text-slate-700 p-1.5 rounded-lg transition-colors"
+                        >
+                          <Edit2 size={14} />
+                        </button>
+                      )}
+                    </div>
+
+                    <button
+                      onClick={() => handleDelete(campus.id)}
+                      title="Delete Campus"
+                      className="text-slate-400 hover:text-rose-600 p-1.5 rounded-lg transition-colors ml-auto"
+                    >
+                      <Trash2 size={14} />
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
     </div>
   );
 }

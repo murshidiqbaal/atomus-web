@@ -1,16 +1,14 @@
 "use client";
 
 import React, { useState } from "react";
-import { AlertCircle, Loader2, Plus, X, Users, BookOpen } from "lucide-react";
-import { useBatches, useCourses, useCreateExam } from "../hooks";
-import { ExamScope } from "../types";
+import { AlertCircle, Loader2, Plus, X } from "lucide-react";
+import { useCourses, useCreateExam } from "../hooks";
 import { Label, fieldCls } from "./ui";
 
 type Props = {
   isOpen: boolean;
   onClose: () => void;
   defaultCourse: string;
-  defaultBatch: string;
   onCreated: (examId: string) => void;
   onToast: (type: "success" | "error", msg: string) => void;
 };
@@ -25,14 +23,11 @@ export function ExamModal(props: Props) {
 function ExamModalContent({
   onClose,
   defaultCourse,
-  defaultBatch,
   onCreated,
   onToast,
 }: Props) {
   const [name, setName] = useState("");
-  const [scope, setScope] = useState<ExamScope>("batch");
   const [courseId, setCourseId] = useState(defaultCourse);
-  const [batchId, setBatchId] = useState(defaultBatch);
   const [examDate, setExamDate] = useState(
     new Date().toISOString().split("T")[0]
   );
@@ -40,7 +35,6 @@ function ExamModalContent({
   const [error, setError] = useState("");
 
   const { data: courses = [] } = useCourses();
-  const { data: batches = [] } = useBatches(courseId);
   const create = useCreateExam();
 
   async function handleSubmit(e: React.FormEvent) {
@@ -49,17 +43,13 @@ function ExamModalContent({
       setError("Please fill all required fields.");
       return;
     }
-    if (scope === "batch" && !batchId) {
-      setError("Select a batch — or switch to Course scope.");
-      return;
-    }
     setError("");
     try {
       const exam = await create.mutateAsync({
         name: name.trim(),
         course_id: courseId,
-        batch_id: scope === "batch" ? batchId : null,
-        exam_scope: scope,
+        batch_id: null,
+        exam_scope: "course",
         exam_date: examDate,
         total_marks: totalMarks,
       });
@@ -83,7 +73,7 @@ function ExamModalContent({
           <div>
             <h2 className="text-base font-bold text-[#0B3C5D]">Create Exam</h2>
             <p className="text-xs text-slate-400 mt-0.5">
-              Set scope, course and marks to start entering scores.
+              Set course and marks to start entering scores.
             </p>
           </div>
           <button
@@ -104,36 +94,6 @@ function ExamModalContent({
             )}
 
             <div>
-              <Label>Exam Scope</Label>
-              <div className="grid grid-cols-2 gap-2">
-                {(
-                  [
-                    { key: "batch", label: "Single Batch", icon: <Users size={14} /> },
-                    { key: "course", label: "Entire Course", icon: <BookOpen size={14} /> },
-                  ] as { key: ExamScope; label: string; icon: React.ReactNode }[]
-                ).map((opt) => (
-                  <button
-                    key={opt.key}
-                    type="button"
-                    onClick={() => setScope(opt.key)}
-                    className={`flex items-center gap-2 px-3 py-2.5 text-sm font-bold rounded-xl border transition-all
-                      ${scope === opt.key
-                        ? "bg-[#0B3C5D] text-white border-[#0B3C5D] shadow-md shadow-blue-900/20"
-                        : "bg-white text-slate-600 border-slate-200 hover:border-[#0B3C5D]/40 hover:text-[#0B3C5D]"}`}
-                  >
-                    {opt.icon}
-                    {opt.label}
-                  </button>
-                ))}
-              </div>
-              <p className="text-[11px] text-slate-400 mt-1.5">
-                {scope === "course"
-                  ? "Exam will apply to all batches in the selected course."
-                  : "Exam will apply only to the selected batch."}
-              </p>
-            </div>
-
-            <div>
               <Label>Exam Name</Label>
               <input
                 type="text"
@@ -145,47 +105,20 @@ function ExamModalContent({
               />
             </div>
 
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <Label>Course</Label>
-                <select
-                  value={courseId}
-                  onChange={(e) => {
-                    setCourseId(e.target.value);
-                    setBatchId("");
-                  }}
-                  className={fieldCls}
-                >
-                  <option value="">Select course</option>
-                  {courses.map((c) => (
-                    <option key={c.id} value={c.id}>
-                      {c.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div>
-                <Label optional={scope === "course"}>Batch</Label>
-                <select
-                  value={batchId}
-                  onChange={(e) => setBatchId(e.target.value)}
-                  disabled={!courseId || scope === "course"}
-                  className={`${fieldCls} disabled:opacity-50 disabled:cursor-not-allowed`}
-                >
-                  <option value="">
-                    {scope === "course"
-                      ? "All batches in course"
-                      : courseId
-                      ? "Select batch"
-                      : "Select course first"}
+            <div>
+              <Label>Course</Label>
+              <select
+                value={courseId}
+                onChange={(e) => setCourseId(e.target.value)}
+                className={fieldCls}
+              >
+                <option value="">Select course</option>
+                {courses.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.name}
                   </option>
-                  {batches.map((b) => (
-                    <option key={b.id} value={b.id}>
-                      {b.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
+                ))}
+              </select>
             </div>
 
             <div className="grid grid-cols-2 gap-3">

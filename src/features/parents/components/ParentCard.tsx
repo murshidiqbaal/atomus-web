@@ -51,6 +51,13 @@ function ParentCard({ parent, onEdit, onResetPassword, onDelete, onToggleStatus 
         </span>
       </div>
 
+      {parent.password_hash && (
+        <div className="text-[10px] text-slate-400 font-bold bg-amber-50 px-2.5 py-1.5 rounded-xl border border-amber-200/50 flex items-center justify-between">
+          <span>PASSWORD:</span>
+          <span className="font-mono text-[#D4AF37] select-all">{parent.password_hash}</span>
+        </div>
+      )}
+
       {courses.length > 0 && (
         <div className="flex flex-wrap gap-1">
           {courses.slice(0, 3).map((c) => (

@@ -107,6 +107,24 @@ export default function ParentsPage() {
     [allBatches, filters.course_id]
   );
 
+  const uniqueAvailableBatches = useMemo(() => {
+    const seen = new Set<string>();
+    const list: typeof availableBatches = [];
+    for (const b of availableBatches) {
+      const norm = b.name.trim().toLowerCase();
+      if (!seen.has(norm)) {
+        seen.add(norm);
+        list.push(b);
+      }
+    }
+    return list;
+  }, [availableBatches]);
+
+  const selectedBatchName = useMemo(() => {
+    if (!filters.batch_id) return null;
+    return allBatches.find((b) => b.id === filters.batch_id)?.name;
+  }, [filters.batch_id, allBatches]);
+
   const filtered = useMemo(() => {
     const q = filters.search.toLowerCase();
     return parents.filter((p) => {
@@ -115,7 +133,13 @@ export default function ParentsPage() {
       const students = p.students ?? [];
 
       if (filters.course_id && !students.some((s) => s.course_id === filters.course_id)) return false;
-      if (filters.batch_id && !students.some((s) => s.batch_id === filters.batch_id)) return false;
+      if (filters.batch_id) {
+        if (selectedBatchName) {
+          if (!students.some((s) => s.batches?.name === selectedBatchName)) return false;
+        } else {
+          if (!students.some((s) => s.batch_id === filters.batch_id)) return false;
+        }
+      }
 
       if (!q) return true;
       return (
@@ -267,7 +291,7 @@ export default function ParentsPage() {
                 className="bg-transparent text-sm font-bold outline-none min-w-[140px] text-slate-700"
               >
                 <option value="">All Batches</option>
-                {availableBatches.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
+                {uniqueAvailableBatches.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
               </select>
             </div>
 
