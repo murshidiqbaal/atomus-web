@@ -13,7 +13,7 @@ import type {
   TeacherAttendanceAnalytics, TeacherAttendanceDTO,
 } from "../types";
 import { useTeacherAttendanceAnalytics } from "../hooks";
-import { isLateLogin } from "../utils/format";
+import { isLatePunchIn } from "../utils/format";
 import { Card, EmptyState, StatCard } from "./ui";
 
 const TONE = ["#0B3C5D", "#D4AF37", "#10B981", "#8B5CF6", "#EC4899", "#F59E0B", "#06B6D4", "#EF4444"];
@@ -62,7 +62,7 @@ function buildAnalytics(rows: TeacherAttendanceDTO[]): TeacherAttendanceAnalytic
     if (r.teacher && r.attendance_status !== "Missed" && r.start_time) {
       const t = byTeacher.get(r.teacher.id) ?? { name: r.teacher.full_name, total: 0, punctual: 0 };
       t.total++;
-      if (!isLateLogin(r.start_time)) t.punctual++;
+      if (!isLatePunchIn(r.start_time)) t.punctual++;
       byTeacher.set(r.teacher.id, t);
     }
   }

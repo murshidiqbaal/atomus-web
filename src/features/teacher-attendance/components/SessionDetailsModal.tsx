@@ -102,8 +102,8 @@ export function SessionDetailsModal({ sessionId, onClose, onToast }: Props) {
 
               {/* Timing */}
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-                <InfoRow icon={<LogIn size={14} />} label="Login Time" value={formatTime(row.start_time)} tone="emerald" />
-                <InfoRow icon={<LogOut size={14} />} label="Logout Time" value={row.end_time ? formatTime(row.end_time) : "—"} tone="rose" />
+                <InfoRow icon={<LogIn size={14} />} label="Punch In Time" value={formatTime(row.start_time)} tone="emerald" />
+                <InfoRow icon={<LogOut size={14} />} label="Punch Out Time" value={row.end_time ? formatTime(row.end_time) : "—"} tone="rose" />
                 <InfoRow icon={<Clock size={14} />} label="Duration" value={formatDurationMinutes(row.total_duration_minutes)} tone="blue" />
               </div>
 

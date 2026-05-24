@@ -254,7 +254,24 @@ export const studentService = {
   async getMarks(student_id: string): Promise<MarksRecord[]> {
     const { data } = await supabase
       .from("marks")
-      .select("*, exams(name, exam_date, total_marks)")
+      .select(`
+        *,
+        exams (
+          name,
+          exam_date,
+          total_marks,
+          exam_scope
+        ),
+        subjects (
+          id,
+          name,
+          subject_code
+        ),
+        teachers (
+          id,
+          full_name
+        )
+      `)
       .eq("student_id", student_id)
       .order("created_at", { ascending: false });
     return (data ?? []) as MarksRecord[];

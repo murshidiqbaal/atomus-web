@@ -10,7 +10,7 @@ import { Card } from "./ui";
 import { formatDate, formatDurationMinutes, formatTime, SHORT_SESSION_MINUTES } from "../utils/format";
 
 const KIND_META: Record<AttendanceAlertKind, { label: string; tone: string; bg: string; icon: React.ComponentType<{ size?: number }> }> = {
-  missing_logout: { label: "Missing logout", tone: "text-amber-700", bg: "bg-amber-50 border-amber-100", icon: Clock },
+  missing_punch_out: { label: "Missing punch out", tone: "text-amber-700", bg: "bg-amber-50 border-amber-100", icon: Clock },
   short_session: { label: "Unusually short", tone: "text-orange-700", bg: "bg-orange-50 border-orange-100", icon: Clock },
   missed_class: { label: "Missed class", tone: "text-rose-700", bg: "bg-rose-50 border-rose-100", icon: XCircle },
   no_gps: { label: "GPS not captured", tone: "text-slate-700", bg: "bg-slate-100 border-slate-200", icon: MapPin },
@@ -29,7 +29,7 @@ function buildAlerts(rows: TeacherAttendanceDTO[]): AttendanceAlert[] {
       if (elapsed > ELEVEN_HOURS) {
         out.push({
           id: `${r.id}-missing`,
-          kind: "missing_logout",
+          kind: "missing_punch_out",
           teacher_name: teacher,
           detail: `Active since ${formatTime(r.start_time)} on ${formatDate(r.attendance_date)} — over 11 hours`,
           occurred_at: r.start_time,

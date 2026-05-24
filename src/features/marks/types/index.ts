@@ -16,6 +16,12 @@ export interface Exam {
   exam_scope: ExamScope;
   exam_date: string | null;
   total_marks: number;
+  /**
+   * Recurring/daily exams: one exam row, many per-day mark rows distinguished
+   * by `marks.mark_date`. For non-daily exams this stays false and marks are
+   * keyed by (exam_id, student_id, subject_id) only.
+   */
+  is_daily: boolean;
   created_at: string;
   created_by: string | null;
   creator_name: string | null;
@@ -87,6 +93,8 @@ export interface Mark {
   exam_id: string;
   student_id: string;
   subject_id: string | null;
+  /** YYYY-MM-DD — set only for daily-exam mark rows; null for one-shot exams. */
+  mark_date: string | null;
   marks_obtained: number;
   total_marks: number;
   percentage?: number;

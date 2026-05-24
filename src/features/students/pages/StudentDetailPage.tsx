@@ -11,6 +11,7 @@ import { useStudent, useStudentAttendance, useStudentMarks, useSubjectsByCourse 
 import StudentModal from "../components/StudentModal";
 import { AcademicStatus } from "../types";
 import { StudentFeeProfile } from "@/features/fees/components/StudentFeeProfile";
+import { getGrade, GRADE_CFG } from "@/features/marks/utils/grade";
 
 interface Props {
   id: string;
@@ -74,6 +75,10 @@ export default function StudentDetailPage({ id }: Props) {
   const [subjectFilter, setSubjectFilter] = useState<string>("");
   const [roleFilter, setRoleFilter] = useState<string>("");
 
+  // Filters for marks vertical timeline
+  const [marksSubjectFilter, setMarksSubjectFilter] = useState<string>("");
+  const [marksRoleFilter, setMarksRoleFilter] = useState<string>("");
+
   const handleDownloadPhoto = () => {
     if (!student?.profile_photo_url) return;
 
@@ -117,7 +122,13 @@ export default function StudentDetailPage({ id }: Props) {
   const StatusIcon = status.icon;
 
   const attendanceRate = student.attendance_percentage ?? 0;
-  const avgMarks = marks.length > 0 ? marks.reduce((acc, m) => acc + (m.marks_obtained / (m.exams?.total_marks || 100)), 0) / marks.length * 100 : 0;
+  const avgMarks = marks.length > 0
+    ? marks.reduce((acc, m) => {
+        const total = m.total_marks ?? m.exams?.total_marks ?? 100;
+        const pct = m.percentage ?? ((m.marks_obtained / (total || 100)) * 100);
+        return acc + Number(pct);
+      }, 0) / marks.length
+    : 0;
 
   return (
     <div className="p-4 sm:p-8 space-y-8 max-w-[1400px] mx-auto animate-in fade-in slide-in-from-bottom-4 duration-700">
@@ -521,17 +532,165 @@ export default function StudentDetailPage({ id }: Props) {
                 );
               })()}
 
-              {activeTab === "marks" && (
-                <div className="animate-in slide-in-from-right-4 duration-500">
-                  <div className="py-20 text-center">
-                    <div className="bg-blue-50 w-20 h-20 rounded-[2rem] flex items-center justify-center mx-auto mb-6 text-blue-500">
-                      <Award size={32} />
+              {activeTab === "marks" && (() => {
+                const filteredMarks = marks.filter((m) => {
+                  const matchSubject = !marksSubjectFilter || m.subject_id === marksSubjectFilter;
+                  const markerRole = m.teachers ? "Teacher" : "Admin";
+                  const matchRole = !marksRoleFilter || markerRole === marksRoleFilter;
+                  return matchSubject && matchRole;
+                });
+
+                const marksPctList = filteredMarks.map(m => {
+                  const total = m.total_marks ?? m.exams?.total_marks ?? 100;
+                  return Number(m.percentage ?? ((m.marks_obtained / (total || 100)) * 100));
+                });
+                const marksAvg = marksPctList.length > 0 ? marksPctList.reduce((a, b) => a + b, 0) / marksPctList.length : 0;
+                const marksMax = marksPctList.length > 0 ? Math.max(...marksPctList) : 0;
+                const marksMin = marksPctList.length > 0 ? Math.min(...marksPctList) : 0;
+
+                return (
+                  <div className="animate-in slide-in-from-right-4 duration-500 space-y-6">
+                    {/* Summary metrics cards */}
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                      {[
+                        { label: "Average", value: `${Math.round(marksAvg)}%`, color: "text-[#0B3C5D]" },
+                        { label: "Highest", value: `${Math.round(marksMax)}%`, color: "text-emerald-600" },
+                        { label: "Lowest", value: `${Math.round(marksMin)}%`, color: "text-rose-600" },
+                        { label: "Total Exams", value: `${filteredMarks.length}`, color: "text-slate-800" }
+                      ].map((c) => (
+                        <div key={c.label} className="p-4 bg-slate-50 border border-slate-200 rounded-2xl text-center">
+                          <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest leading-none mb-1.5">{c.label}</p>
+                          <p className={`text-xl font-black ${c.color}`}>{c.value}</p>
+                        </div>
+                      ))}
                     </div>
-                    <p className="text-slate-600 font-black">Scholastic Achievement Summary</p>
-                    <p className="text-sm text-slate-400 font-medium max-w-xs mx-auto mt-2">Examination and assessment results overview.</p>
+
+                    {/* Filters header bar */}
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 bg-slate-50 border border-slate-200 rounded-2xl">
+                      <div className="flex flex-wrap items-center gap-4">
+                        {/* Subject Filter */}
+                        <div className="flex flex-col">
+                          <label className="text-[10px] font-black uppercase tracking-wider text-slate-400 mb-1">Subject</label>
+                          <select
+                            value={marksSubjectFilter}
+                            onChange={(e) => setMarksSubjectFilter(e.target.value)}
+                            className="px-3 py-2 text-xs bg-white border border-slate-200 rounded-xl outline-none focus:border-[#0B3C5D]"
+                          >
+                            <option value="">All Subjects</option>
+                            {subjects.map((sub: any) => (
+                              <option key={sub.id} value={sub.id}>{sub.name}</option>
+                            ))}
+                          </select>
+                        </div>
+
+                        {/* Evaluator Role Filter */}
+                        <div className="flex flex-col">
+                          <label className="text-[10px] font-black uppercase tracking-wider text-slate-400 mb-1">Evaluated By</label>
+                          <select
+                            value={marksRoleFilter}
+                            onChange={(e) => setMarksRoleFilter(e.target.value)}
+                            className="px-3 py-2 text-xs bg-white border border-slate-200 rounded-xl outline-none focus:border-[#0B3C5D]"
+                          >
+                            <option value="">All Roles</option>
+                            <option value="Teacher">Teachers</option>
+                            <option value="Admin">Admin (ATOMUS)</option>
+                          </select>
+                        </div>
+                      </div>
+                      <div className="text-right shrink-0">
+                        <p className="text-xs font-bold text-slate-400">Total Scoped Marks</p>
+                        <p className="text-lg font-black text-slate-800">{filteredMarks.length}</p>
+                      </div>
+                    </div>
+
+                    {/* Marks Timeline */}
+                    {filteredMarks.length === 0 ? (
+                      <div className="py-16 text-center border border-dashed border-slate-200 rounded-2xl bg-slate-50/30">
+                        <div className="bg-slate-100 w-14 h-14 rounded-full flex items-center justify-center mx-auto mb-3 text-slate-400">
+                          <Award size={20} />
+                        </div>
+                        <p className="text-sm font-bold text-slate-600">No examination records match filters</p>
+                        <p className="text-xs text-slate-400 mt-1">Try resetting the subject or evaluator role filters.</p>
+                      </div>
+                    ) : (
+                      <div className="relative pl-6 sm:pl-8 before:absolute before:left-[11px] before:sm:left-[15px] before:top-2 before:bottom-2 before:w-[2px] before:bg-slate-100 space-y-6">
+                        {filteredMarks.map((rec) => {
+                          const examName = rec.exams?.name ?? "Daily Assessment";
+                          const date = rec.mark_date || rec.exams?.exam_date || rec.created_at || new Date().toISOString();
+                          const subjectName = rec.subjects?.name ?? "Overall";
+                          const total = rec.total_marks ?? rec.exams?.total_marks ?? 100;
+                          const percentage = Number(rec.percentage ?? ((rec.marks_obtained / total) * 100));
+                          const grade = getGrade(percentage);
+                          const gradeStyle = GRADE_CFG[grade]?.badge ?? "bg-slate-50 text-slate-500 border border-slate-100";
+
+                          return (
+                            <div key={rec.id} className="relative group animate-in fade-in duration-300">
+                              {/* Timeline bullet indicator node */}
+                              <div className={`absolute -left-[29px] -left:sm-[33px] top-1.5 w-3 h-3 sm:w-4 sm:h-4 rounded-full ${GRADE_CFG[grade]?.bar ? GRADE_CFG[grade].bar : 'bg-slate-300'} ring-4 ring-white shadow transition-all duration-300 group-hover:scale-125 z-10`} />
+
+                              <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-sm hover:shadow-md hover:border-slate-300 transition-all duration-200">
+                                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                                  <div>
+                                    <div className="flex items-center gap-2 flex-wrap">
+                                      <span className="text-xs font-black text-slate-800 flex items-center gap-1">
+                                        <Calendar size={12} className="text-slate-400" />
+                                        {new Date(date).toLocaleDateString("en-US", {
+                                          month: "short", day: "numeric", year: "numeric"
+                                        })}
+                                      </span>
+                                      {rec.exams?.exam_scope === "course" && (
+                                        <span className="text-[9px] font-black text-amber-600 bg-amber-50 border border-amber-100 px-1.5 py-0.2 rounded uppercase tracking-wider">
+                                          Course-Wide
+                                        </span>
+                                      )}
+                                    </div>
+
+                                    <h4 className="text-sm font-black text-slate-900 mt-1">{examName}</h4>
+
+                                    <div className="flex items-center gap-2 mt-2 flex-wrap">
+                                      <span className="text-[10px] font-black text-[#0B3C5D] bg-[#0B3C5D]/5 px-2 py-0.5 rounded border border-[#0B3C5D]/10 flex items-center gap-1">
+                                        <BookOpen size={10} className="text-[#0B3C5D]/60" />
+                                        {subjectName}
+                                      </span>
+
+                                      <span className="text-[10px] font-semibold text-slate-500 bg-slate-50 border border-slate-200 px-2 py-0.5 rounded-full">
+                                        Score: <strong className="text-slate-700">{rec.marks_obtained} / {total}</strong>
+                                      </span>
+
+                                      {rec.teachers?.full_name ? (
+                                        <span className="text-[10px] font-semibold text-emerald-700 bg-emerald-50 border border-emerald-100 px-2 py-0.5 rounded-full">
+                                          Marked by {rec.teachers.full_name}
+                                        </span>
+                                      ) : (
+                                        <span className="text-[10px] font-semibold text-slate-600 bg-slate-50 border border-slate-200 px-2 py-0.5 rounded-full">
+                                          Marked by Admin (ATOMUS)
+                                        </span>
+                                      )}
+                                    </div>
+                                  </div>
+
+                                  <div className="flex items-center gap-2 shrink-0 self-start sm:self-center">
+                                    <span className="text-base font-black text-[#0B3C5D]">{Math.round(percentage)}%</span>
+                                    <span className={`text-[10px] font-black uppercase tracking-wider px-2.5 py-1 rounded-full ${gradeStyle}`}>
+                                      {grade}
+                                    </span>
+                                  </div>
+                                </div>
+
+                                {rec.remarks && (
+                                  <div className="mt-3 text-xs text-slate-500 font-medium italic border-t border-slate-100 pt-2.5">
+                                    "{rec.remarks}"
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
                   </div>
-                </div>
-              )}
+                );
+              })()}
 
               {activeTab === "fees" && (
                 <div className="animate-in slide-in-from-right-4 duration-500">

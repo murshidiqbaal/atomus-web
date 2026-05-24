@@ -95,7 +95,7 @@ export interface TeacherPerformanceRow {
   avg_minutes_per_session: number;
   avg_daily_hours: number;
   consistency_pct: number;           // completed / (completed + missed)
-  late_login_count: number;          // sessions starting after 09:30 local
+  late_punch_in_count: number;       // sessions starting after 09:30 local
   punctual_pct: number;
 }
 
@@ -115,7 +115,7 @@ export interface TeacherAttendanceAnalytics {
 
 /** Alert items shown in the warnings panel. */
 export type AttendanceAlertKind =
-  | "missing_logout"
+  | "missing_punch_out"
   | "short_session"
   | "missed_class"
   | "no_gps";
@@ -137,5 +137,4 @@ export interface AttendanceAlert {
 export interface AdminAttendanceOverride {
   attendance_status?: AttendanceStatus;
   end_time?: string | null;
-  total_duration_minutes?: number | null;
 }

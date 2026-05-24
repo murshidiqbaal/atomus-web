@@ -11,7 +11,7 @@ export async function POST(req: NextRequest) {
     }
 
     const body = await req.json();
-    const { name, course_id, batch_id, campus_id, exam_scope, exam_date, total_marks } = body;
+    const { name, course_id, batch_id, campus_id, exam_scope, exam_date, total_marks, is_daily } = body;
 
     if (!name || !exam_scope || !exam_date) {
       return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
@@ -45,6 +45,7 @@ export async function POST(req: NextRequest) {
         exam_scope,
         exam_date,
         total_marks,
+        is_daily: !!is_daily,
         creator_id: auth.userId === "master-admin" ? null : auth.userId,
         creator_role: creatorRole
       })

@@ -17,7 +17,7 @@ interface Props {
   onOpenSession: (id: string) => void;
 }
 
-export function LoginLogoutTimeline({ filters, limit = 25, onOpenSession }: Props) {
+export function PunchInPunchOutTimeline({ filters, limit = 25, onOpenSession }: Props) {
   const { data: rows = [] } = useTeacherAttendanceList(filters);
 
   const items = useMemo(() => {
@@ -38,8 +38,8 @@ export function LoginLogoutTimeline({ filters, limit = 25, onOpenSession }: Prop
           <Activity size={14} />
         </div>
         <div>
-          <p className="text-sm font-black text-slate-800 leading-tight">Login / Logout Timeline</p>
-          <p className="text-[11px] text-slate-400 mt-0.5">Recent teacher sessions chronologically</p>
+          <p className="text-sm font-black text-slate-800 leading-tight">Punch In / Punch Out Timeline</p>
+          <p className="text-[11px] text-slate-400 mt-0.5">Recent teacher punches chronologically</p>
         </div>
       </div>
 
@@ -82,13 +82,13 @@ export function LoginLogoutTimeline({ filters, limit = 25, onOpenSession }: Prop
                       <div className="mt-2 grid grid-cols-3 gap-2">
                         <TimeChip
                           icon={<LogIn size={11} />}
-                          label="Login"
+                          label="Punch In"
                           value={formatTime(r.start_time)}
                           tone="emerald"
                         />
                         <TimeChip
                           icon={<LogOut size={11} />}
-                          label="Logout"
+                          label="Punch Out"
                           value={r.end_time ? formatTime(r.end_time) : "—"}
                           tone="rose"
                         />
@@ -140,4 +140,3 @@ function TimeChip({
     </div>
   );
 }
-

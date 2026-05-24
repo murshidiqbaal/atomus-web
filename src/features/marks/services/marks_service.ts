@@ -71,6 +71,7 @@ export const marksService = {
     exam_scope: ExamScope;
     exam_date: string;
     total_marks: number;
+    is_daily?: boolean;
   }): Promise<Exam> {
     const res = await fetch("/api/exams", {
       method: "POST",
@@ -251,9 +252,22 @@ export const marksService = {
   },
 
   // ── Marks ────────────────────────────────────────────────────────
-  async getMarks(examId: string, subjectId: string | null): Promise<Mark[]> {
+  /**
+   * Read the editable mark rows for one (exam, subject) slot.
+   *
+   * For daily exams, callers pass `markDate` (YYYY-MM-DD) and only that day's
+   * rows come back. For one-shot exams, `markDate` is omitted and we filter
+   * `mark_date IS NULL` so historical (non-daily) rows are unaffected by the
+   * new column.
+   */
+  async getMarks(
+    examId: string,
+    subjectId: string | null,
+    markDate?: string | null,
+  ): Promise<Mark[]> {
     let q = supabase.from("marks").select("*").eq("exam_id", examId);
     q = subjectId ? q.eq("subject_id", subjectId) : q.is("subject_id", null);
+    q = markDate ? q.eq("mark_date", markDate) : q.is("mark_date", null);
     const { data, error } = await q;
     if (error) throw error;
     return (data ?? []) as Mark[];
@@ -263,10 +277,11 @@ export const marksService = {
     const valid = records.filter((r) => r.exam_id && r.student_id);
     if (!valid.length) return;
 
-    // Group by exam_id and subject_id to batch reads
+    // Group by exam_id, subject_id and mark_date so each batch reads existing
+    // rows for a single (exam, subject, date) slot in one round trip.
     const groups = new Map<string, Mark[]>();
     for (const r of valid) {
-      const key = `${r.exam_id}-${r.subject_id || 'none'}`;
+      const key = `${r.exam_id}-${r.subject_id || 'none'}-${r.mark_date || 'none'}`;
       const arr = groups.get(key);
       if (arr) arr.push(r);
       else groups.set(key, [r]);
@@ -279,11 +294,17 @@ export const marksService = {
         .select("id, student_id")
         .eq("exam_id", sample.exam_id)
         .in("student_id", group.map((r) => r.student_id));
-      
+
       if (sample.subject_id) {
         readQ = readQ.eq("subject_id", sample.subject_id);
       } else {
         readQ = readQ.is("subject_id", null);
+      }
+
+      if (sample.mark_date) {
+        readQ = readQ.eq("mark_date", sample.mark_date);
+      } else {
+        readQ = readQ.is("mark_date", null);
       }
 
       const { data: existing, error: readErr } = await readQ;
@@ -300,6 +321,7 @@ export const marksService = {
           exam_id: r.exam_id,
           student_id: r.student_id,
           subject_id: r.subject_id || null,
+          mark_date: r.mark_date || null,
           marks_obtained: r.marks_obtained,
           total_marks: r.total_marks,
           remarks: r.remarks || null,

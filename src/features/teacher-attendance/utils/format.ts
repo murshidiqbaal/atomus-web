@@ -25,10 +25,26 @@ export function formatDurationMinutes(minutes: number | null | undefined): strin
   return `${m}m`;
 }
 
-export function formatTime(iso: string | null | undefined): string {
-  if (!iso) return "—";
+export function toLocalDate(iso: string | null | undefined): Date | null {
+  if (!iso) return null;
   try {
-    return new Date(iso).toLocaleTimeString("en-IN", {
+    // If it's a date-only string (e.g. YYYY-MM-DD), replace - with / to force local parsing
+    if (iso.length === 10 && !iso.includes("T") && !iso.includes(":")) {
+      return new Date(iso.replace(/-/g, "/"));
+    }
+    // Strip timezone offset (Z, +HH:MM, -HH:MM) to force local time parsing
+    const clean = iso.replace(/Z|([+-]\d\d:\d\d)$/, "");
+    return new Date(clean);
+  } catch {
+    return null;
+  }
+}
+
+export function formatTime(iso: string | null | undefined): string {
+  const d = toLocalDate(iso);
+  if (!d) return "—";
+  try {
+    return d.toLocaleTimeString("en-IN", {
       hour: "2-digit",
       minute: "2-digit",
       hour12: true,
@@ -39,9 +55,10 @@ export function formatTime(iso: string | null | undefined): string {
 }
 
 export function formatDate(iso: string | null | undefined): string {
-  if (!iso) return "—";
+  const d = toLocalDate(iso);
+  if (!d) return "—";
   try {
-    return new Date(iso).toLocaleDateString("en-IN", {
+    return d.toLocaleDateString("en-IN", {
       day: "2-digit",
       month: "short",
       year: "numeric",
@@ -53,9 +70,9 @@ export function formatDate(iso: string | null | undefined): string {
 
 /** "9:42 AM · 23 May" — compact for table cells. */
 export function formatDateTimeCompact(iso: string | null | undefined): string {
-  if (!iso) return "—";
+  const d = toLocalDate(iso);
+  if (!d) return "—";
   try {
-    const d = new Date(iso);
     return `${d.toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit", hour12: true })} · ${
       d.toLocaleDateString("en-IN", { day: "2-digit", month: "short" })
     }`;
@@ -64,17 +81,17 @@ export function formatDateTimeCompact(iso: string | null | undefined): string {
   }
 }
 
-/** Late-login threshold for punctuality stats (local time, 24h). */
-export const LATE_LOGIN_HOUR = 9;
-export const LATE_LOGIN_MINUTE = 30;
+/** Late punch-in threshold for punctuality stats (local time, 24h). */
+export const LATE_PUNCH_IN_HOUR = 9;
+export const LATE_PUNCH_IN_MINUTE = 30;
 
-export function isLateLogin(iso: string | null | undefined): boolean {
-  if (!iso) return false;
-  const d = new Date(iso);
+export function isLatePunchIn(iso: string | null | undefined): boolean {
+  const d = toLocalDate(iso);
+  if (!d) return false;
   const h = d.getHours();
   const m = d.getMinutes();
-  if (h > LATE_LOGIN_HOUR) return true;
-  if (h === LATE_LOGIN_HOUR && m > LATE_LOGIN_MINUTE) return true;
+  if (h > LATE_PUNCH_IN_HOUR) return true;
+  if (h === LATE_PUNCH_IN_HOUR && m > LATE_PUNCH_IN_MINUTE) return true;
   return false;
 }
 

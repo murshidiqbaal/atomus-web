@@ -10,8 +10,8 @@ const QK = {
     ["marks", "exams", courseId || "all", batchId || "all"] as const,
   examsAll: ["marks", "exams-all"] as const,
   students: (examId: string) => ["marks", "students", examId] as const,
-  marks: (examId: string, subjectId: string) =>
-    ["marks", "marks", examId, subjectId] as const,
+  marks: (examId: string, subjectId: string, markDate: string) =>
+    ["marks", "marks", examId, subjectId, markDate] as const,
 
   dashboard: ["marks", "dashboard"] as const,
   trend: ["marks", "trend"] as const,
@@ -78,10 +78,11 @@ export function useStudentsForExam(exam: Exam | null) {
   });
 }
 
-export function useMarks(examId: string, subjectId: string) {
+export function useMarks(examId: string, subjectId: string, markDate?: string | null) {
+  const date = markDate || "";
   return useQuery({
-    queryKey: QK.marks(examId, subjectId),
-    queryFn: () => marksService.getMarks(examId, subjectId || null),
+    queryKey: QK.marks(examId, subjectId, date),
+    queryFn: () => marksService.getMarks(examId, subjectId || null, markDate || null),
     enabled: !!examId,
     staleTime: 10_000,
   });
@@ -115,12 +116,13 @@ export function useDeleteExam() {
   });
 }
 
-export function useSaveMarks(examId: string, subjectId: string) {
+export function useSaveMarks(examId: string, subjectId: string, markDate?: string | null) {
   const qc = useQueryClient();
+  const date = markDate || "";
   return useMutation({
     mutationFn: (records: Mark[]) => marksService.upsertMarks(records),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: QK.marks(examId, subjectId) });
+      qc.invalidateQueries({ queryKey: QK.marks(examId, subjectId, date) });
       qc.invalidateQueries({ queryKey: QK.dashboard });
       qc.invalidateQueries({ queryKey: QK.trend });
     },

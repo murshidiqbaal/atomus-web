@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
-import { AlertCircle, Loader2, Plus, X } from "lucide-react";
+import { AlertCircle, CalendarClock, Loader2, Plus, X } from "lucide-react";
 import { useCourses, useCreateExam } from "../hooks";
 import { Label, fieldCls } from "./ui";
 
@@ -32,6 +32,7 @@ function ExamModalContent({
     new Date().toISOString().split("T")[0]
   );
   const [totalMarks, setTotalMarks] = useState(100);
+  const [isDaily, setIsDaily] = useState(false);
   const [error, setError] = useState("");
 
   const { data: courses = [] } = useCourses();
@@ -52,9 +53,15 @@ function ExamModalContent({
         exam_scope: "course",
         exam_date: examDate,
         total_marks: totalMarks,
+        is_daily: isDaily,
       });
       onCreated(exam.id);
-      onToast("success", `Exam "${exam.name}" created.`);
+      onToast(
+        "success",
+        isDaily
+          ? `Daily exam "${exam.name}" created — enter marks per day from the Marks tab.`
+          : `Exam "${exam.name}" created.`,
+      );
       onClose();
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Failed to create exam.";
@@ -123,7 +130,7 @@ function ExamModalContent({
 
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <Label>Exam Date</Label>
+                <Label>{isDaily ? "Start Date" : "Exam Date"}</Label>
                 <input
                   type="date"
                   value={examDate}
@@ -143,6 +150,36 @@ function ExamModalContent({
                 />
               </div>
             </div>
+
+            {/* Daily exam toggle */}
+            <label
+              className={`flex items-start gap-3 p-3 rounded-xl border cursor-pointer transition-colors ${
+                isDaily
+                  ? "border-[#D4AF37] bg-[#D4AF37]/5"
+                  : "border-slate-200 hover:border-slate-300"
+              }`}
+            >
+              <input
+                type="checkbox"
+                checked={isDaily}
+                onChange={(e) => setIsDaily(e.target.checked)}
+                className="mt-1 w-4 h-4 accent-[#0B3C5D]"
+              />
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-2">
+                  <CalendarClock size={14} className={isDaily ? "text-[#D4AF37]" : "text-slate-400"} />
+                  <span className="text-sm font-bold text-slate-800">Daily Exam</span>
+                  {isDaily && (
+                    <span className="text-[10px] font-black uppercase tracking-widest text-[#D4AF37] bg-[#D4AF37]/10 px-2 py-0.5 rounded-full">
+                      Recurring
+                    </span>
+                  )}
+                </div>
+                <p className="text-[11px] text-slate-500 mt-1 leading-snug">
+                  Enter marks for this exam on different dates without creating a new exam each day. Marks are stored per-day under the same exam record.
+                </p>
+              </div>
+            </label>
           </div>
 
           <div className="flex items-center justify-end gap-2 px-5 py-4 border-t border-slate-100 bg-slate-50/60">

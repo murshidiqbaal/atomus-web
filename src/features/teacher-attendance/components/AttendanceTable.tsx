@@ -89,8 +89,8 @@ export function AttendanceTable({ filters, onOpenSession }: Props) {
                   <ThSort label="Campus" active={sortKey === "campus"} dir={sortDir} onClick={() => toggle("campus")} />
                   <ThSort label="Subject / Course" active={sortKey === "subject"} dir={sortDir} onClick={() => toggle("subject")} />
                   <ThSort label="Date" active={sortKey === "date"} dir={sortDir} onClick={() => toggle("date")} />
-                  <th className="py-3 px-4">Login</th>
-                  <th className="py-3 px-4">Logout</th>
+                  <th className="py-3 px-4">Punch In</th>
+                  <th className="py-3 px-4">Punch Out</th>
                   <ThSort label="Duration" active={sortKey === "duration"} dir={sortDir} onClick={() => toggle("duration")} />
                   <ThSort label="Status" active={sortKey === "status"} dir={sortDir} onClick={() => toggle("status")} />
                   <th className="py-3 px-4">GPS</th>

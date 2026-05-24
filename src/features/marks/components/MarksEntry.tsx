@@ -3,7 +3,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
   FileSpreadsheet, Plus, Save, Loader2, Search, RotateCcw,
-  Trophy, ArrowUp, ArrowDown, BarChart3, Zap, Edit3,
+  Trophy, ArrowUp, ArrowDown, BarChart3, Zap, Edit3, CalendarClock,
 } from "lucide-react";
 import {
   useExams, useMarks, useSaveMarks,
@@ -26,6 +26,9 @@ export function MarksEntry({
   const [selectedCourse, setSelectedCourse] = useState("");
   const [selectedSubject, setSelectedSubject] = useState("");
   const [selectedExam, setSelectedExam] = useState("");
+  const [markDate, setMarkDate] = useState<string>(
+    () => new Date().toISOString().slice(0, 10),
+  );
   const [searchQuery, setSearchQuery] = useState("");
   const [marksMap, setMarksMap] = useState<MarksMap>({});
   const [hasChanges, setHasChanges] = useState(false);
@@ -46,14 +49,19 @@ export function MarksEntry({
   const { data: subjects = [] } = useSubjects(selectedCourse || selectedExamObj?.course_id || "");
   const defaultTotal = selectedExamObj?.total_marks ?? 100;
 
+  const isDaily = !!selectedExamObj?.is_daily;
+  // For non-daily exams, mark_date is always null so we don't fragment storage.
+  const activeMarkDate = isDaily ? markDate : null;
+
   const { data: students = [], isLoading: studentsLoading } =
     useStudentsForExam(selectedExamObj);
   const { data: marksData = [], isLoading: marksLoading } = useMarks(
     selectedExam,
-    selectedSubject
+    selectedSubject,
+    activeMarkDate,
   );
 
-  const saveMutation = useSaveMarks(selectedExam, selectedSubject);
+  const saveMutation = useSaveMarks(selectedExam, selectedSubject, activeMarkDate);
 
   // ── Sync remote marks → local editable map ───────────────────────
   // Legitimate remote→local sync: server data seeds the editable grid
@@ -79,7 +87,7 @@ export function MarksEntry({
     }
     setMarksMap(map);
     setHasChanges(false);
-  }, [students, marksData, defaultTotal, selectedExam, selectedSubject]);
+  }, [students, marksData, defaultTotal, selectedExam, selectedSubject, activeMarkDate]);
 
   // ── Handlers ────────────────────────────────────────────────────
   const handleMarksChange = useCallback((studentId: string, val: number) => {
@@ -100,6 +108,10 @@ export function MarksEntry({
 
   const handleSave = useCallback(() => {
     if (!selectedExam) return;
+    if (isDaily && !markDate) {
+      onToast("error", "Pick a date before saving marks for a daily exam.");
+      return;
+    }
     const records: Mark[] = students.map((s) => {
       const entry = marksMap[s.id];
       return {
@@ -107,6 +119,7 @@ export function MarksEntry({
         exam_id: selectedExam,
         student_id: s.id,
         subject_id: selectedSubject || null,
+        mark_date: activeMarkDate,
         marks_obtained: entry?.marks_obtained ?? 0,
         total_marks: entry?.total_marks ?? defaultTotal,
         remarks: entry?.remarks ?? "",
@@ -114,7 +127,8 @@ export function MarksEntry({
     });
     saveMutation.mutate(records, {
       onSuccess: () => {
-        onToast("success", `Saved marks for ${records.length} students.`);
+        const suffix = isDaily ? ` (${markDate})` : "";
+        onToast("success", `Saved marks for ${records.length} students${suffix}.`);
         setMarksMap((prev) => {
           const next = { ...prev };
           for (const id of Object.keys(next)) next[id] = { ...next[id], dirty: false };
@@ -127,7 +141,7 @@ export function MarksEntry({
         onToast("error", msg);
       },
     });
-  }, [selectedExam, students, marksMap, selectedSubject, defaultTotal, saveMutation, onToast]);
+  }, [selectedExam, students, marksMap, selectedSubject, defaultTotal, saveMutation, onToast, isDaily, markDate, activeMarkDate]);
 
   // ── Keyboard nav (Enter / Arrow keys jump between rows) ─────────
   const handleKeyDownNav = useCallback(
@@ -325,11 +339,30 @@ export function MarksEntry({
               {exams.map((e) => (
                 <option key={e.id} value={e.id}>
                   {e.name}
-                  {e.exam_scope === "course" ? " · Course-wide" : ""}
+                  {e.is_daily ? " · Daily" : ""}
+                  {!e.is_daily && e.exam_scope === "course" ? " · Course-wide" : ""}
                 </option>
               ))}
             </select>
           </div>
+
+          {isDaily && (
+            <div>
+              <Label>Mark Date</Label>
+              <div className="relative">
+                <CalendarClock
+                  size={14}
+                  className="absolute left-3 top-1/2 -translate-y-1/2 text-[#D4AF37] pointer-events-none"
+                />
+                <input
+                  type="date"
+                  value={markDate}
+                  onChange={(e) => setMarkDate(e.target.value || new Date().toISOString().slice(0, 10))}
+                  className={`${fieldCls} pl-9`}
+                />
+              </div>
+            </div>
+          )}
 
           <div>
             <Label>Search Student</Label>
@@ -351,12 +384,19 @@ export function MarksEntry({
 
         {selectedExamObj && (
           <div className="flex items-center gap-4 mt-3 pt-3 border-t border-slate-100 flex-wrap text-[11px]">
-            <span className="text-slate-400">
-              Date:{" "}
-              <strong className="text-slate-600">
-                {selectedExamObj.exam_date ?? "—"}
-              </strong>
-            </span>
+            {isDaily ? (
+              <span className="inline-flex items-center gap-1.5 font-black text-[10px] uppercase tracking-widest text-[#D4AF37] bg-[#D4AF37]/10 border border-[#D4AF37]/30 px-2 py-0.5 rounded-full">
+                <CalendarClock size={11} />
+                Daily Exam · {markDate}
+              </span>
+            ) : (
+              <span className="text-slate-400">
+                Date:{" "}
+                <strong className="text-slate-600">
+                  {selectedExamObj.exam_date ?? "—"}
+                </strong>
+              </span>
+            )}
             <span className="text-slate-400">
               Scope:{" "}
               <strong className="text-slate-600 capitalize">

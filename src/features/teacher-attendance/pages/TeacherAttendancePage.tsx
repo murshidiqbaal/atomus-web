@@ -13,7 +13,7 @@ import { ToastStack, useToasts } from "../components/ui";
 import { LiveSessionsPanel } from "../components/LiveSessionsPanel";
 import { AttendanceFilters } from "../components/AttendanceFilters";
 import { AttendanceTable } from "../components/AttendanceTable";
-import { LoginLogoutTimeline } from "../components/LoginLogoutTimeline";
+import { PunchInPunchOutTimeline } from "../components/PunchInPunchOutTimeline";
 import { AttendanceAnalytics } from "../components/AttendanceAnalytics";
 import { TeacherPerformanceInsights } from "../components/TeacherPerformanceInsights";
 import { AttendanceAlerts } from "../components/AttendanceAlerts";
@@ -89,7 +89,7 @@ export default function TeacherAttendancePage() {
                 Teacher Attendance Monitor
               </h1>
               <p className="text-xs text-slate-400 mt-0.5">
-                Real-time sessions · login/logout history · geofenced attendance · per-teacher performance.
+                Real-time sessions · punch-in/out history · geofenced attendance · per-teacher performance.
               </p>
             </div>
           </div>
@@ -167,7 +167,7 @@ export default function TeacherAttendancePage() {
         )}
 
         {active === "timeline" && (
-          <LoginLogoutTimeline filters={filters} onOpenSession={setOpenSessionId} />
+          <PunchInPunchOutTimeline filters={filters} onOpenSession={setOpenSessionId} />
         )}
 
         {active === "analytics" && (

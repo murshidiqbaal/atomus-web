@@ -44,10 +44,17 @@ export interface MarksRecord {
   id: string;
   student_id: string;
   exam_id: string;
+  subject_id?: string | null;
   marks_obtained: number;
   total_marks?: number;
   remarks?: string | null;
-  exams?: { name: string; exam_date: string; total_marks: number } | null;
+  percentage?: number | null;
+  teacher_id?: string | null;
+  mark_date?: string | null;
+  exams?: { name: string; exam_date: string; total_marks: number; exam_scope?: string } | null;
+  subjects?: { id: string; name: string; subject_code?: string | null } | null;
+  teachers?: { id: string; full_name: string } | null;
+  created_at?: string | null;
 }
 
 export interface StudentFilters {

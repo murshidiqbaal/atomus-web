@@ -11,12 +11,31 @@ interface GalleryProps {
 export function PosterGallery({ announcements }: GalleryProps) {
   const posters = announcements
     .filter(a => a.image_url)
-    .reduce((acc: { url: string; title: string; id: string }[], curr) => {
+    .reduce((acc: { url: string; title: string; id: string; image_drive_id?: string | null }[], curr) => {
       if (!acc.find(item => item.url === curr.image_url)) {
-        acc.push({ url: curr.image_url!, title: curr.title, id: curr.id });
+        acc.push({ url: curr.image_url!, title: curr.title, id: curr.id, image_drive_id: curr.image_drive_id });
       }
       return acc;
     }, []);
+
+  const handleDownload = (poster: typeof posters[0]) => {
+    let fileId = poster.image_drive_id || null;
+    if (!fileId) {
+      try {
+        const u = new URL(poster.url);
+        fileId = u.searchParams.get("id");
+      } catch {
+        fileId = null;
+      }
+    }
+
+    if (fileId) {
+      window.open(`https://drive.google.com/uc?export=download&id=${fileId}`, '_blank');
+    } else {
+      const separator = poster.url.includes('?') ? '&' : '?';
+      window.open(`${poster.url}${separator}download=true`, '_blank');
+    }
+  };
 
   return (
     <div className="space-y-6">
@@ -49,7 +68,11 @@ export function PosterGallery({ announcements }: GalleryProps) {
               <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-all p-4 flex flex-col justify-end">
                 <p className="text-white text-xs font-bold truncate mb-3">{poster.title}</p>
                 <div className="flex items-center gap-2">
-                  <button className="flex-1 bg-white/20 backdrop-blur-md hover:bg-white/30 text-white p-2 rounded-xl transition-all">
+                  <button 
+                    onClick={() => handleDownload(poster)}
+                    className="flex-1 bg-white/20 backdrop-blur-md hover:bg-white/30 text-white p-2 rounded-xl transition-all"
+                    title="Download Poster"
+                  >
                     <Download size={16} className="mx-auto" />
                   </button>
                   <button className="flex-1 bg-white/20 backdrop-blur-md hover:bg-rose-500 text-white p-2 rounded-xl transition-all">

@@ -154,25 +154,13 @@ export const teacherAttendanceService = {
    * duration in minutes from start_time → end_time. Status moves to Completed.
    */
   async closeSession(id: string): Promise<TeacherAttendanceDTO> {
-    const { data: existing, error: fetchErr } = await supabase
-      .from("teacher_attendance")
-      .select("start_time")
-      .eq("id", id)
-      .single();
-    if (fetchErr) throw fetchErr;
-
     const endIso = new Date().toISOString();
-    const start = (existing as { start_time: string | null } | null)?.start_time;
-    const durationMinutes = start
-      ? Math.max(0, Math.round((new Date(endIso).getTime() - new Date(start).getTime()) / 60000))
-      : 0;
 
     const { data, error } = await supabase
       .from("teacher_attendance")
       .update({
         attendance_status: "Completed",
         end_time: endIso,
-        total_duration_minutes: durationMinutes,
       })
       .eq("id", id)
       .select(FULL_SELECT)
@@ -186,7 +174,6 @@ export const teacherAttendanceService = {
     const row: Record<string, unknown> = {};
     if (patch.attendance_status !== undefined) row.attendance_status = patch.attendance_status;
     if (patch.end_time !== undefined) row.end_time = patch.end_time;
-    if (patch.total_duration_minutes !== undefined) row.total_duration_minutes = patch.total_duration_minutes;
     const { data, error } = await supabase
       .from("teacher_attendance")
       .update(row)

@@ -8,7 +8,7 @@ import type {
   TeacherAttendanceDTO, TeacherPerformanceRow,
 } from "../types";
 import { useTeacherAttendanceAnalytics } from "../hooks";
-import { isLateLogin } from "../utils/format";
+import { isLatePunchIn } from "../utils/format";
 import { Avatar, Card, EmptyState } from "./ui";
 
 function buildPerformance(rows: TeacherAttendanceDTO[]): TeacherPerformanceRow[] {
@@ -34,7 +34,7 @@ function buildPerformance(rows: TeacherAttendanceDTO[]): TeacherPerformanceRow[]
       avg_minutes_per_session: 0,
       avg_daily_hours: 0,
       consistency_pct: 0,
-      late_login_count: 0,
+      late_punch_in_count: 0,
       punctual_pct: 0,
       daySet: new Set<string>(),
       photo: r.teacher.profile_photo_url,
@@ -45,7 +45,7 @@ function buildPerformance(rows: TeacherAttendanceDTO[]): TeacherPerformanceRow[]
     if (r.attendance_status === "Missed") entry.missed_sessions++;
     if (r.attendance_status === "Active") entry.active_sessions++;
     entry.total_minutes += Number(r.total_duration_minutes ?? 0);
-    if (r.start_time && isLateLogin(r.start_time)) entry.late_login_count++;
+    if (r.start_time && isLatePunchIn(r.start_time)) entry.late_punch_in_count++;
     entry.daySet.add(r.attendance_date);
 
     map.set(id, entry);
@@ -68,8 +68,8 @@ function buildPerformance(rows: TeacherAttendanceDTO[]): TeacherPerformanceRow[]
         avg_minutes_per_session: e.total_sessions ? Math.round(e.total_minutes / e.total_sessions) : 0,
         avg_daily_hours: e.daySet.size ? Math.round((e.total_minutes / e.daySet.size / 60) * 10) / 10 : 0,
         consistency_pct: completedOrMissed ? Math.round((e.completed_sessions / completedOrMissed) * 100) : 0,
-        late_login_count: e.late_login_count,
-        punctual_pct: punctualDenom > 0 ? Math.round(((punctualDenom - e.late_login_count) / punctualDenom) * 100) : 0,
+        late_punch_in_count: e.late_punch_in_count,
+        punctual_pct: punctualDenom > 0 ? Math.round(((punctualDenom - e.late_punch_in_count) / punctualDenom) * 100) : 0,
       } satisfies TeacherPerformanceRow;
     })
     .sort((a, b) => b.total_sessions - a.total_sessions);
@@ -145,10 +145,10 @@ function PerformanceCard({ row }: { row: TeacherPerformanceRow }) {
         <Meter label="Punctuality" pct={row.punctual_pct} tone="gold" />
       </div>
 
-      {row.late_login_count > 0 && (
+      {row.late_punch_in_count > 0 && (
         <p className="mt-3 inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-widest text-amber-700 bg-amber-50 px-2 py-1 rounded-lg">
           <ShieldCheck size={11} />
-          {row.late_login_count} late login{row.late_login_count === 1 ? "" : "s"}
+          {row.late_punch_in_count} late punch-in{row.late_punch_in_count === 1 ? "" : "s"}
         </p>
       )}
     </Card>
