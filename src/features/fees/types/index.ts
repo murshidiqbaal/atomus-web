@@ -81,7 +81,7 @@ export interface FeeStructure {
 export interface FeeStructureInsert {
   name: string;
   campus_id: string | null;
-  course_id: string;
+  course_id: string | null;
   fee_frequency: FeeFrequency;
   term_count: number;
   term_details: TermDetail[];

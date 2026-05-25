@@ -22,6 +22,7 @@ export interface Exam {
    * keyed by (exam_id, student_id, subject_id) only.
    */
   is_daily: boolean;
+  subject_id: string | null;
   created_at: string;
   created_by: string | null;
   creator_name: string | null;
@@ -100,6 +101,14 @@ export interface Mark {
   percentage?: number;
   remarks: string | null;
   created_at?: string;
+  /**
+   * `auth.users.id` of whoever entered the mark — admins, staff, or the
+   * subject teacher writing from the Flutter app. Resolved to a display
+   * name via the `entered_by` field at fetch time.
+   */
+  teacher_id?: string | null;
+  /** Derived at fetch time from teachers.auth_id → full_name. */
+  entered_by?: { auth_id: string; full_name: string; role: "teacher" | "admin" } | null;
 }
 
 export interface MarkEntry {

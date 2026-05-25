@@ -252,7 +252,7 @@ export const studentService = {
   },
 
   async getMarks(student_id: string): Promise<MarksRecord[]> {
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from("marks")
       .select(`
         *,
@@ -266,15 +266,38 @@ export const studentService = {
           id,
           name,
           subject_code
-        ),
-        teachers (
-          id,
-          full_name
         )
       `)
       .eq("student_id", student_id)
       .order("created_at", { ascending: false });
-    return (data ?? []) as MarksRecord[];
+
+    if (error) throw error;
+    if (!data || data.length === 0) return [];
+
+    const teacherIds = Array.from(
+      new Set(data.map((r: any) => r.teacher_id).filter((id): id is string => !!id))
+    );
+
+    const teacherMap = new Map<string, { id: string; full_name: string }>();
+    if (teacherIds.length > 0) {
+      const { data: teachersData } = await supabase
+        .from("teachers")
+        .select("id, auth_id, full_name")
+        .in("auth_id", teacherIds);
+
+      if (teachersData) {
+        for (const t of teachersData) {
+          if (t.auth_id) {
+            teacherMap.set(t.auth_id, { id: t.id, full_name: t.full_name });
+          }
+        }
+      }
+    }
+
+    return data.map((r: any) => ({
+      ...r,
+      teachers: r.teacher_id ? (teacherMap.get(r.teacher_id) || null) : null
+    })) as MarksRecord[];
   },
 
   async getSubjectsByCourse(course_id: string) {

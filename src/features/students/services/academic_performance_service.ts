@@ -113,14 +113,27 @@ export const academicPerformanceService = {
     // 3. Fetch marks
     const { data: marksRecords } = await supabase
       .from("marks")
-      .select("marks_obtained, total_marks, exam_id")
+      .select("marks_obtained, total_marks, exam_id, subject_id")
       .eq("student_id", studentId);
+
+    // Identify which exam_ids have subject-specific marks
+    const examsWithSubjectSpecificMarks = new Set<string>();
+    for (const m of marksRecords ?? []) {
+      if (m.exam_id && m.subject_id !== null && m.subject_id !== undefined) {
+        examsWithSubjectSpecificMarks.add(m.exam_id);
+      }
+    }
 
     let marksSum = 0;
     let totalMarksSum = 0;
     const examIds = new Set<string>();
 
     for (const m of marksRecords ?? []) {
+      // Exclude overall marks (subject_id == null) if there are subject-specific marks for this exam
+      if (m.exam_id && (m.subject_id === null || m.subject_id === undefined) && examsWithSubjectSpecificMarks.has(m.exam_id)) {
+        continue;
+      }
+
       const obtained = Number(m.marks_obtained ?? 0);
       const total = Number(m.total_marks ?? 100);
       if (total > 0) {

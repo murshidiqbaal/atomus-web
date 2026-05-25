@@ -119,7 +119,7 @@ function StructureCard({
         <div className="min-w-0">
           <p className="text-sm font-black text-slate-800 truncate">{title}</p>
           <p className="text-[11px] font-bold text-slate-400 uppercase tracking-widest truncate">
-            {structure.campuses?.name ?? "All campuses"} · {structure.courses?.name ?? "—"}
+            {structure.campuses?.name ?? "All campuses"} · {structure.courses?.name ?? "Universal / Manual"}
           </p>
         </div>
         <span className="inline-block px-2 py-0.5 text-[10px] font-bold rounded-full bg-blue-50 text-blue-700 border border-blue-200 shrink-0">
@@ -317,10 +317,6 @@ function StructureFormCard({
       onToast("error", "Structure name is required.");
       return;
     }
-    if (!courseId) {
-      onToast("error", "Pick a course.");
-      return;
-    }
     if (!terms.length) {
       onToast("error", "Add at least one term.");
       return;
@@ -343,7 +339,7 @@ function StructureFormCard({
     const payload: FeeStructureInsert = {
       name: name.trim(),
       campus_id: campusId || null,
-      course_id: courseId,
+      course_id: courseId || null,
       fee_frequency: frequency,
       term_count: terms.length,
       term_details: terms.map((t) => ({
@@ -434,14 +430,13 @@ function StructureFormCard({
             </select>
           </div>
           <div>
-            <Label>Course</Label>
+            <Label>Course (Optional)</Label>
             <select
               value={courseId}
               onChange={(e) => setCourseId(e.target.value)}
               className={fieldCls}
-              required
             >
-              <option value="">Select…</option>
+              <option value="">Universal / Manual (all courses)</option>
               {courses.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
             </select>
           </div>

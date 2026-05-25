@@ -72,6 +72,7 @@ export const marksService = {
     exam_date: string;
     total_marks: number;
     is_daily?: boolean;
+    subject_id?: string | null;
   }): Promise<Exam> {
     const res = await fetch("/api/exams", {
       method: "POST",
@@ -259,6 +260,11 @@ export const marksService = {
    * rows come back. For one-shot exams, `markDate` is omitted and we filter
    * `mark_date IS NULL` so historical (non-daily) rows are unaffected by the
    * new column.
+   *
+   * `teacher_id` may be set by either the admin web or the teacher's Flutter
+   * app — the column is just `auth.users.id` of whoever entered the row, so
+   * we resolve display names in a second query and attach them as
+   * `entered_by` on each Mark.
    */
   async getMarks(
     examId: string,
@@ -270,12 +276,48 @@ export const marksService = {
     q = markDate ? q.eq("mark_date", markDate) : q.is("mark_date", null);
     const { data, error } = await q;
     if (error) throw error;
-    return (data ?? []) as Mark[];
+    return attachEnteredBy((data ?? []) as Mark[]);
+  },
+
+  /**
+   * Pull every mark row for an exam regardless of subject. Powers the
+   * "Overall" pivot view that aggregates each student's per-subject scores
+   * into a single totals table.
+   *
+   * For daily exams, `markDate` scopes to a single day; for one-shot exams,
+   * `markDate` should be null so the IS NULL filter matches historical rows.
+   */
+  async getAllSubjectMarks(
+    examId: string,
+    markDate?: string | null,
+  ): Promise<Mark[]> {
+    let q = supabase.from("marks").select("*").eq("exam_id", examId);
+    q = markDate ? q.eq("mark_date", markDate) : q.is("mark_date", null);
+    const { data, error } = await q;
+    if (error) throw error;
+    return attachEnteredBy((data ?? []) as Mark[]);
   },
 
   async upsertMarks(records: Mark[]): Promise<void> {
     const valid = records.filter((r) => r.exam_id && r.student_id);
     if (!valid.length) return;
+
+    // Stamp the current admin's auth.uid into `teacher_id` ONLY if they are a teacher
+    // so admin-entered marks carry attribution that mirrors what the Flutter teacher app
+    // already writes via /api/marks. Falls back to null for the
+    // master-admin override (no real auth session).
+    const { data: authData } = await supabase.auth.getUser();
+    const currentAuthId = authData?.user?.id ?? null;
+
+    let isTeacher = false;
+    if (currentAuthId) {
+      const { data: teacher } = await supabase
+        .from("teachers")
+        .select("id")
+        .eq("auth_id", currentAuthId)
+        .maybeSingle();
+      isTeacher = !!teacher;
+    }
 
     // Group by exam_id, subject_id and mark_date so each batch reads existing
     // rows for a single (exam, subject, date) slot in one round trip.
@@ -289,6 +331,20 @@ export const marksService = {
 
     for (const group of groups.values()) {
       const sample = group[0];
+      
+      // If saving subject-specific marks, clean up legacy overall marks (subject_id = null)
+      if (sample.subject_id) {
+        const { error: delErr } = await supabase
+          .from("marks")
+          .delete()
+          .eq("exam_id", sample.exam_id)
+          .is("subject_id", null)
+          .in("student_id", group.map((r) => r.student_id));
+        if (delErr) {
+          console.error(`Failed to delete legacy overall marks for exam ${sample.exam_id}:`, delErr);
+        }
+      }
+
       let readQ = supabase
         .from("marks")
         .select("id, student_id")
@@ -317,7 +373,7 @@ export const marksService = {
 
       const toInsert: any[] = [];
       for (const r of group) {
-        const payload = {
+        const payload: Record<string, unknown> = {
           exam_id: r.exam_id,
           student_id: r.student_id,
           subject_id: r.subject_id || null,
@@ -326,6 +382,10 @@ export const marksService = {
           total_marks: r.total_marks,
           remarks: r.remarks || null,
         };
+        // Only stamp teacher_id when we actually know who is writing — never
+        // overwrite an existing teacher's attribution on update.
+        if (currentAuthId && isTeacher) payload.teacher_id = currentAuthId;
+
         const id = existingMap.get(r.student_id);
         if (id) {
           const { error: upErr } = await supabase.from("marks").update(payload).eq("id", id);
@@ -554,12 +614,11 @@ export const marksService = {
     let q = supabase
       .from("marks")
       .select(`
-        student_id, percentage, marks_obtained, total_marks,
+        student_id, percentage, marks_obtained, total_marks, subject_id,
         students!inner(id, full_name, roll_number, batch_id, course_id, batches(name)),
         exams!inner(id, course_id, batch_id, exam_date, exam_scope)
       `)
-      .order("percentage", { ascending: false })
-      .limit(filters.limit ?? 25);
+      .limit(5000);
 
     if (filters.exam_id) q = q.eq("exam_id", filters.exam_id);
     if (filters.subject_id) q = q.eq("subject_id", filters.subject_id);
@@ -575,58 +634,152 @@ export const marksService = {
       percentage: number | null;
       marks_obtained: number | null;
       total_marks: number | null;
+      subject_id: string | null;
       students: {
         id: string;
         full_name: string;
         roll_number: string | null;
+        batch_id: string | null;
+        course_id: string | null;
         batches: { name: string } | null;
       };
+      exams?: {
+        id: string;
+        course_id: string;
+        batch_id: string | null;
+        exam_date: string | null;
+        exam_scope: string;
+      } | null;
     };
 
-    return (data ?? []).map((row) => {
-      const r = row as unknown as TopperRowResult;
+    const rawData = (data ?? []) as unknown as TopperRowResult[];
+
+    // Identify which (student, exam) pairs have subject-specific marks
+    const studentExamWithSubjects = new Set<string>();
+    for (const row of rawData) {
+      const sId = row.students?.id;
+      const examId = row.exams?.id;
+      if (sId && examId && row.subject_id !== null && row.subject_id !== undefined) {
+        studentExamWithSubjects.add(`${sId}|${examId}`);
+      }
+    }
+
+    const studentMap = new Map<string, {
+      studentId: string;
+      studentName: string;
+      rollNumber: string | null;
+      batchName: string | null;
+      marksObtained: number;
+      totalMarks: number;
+      subjectMarks: Record<string, { sum: number; count: number }>;
+    }>();
+
+    for (const row of rawData) {
+      const sId = row.students?.id;
+      if (!sId) continue;
+      const examId = row.exams?.id;
+
+      // Exclude overall marks (subject_id == null) if there are subject-specific marks for this exam for this student
+      if (examId && (row.subject_id === null || row.subject_id === undefined) && studentExamWithSubjects.has(`${sId}|${examId}`)) {
+        continue;
+      }
+
+      if (!studentMap.has(sId)) {
+        studentMap.set(sId, {
+          studentId: sId,
+          studentName: row.students.full_name,
+          rollNumber: row.students.roll_number,
+          batchName: row.students.batches?.name ?? null,
+          marksObtained: 0,
+          totalMarks: 0,
+          subjectMarks: {},
+        });
+      }
+
+      const stud = studentMap.get(sId)!;
+      stud.marksObtained += Number(row.marks_obtained ?? 0);
+      stud.totalMarks += Number(row.total_marks ?? 100);
+
+      const subId = row.subject_id || "unscoped";
+      if (!stud.subjectMarks[subId]) {
+        stud.subjectMarks[subId] = { sum: 0, count: 0 };
+      }
+      
+      const pct = row.percentage ?? ((Number(row.marks_obtained ?? 0) / Number(row.total_marks ?? 100)) * 100);
+      stud.subjectMarks[subId].sum += pct;
+      stud.subjectMarks[subId].count += 1;
+    }
+
+    const toppers: TopperRow[] = Array.from(studentMap.values()).map((s) => {
+      let finalPercentage = 0;
+      
+      if (filters.subject_id) {
+        // Specific subject selected
+        const subData = s.subjectMarks[filters.subject_id];
+        finalPercentage = subData && subData.count > 0 ? subData.sum / subData.count : 0;
+      } else {
+        // Overall: average of the subject averages
+        const subjectKeys = Object.keys(s.subjectMarks);
+        if (subjectKeys.length > 0) {
+          const avgs = subjectKeys.map(subId => s.subjectMarks[subId].sum / s.subjectMarks[subId].count);
+          finalPercentage = avgs.reduce((a, b) => a + b, 0) / avgs.length;
+        }
+      }
+
       return {
-        studentId: r.students.id,
-        studentName: r.students.full_name,
-        rollNumber: r.students.roll_number,
-        batchName: r.students.batches?.name ?? null,
-        percentage: Number(r.percentage ?? 0),
-        marksObtained: Number(r.marks_obtained ?? 0),
-        totalMarks: Number(r.total_marks ?? 0),
+        studentId: s.studentId,
+        studentName: s.studentName,
+        rollNumber: s.rollNumber,
+        batchName: s.batchName,
+        marksObtained: s.marksObtained,
+        totalMarks: s.totalMarks,
+        percentage: finalPercentage,
       };
     });
+
+    return toppers
+      .sort((a, b) => b.percentage - a.percentage)
+      .slice(0, filters.limit ?? 25);
   },
 };
 
 // ── Helpers ────────────────────────────────────────────────────
+
 /**
- * Resolve the current creator's id/name/role for stamping onto a new exam.
- * - Reads auth user metadata for role + full_name.
- * - If role is teacher and full_name is missing, falls back to the teachers
- *   table (lookup by auth_id).
- * - Returns nulls if no auth session (e.g. master-admin override).
+ * Resolve `teacher_id` (= auth.users.id) on a batch of mark rows to the
+ * teacher's display name. `marks.teacher_id` is set by:
+ *   - the Flutter teacher app (POST /api/marks) — typically a real teacher
+ *   - the admin web (upsertMarks above) — could be admin/staff
+ *
+ * We look up the teachers table by `auth_id` to find subject teachers, and
+ * fall back to "Admin" for ids that don't map to a teacher row so admins/
+ * staff still surface meaningfully in the UI.
  */
-async function resolveCreator(): Promise<{
-  id: string | null;
-  name: string | null;
-  role: CreatorRole | null;
-}> {
-  const { data } = await supabase.auth.getUser();
-  const user = data?.user;
-  if (!user) return { id: null, name: null, role: null };
+async function attachEnteredBy(rows: Mark[]): Promise<Mark[]> {
+  const ids = Array.from(
+    new Set(rows.map((r) => r.teacher_id).filter((v): v is string => !!v)),
+  );
+  if (ids.length === 0) return rows;
 
-  const meta = (user.user_metadata ?? {}) as Record<string, unknown>;
-  const role = (meta.role === "admin" || meta.role === "teacher") ? meta.role : null;
-  let name = typeof meta.full_name === "string" ? meta.full_name : null;
+  const { data, error } = await supabase
+    .from("teachers")
+    .select("auth_id, full_name")
+    .in("auth_id", ids);
+  if (error) return rows; // attribution is best-effort — never block the read
 
-  if (role === "teacher" && !name) {
-    const { data: t } = await supabase
-      .from("teachers")
-      .select("full_name")
-      .eq("auth_id", user.id)
-      .maybeSingle();
-    name = t?.full_name ?? null;
+  const teacherByAuth = new Map<string, string>();
+  for (const t of (data ?? []) as { auth_id: string | null; full_name: string }[]) {
+    if (t.auth_id) teacherByAuth.set(t.auth_id, t.full_name);
   }
 
-  return { id: user.id, name, role };
+  return rows.map((r) => {
+    if (!r.teacher_id) return r;
+    const teacherName = teacherByAuth.get(r.teacher_id);
+    return {
+      ...r,
+      entered_by: teacherName
+        ? { auth_id: r.teacher_id, full_name: teacherName, role: "teacher" }
+        : { auth_id: r.teacher_id, full_name: "Admin", role: "admin" },
+    };
+  });
 }

@@ -1,8 +1,8 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { AlertCircle, CalendarClock, Loader2, Plus, X } from "lucide-react";
-import { useCourses, useCreateExam } from "../hooks";
+import { useCourses, useCreateExam, useSubjects } from "../hooks";
 import { Label, fieldCls } from "./ui";
 
 type Props = {
@@ -28,6 +28,7 @@ function ExamModalContent({
 }: Props) {
   const [name, setName] = useState("");
   const [courseId, setCourseId] = useState(defaultCourse);
+  const [subjectId, setSubjectId] = useState("");
   const [examDate, setExamDate] = useState(
     new Date().toISOString().split("T")[0]
   );
@@ -36,7 +37,12 @@ function ExamModalContent({
   const [error, setError] = useState("");
 
   const { data: courses = [] } = useCourses();
+  const { data: subjects = [] } = useSubjects(courseId);
   const create = useCreateExam();
+
+  useEffect(() => {
+    setSubjectId("");
+  }, [courseId]);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -54,6 +60,7 @@ function ExamModalContent({
         exam_date: examDate,
         total_marks: totalMarks,
         is_daily: isDaily,
+        subject_id: subjectId || null,
       });
       onCreated(exam.id);
       onToast(
@@ -123,6 +130,23 @@ function ExamModalContent({
                 {courses.map((c) => (
                   <option key={c.id} value={c.id}>
                     {c.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <Label>Subject (Optional)</Label>
+              <select
+                value={subjectId}
+                onChange={(e) => setSubjectId(e.target.value)}
+                className={fieldCls}
+                disabled={!courseId}
+              >
+                <option value="">Overall / Multi-subject (general)</option>
+                {subjects.map((s) => (
+                  <option key={s.id} value={s.id}>
+                    {s.name} ({s.subject_code})
                   </option>
                 ))}
               </select>

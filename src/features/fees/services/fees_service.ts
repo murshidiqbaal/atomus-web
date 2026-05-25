@@ -97,7 +97,9 @@ export const feesService = {
       .select(STRUCTURE_SELECT)
       .order("created_at", { ascending: false });
 
-    if (filters?.course_id) q = q.eq("course_id", filters.course_id);
+    if (filters?.course_id) {
+      q = q.or(`course_id.eq.${filters.course_id},course_id.is.null`);
+    }
     if (filters?.campus_id) {
       // Match the explicit campus, legacy "all campuses" rows, and pre-migration rows without campus_id.
       q = q.or(
@@ -619,6 +621,68 @@ export const feesService = {
       const t = totals.get(c.id) ?? { collected: 0, pending: 0 };
       return { campus_id: c.id, campus: c.name, collected: t.collected, pending: t.pending };
     });
+  },
+
+  async addManualFeeItem(args: {
+    student_id: string;
+    name: string;
+    amount: number;
+    due_date: string;
+  }): Promise<StudentFee> {
+    const { data: sf } = await supabase
+      .from("student_fees")
+      .select("*")
+      .eq("student_id", args.student_id)
+      .maybeSingle();
+
+    const newTerm: TermStatus = {
+      term_name: args.name.trim(),
+      amount_due: Number(args.amount) || 0,
+      amount_paid: 0,
+      status: "Pending",
+      due_date: args.due_date,
+    };
+
+    if (sf) {
+      const currentTerms = Array.isArray(sf.term_status) ? (sf.term_status as TermStatus[]) : [];
+      const updatedTerms = [...currentTerms, newTerm];
+      
+      const newTotal = Number(sf.total_fee) + newTerm.amount_due;
+      const newPaid = Number(sf.paid_amount);
+      const newBalance = Math.max(0, newTotal - newPaid);
+      const newStatus = newBalance === 0 ? "Paid" : newPaid > 0 ? "Partial" : "Pending";
+
+      const { data, error } = await supabase
+        .from("student_fees")
+        .update({
+          total_fee: newTotal,
+          balance_amount: newBalance,
+          payment_status: newStatus,
+          term_status: updatedTerms,
+        })
+        .eq("student_id", args.student_id)
+        .select("*")
+        .single();
+      if (error) throw error;
+      return normaliseStudentFee(data as Record<string, unknown>);
+    } else {
+      const { data, error } = await supabase
+        .from("student_fees")
+        .insert([{
+          student_id: args.student_id,
+          fee_structure_id: null,
+          total_fee: newTerm.amount_due,
+          discount_amount: 0,
+          paid_amount: 0,
+          balance_amount: newTerm.amount_due,
+          payment_status: "Pending" as const,
+          term_status: [newTerm],
+        }])
+        .select("*")
+        .single();
+      if (error) throw error;
+      return normaliseStudentFee(data as Record<string, unknown>);
+    }
   },
 };
 

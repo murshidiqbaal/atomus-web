@@ -220,3 +220,16 @@ export function useCampusRevenue() {
     staleTime: 60_000,
   });
 }
+
+export function useAddManualFeeItem() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (args: { student_id: string; name: string; amount: number; due_date: string }) =>
+      feesService.addManualFeeItem(args),
+    onSuccess: (_data, args) => {
+      qc.invalidateQueries({ queryKey: ["fees", "studentFees"] });
+      qc.invalidateQueries({ queryKey: QK.studentFee(args.student_id) });
+      qc.invalidateQueries({ queryKey: QK.stats });
+    },
+  });
+}

@@ -12,6 +12,8 @@ const QK = {
   students: (examId: string) => ["marks", "students", examId] as const,
   marks: (examId: string, subjectId: string, markDate: string) =>
     ["marks", "marks", examId, subjectId, markDate] as const,
+  marksAllSubjects: (examId: string, markDate: string) =>
+    ["marks", "marks-all-subjects", examId, markDate] as const,
 
   dashboard: ["marks", "dashboard"] as const,
   trend: ["marks", "trend"] as const,
@@ -88,6 +90,20 @@ export function useMarks(examId: string, subjectId: string, markDate?: string | 
   });
 }
 
+/**
+ * All mark rows for one exam (any subject) — used by the read-only "Overall"
+ * pivot view in MarksEntry to aggregate per-student totals across subjects.
+ */
+export function useAllSubjectMarks(examId: string, markDate?: string | null) {
+  const date = markDate || "";
+  return useQuery({
+    queryKey: QK.marksAllSubjects(examId, date),
+    queryFn: () => marksService.getAllSubjectMarks(examId, markDate || null),
+    enabled: !!examId,
+    staleTime: 10_000,
+  });
+}
+
 export function useCreateExam() {
   const qc = useQueryClient();
   return useMutation({
@@ -123,6 +139,7 @@ export function useSaveMarks(examId: string, subjectId: string, markDate?: strin
     mutationFn: (records: Mark[]) => marksService.upsertMarks(records),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: QK.marks(examId, subjectId, date) });
+      qc.invalidateQueries({ queryKey: QK.marksAllSubjects(examId, date) });
       qc.invalidateQueries({ queryKey: QK.dashboard });
       qc.invalidateQueries({ queryKey: QK.trend });
     },

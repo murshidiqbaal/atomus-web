@@ -32,12 +32,27 @@ export async function POST(req: NextRequest) {
     }
 
     const adminDb = getSupabaseAdmin();
+
+    // Clean up legacy overall marks (subject_id = null) if saving subject-specific marks
+    if (subjectId) {
+      const studentIds = marks.map((m: any) => m.student_id);
+      const { error: delErr } = await adminDb
+        .from("marks")
+        .delete()
+        .eq("exam_id", examId)
+        .is("subject_id", null)
+        .in("student_id", studentIds);
+      if (delErr) {
+        console.error("Failed to delete legacy overall marks via API:", delErr);
+      }
+    }
+
     const rowsToUpsert = marks.map((m: any) => ({
       ...(m.id ? { id: m.id } : {}),
       exam_id: m.exam_id,
       student_id: m.student_id,
       subject_id: m.subject_id || null,
-      teacher_id: auth.userId === "master-admin" ? null : auth.userId,
+      teacher_id: auth.role === "teacher" ? auth.userId : null,
       marks_obtained: m.marks_obtained,
       total_marks: m.total_marks,
       remarks: m.remarks || "",

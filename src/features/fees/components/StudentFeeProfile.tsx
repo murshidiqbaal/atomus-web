@@ -1,12 +1,13 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { Calendar, CheckCircle2, Clock, AlertTriangle, ShieldAlert, Wallet, Loader2, Receipt as ReceiptIcon } from "lucide-react";
+import { Calendar, CheckCircle2, Clock, AlertTriangle, ShieldAlert, Wallet, Loader2, Receipt as ReceiptIcon, X, Plus } from "lucide-react";
 import {
   useAssignStructureToStudent,
   useFeeStructures,
   useStudentFee,
   useStudentPayments,
+  useAddManualFeeItem,
 } from "../hooks";
 import {
   formatINR,
@@ -34,6 +35,9 @@ export function StudentFeeProfile({ studentId, campusId, courseId }: Props) {
   const { data: sf, isLoading: feeLoading } = useStudentFee(studentId);
   const { data: payments = [], isLoading: payLoading } = useStudentPayments(studentId);
 
+  const addManualFee = useAddManualFeeItem();
+  const [isManualOpen, setIsManualOpen] = useState(false);
+
   const terms = useMemo<TermStatus[]>(
     () => recomputeTermStatuses(sf?.term_status ?? []),
     [sf?.term_status],
@@ -49,6 +53,21 @@ export function StudentFeeProfile({ studentId, campusId, courseId }: Props) {
     );
   }
 
+  const handleAddManualFee = (name: string, amount: number, dueDate: string) => {
+    addManualFee.mutate(
+      { student_id: studentId, name, amount, due_date: dueDate },
+      {
+        onSuccess: () => {
+          add("success", `Charged manual fee "${name}" of ${formatINR(amount)}.`);
+          setIsManualOpen(false);
+        },
+        onError: (err) => {
+          add("error", err instanceof Error ? err.message : "Failed to charge manual fee.");
+        },
+      }
+    );
+  };
+
   if (!sf) {
     return (
       <>
@@ -58,6 +77,13 @@ export function StudentFeeProfile({ studentId, campusId, courseId }: Props) {
           campusId={campusId}
           courseId={courseId}
           onToast={add}
+          onAddManual={() => setIsManualOpen(true)}
+        />
+        <ManualFeeModal
+          isOpen={isManualOpen}
+          onClose={() => setIsManualOpen(false)}
+          onSubmit={handleAddManualFee}
+          pending={addManualFee.isPending}
         />
       </>
     );
@@ -66,6 +92,12 @@ export function StudentFeeProfile({ studentId, campusId, courseId }: Props) {
   return (
     <div className="space-y-5 animate-in fade-in duration-300">
       <ToastStack toasts={toasts} onDismiss={dismiss} />
+      <ManualFeeModal
+        isOpen={isManualOpen}
+        onClose={() => setIsManualOpen(false)}
+        onSubmit={handleAddManualFee}
+        pending={addManualFee.isPending}
+      />
 
       {/* Summary */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
@@ -103,7 +135,16 @@ export function StudentFeeProfile({ studentId, campusId, courseId }: Props) {
       <Card className="p-0 overflow-hidden">
         <div className="px-4 py-3 border-b border-slate-100 flex items-center justify-between">
           <p className="text-sm font-black text-slate-800">Term-wise Status</p>
-          <p className="text-[11px] text-slate-400">{terms.length} terms</p>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setIsManualOpen(true)}
+              className="text-[11px] font-bold text-[#0B3C5D] inline-flex items-center gap-1 hover:underline"
+            >
+              + Add Manual Fee
+            </button>
+            <span className="text-[11px] text-slate-400">·</span>
+            <span className="text-[11px] text-slate-400">{terms.length} terms</span>
+          </div>
         </div>
         {terms.length === 0 ? (
           <EmptyState
@@ -236,12 +277,13 @@ function barTone(s: PaymentStatus) {
 
 // ── No-structure assign UI ──────────────────────────────────────
 function AssignStructure({
-  studentId, campusId, courseId, onToast,
+  studentId, campusId, courseId, onToast, onAddManual,
 }: {
   studentId: string;
   campusId?: string | null;
   courseId?: string | null;
   onToast: (t: "success" | "error", m: string) => void;
+  onAddManual: () => void;
 }) {
   const { data: structures = [], isLoading } = useFeeStructures({
     campus_id: campusId ?? "",
@@ -309,14 +351,139 @@ function AssignStructure({
         </div>
       )}
 
-      <button
-        onClick={onAssign}
-        disabled={assign.isPending || !structures.length}
-        className="inline-flex items-center gap-2 px-4 py-2.5 text-sm font-bold text-white bg-[#0B3C5D] rounded-xl hover:bg-[#0B3C5D]/90 disabled:opacity-50 disabled:cursor-not-allowed"
-      >
-        {assign.isPending ? <Loader2 size={14} className="animate-spin" /> : <Wallet size={14} />}
-        Assign Structure
-      </button>
+      <div className="flex items-center gap-3">
+        <button
+          onClick={onAssign}
+          disabled={assign.isPending || !structures.length}
+          className="inline-flex items-center gap-2 px-4 py-2.5 text-sm font-bold text-white bg-[#0B3C5D] rounded-xl hover:bg-[#0B3C5D]/90 disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          {assign.isPending ? <Loader2 size={14} className="animate-spin" /> : <Wallet size={14} />}
+          Assign Structure
+        </button>
+        <span className="text-xs text-slate-400 font-medium">or</span>
+        <button
+          type="button"
+          onClick={onAddManual}
+          className="inline-flex items-center gap-2 px-4 py-2.5 text-sm font-bold text-[#0B3C5D] bg-[#0B3C5D]/10 hover:bg-[#0B3C5D]/20 rounded-xl transition-all"
+        >
+          Add Manual Fee Item
+        </button>
+      </div>
     </Card>
+  );
+}
+
+function ManualFeeModal({
+  isOpen,
+  onClose,
+  onSubmit,
+  pending,
+}: {
+  isOpen: boolean;
+  onClose: () => void;
+  onSubmit: (name: string, amount: number, dueDate: string) => void;
+  pending: boolean;
+}) {
+  const [name, setName] = useState("");
+  const [amount, setAmount] = useState("");
+  const [dueDate, setDueDate] = useState(todayISO());
+
+  if (!isOpen) return null;
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!name.trim() || !amount || !dueDate) return;
+    onSubmit(name.trim(), Number(amount), dueDate);
+  };
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-[2px] p-4"
+      onClick={(e) => e.target === e.currentTarget && onClose()}
+    >
+      <div className="bg-white w-full max-w-md rounded-2xl shadow-2xl border border-slate-100 overflow-hidden">
+        <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100">
+          <div>
+            <h2 className="text-base font-bold text-[#0B3C5D]">Add Manual Fee Item</h2>
+            <p className="text-xs text-slate-400 mt-0.5">
+              Charge a one-off fee (e.g. Library, Books) without recurring conditions.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100"
+          >
+            <X size={16} />
+          </button>
+        </div>
+
+        <form onSubmit={handleSubmit}>
+          <div className="px-5 py-4 space-y-4">
+            <div>
+              <Label>Fee Name</Label>
+              <input
+                type="text"
+                placeholder="e.g. Library Fee, Uniform Fee"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                className={fieldCls}
+                required
+                autoFocus
+              />
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label>Amount (₹)</Label>
+                <input
+                  type="number"
+                  placeholder="0"
+                  value={amount}
+                  onChange={(e) => setAmount(e.target.value)}
+                  className={fieldCls}
+                  min="1"
+                  required
+                />
+              </div>
+              <div>
+                <Label>Due Date</Label>
+                <input
+                  type="date"
+                  value={dueDate}
+                  onChange={(e) => setDueDate(e.target.value)}
+                  className={fieldCls}
+                  required
+                />
+              </div>
+            </div>
+          </div>
+
+          <div className="flex items-center justify-end gap-2 px-5 py-4 border-t border-slate-100 bg-slate-50/60">
+            <button
+              type="button"
+              onClick={onClose}
+              className="px-4 py-2 text-sm font-semibold text-slate-600 rounded-lg hover:bg-slate-100"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={pending}
+              className="flex items-center gap-2 px-5 py-2 text-sm font-bold text-white bg-[#0B3C5D] rounded-lg
+                         hover:bg-[#0B3C5D]/90 transition-all shadow-md shadow-blue-900/20 disabled:opacity-60
+                         disabled:cursor-not-allowed active:scale-[0.98]"
+            >
+              {pending ? (
+                <Loader2 size={14} className="animate-spin" />
+              ) : (
+                <Plus size={14} />
+              )}
+              Add Fee
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
   );
 }

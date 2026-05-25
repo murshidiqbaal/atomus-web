@@ -6,7 +6,7 @@ import {
   Trophy, ArrowUp, ArrowDown, BarChart3, Zap, Edit3, CalendarClock,
 } from "lucide-react";
 import {
-  useExams, useMarks, useSaveMarks,
+  useAllSubjectMarks, useExams, useMarks, useSaveMarks,
   useStudentsForExam, useSubjects,
 } from "../hooks";
 import { useCampuses, useCoursesByCampus, useCourses as useGlobalCourses } from "../../students/hooks";
@@ -52,6 +52,12 @@ export function MarksEntry({
   const isDaily = !!selectedExamObj?.is_daily;
   // For non-daily exams, mark_date is always null so we don't fragment storage.
   const activeMarkDate = isDaily ? markDate : null;
+  /**
+   * "Overall" mode: no subject picked → show a read-only pivot of every
+   * student's per-subject marks (and a computed total). Editing requires
+   * choosing a specific subject so writes are unambiguous.
+   */
+  const isOverallView = !selectedSubject;
 
   const { data: students = [], isLoading: studentsLoading } =
     useStudentsForExam(selectedExamObj);
@@ -60,8 +66,21 @@ export function MarksEntry({
     selectedSubject,
     activeMarkDate,
   );
+  const { data: allSubjectMarks = [], isLoading: overallLoading } = useAllSubjectMarks(
+    isOverallView ? selectedExam : "",
+    activeMarkDate,
+  );
 
   const saveMutation = useSaveMarks(selectedExam, selectedSubject, activeMarkDate);
+
+  // ── Sync selectedSubject with exam scope ──────────────────────────
+  useEffect(() => {
+    if (selectedExamObj?.subject_id) {
+      setSelectedSubject(selectedExamObj.subject_id);
+    } else {
+      setSelectedSubject("");
+    }
+  }, [selectedExamObj]);
 
   // ── Sync remote marks → local editable map ───────────────────────
   // Legitimate remote→local sync: server data seeds the editable grid
@@ -232,6 +251,115 @@ export function MarksEntry({
     );
   }, [students, searchQuery]);
 
+  /**
+   * Overall pivot — sums every subject row per student for the active exam
+   * (+ active date for daily exams). The pivot is read-only because edits
+   * to a "total" cell can't be decomposed back into per-subject scores.
+   *
+   * `overallSubjects` holds only subjects with at least one mark recorded,
+   * so we don't pollute the table with empty columns for subjects no one
+   * has been graded on yet. Legacy null-subject "overall" entries get a
+   * synthetic "Overall" column appended at the end.
+   */
+  const overallView = useMemo(() => {
+    if (!isOverallView) return null;
+
+    // bucket marks by student + subject (null subject = legacy "overall" row).
+    // We also keep the first-seen `entered_by` per cell so the pivot can show
+    // attribution (which teacher/admin recorded the score).
+    type Bucket = { obtained: number; total: number; enteredBy: { full_name: string; role: "teacher" | "admin" } | null };
+    type StudentBucket = { perSubject: Map<string | null, Bucket>; obtainedSum: number; totalSum: number };
+    const byStudent = new Map<string, StudentBucket>();
+    const subjectIdsWithData = new Set<string | null>();
+    const allEntryAuthors = new Set<string>();
+
+    for (const m of allSubjectMarks) {
+      const sb = byStudent.get(m.student_id) ?? {
+        perSubject: new Map<string | null, Bucket>(),
+        obtainedSum: 0,
+        totalSum: 0,
+      };
+      const key = m.subject_id ?? null;
+      const cur = sb.perSubject.get(key) ?? { obtained: 0, total: 0, enteredBy: null };
+      cur.obtained += Number(m.marks_obtained ?? 0);
+      cur.total += Number(m.total_marks ?? 0);
+      if (!cur.enteredBy && m.entered_by) {
+        cur.enteredBy = { full_name: m.entered_by.full_name, role: m.entered_by.role };
+      }
+      if (m.entered_by) allEntryAuthors.add(m.entered_by.full_name);
+      sb.perSubject.set(key, cur);
+      sb.obtainedSum += Number(m.marks_obtained ?? 0);
+      sb.totalSum += Number(m.total_marks ?? 0);
+      byStudent.set(m.student_id, sb);
+      subjectIdsWithData.add(key);
+    }
+
+    const namedSubjects = subjects.filter((s) => subjectIdsWithData.has(s.id));
+    const hasLegacyOverall = subjectIdsWithData.has(null);
+
+    const rows = filteredStudents.map((s) => {
+      const bucket = byStudent.get(s.id);
+      const perSubject = namedSubjects.map((sub) => {
+        const b = bucket?.perSubject.get(sub.id);
+        return {
+          subjectId: sub.id,
+          subjectName: sub.name,
+          obtained: b?.obtained ?? null,
+          total: b?.total ?? null,
+          enteredBy: b?.enteredBy ?? null,
+        };
+      });
+      const legacyOverall = hasLegacyOverall
+        ? bucket?.perSubject.get(null) ?? null
+        : null;
+      const totalObtained = bucket?.obtainedSum ?? 0;
+      const totalOutOf = bucket?.totalSum ?? 0;
+      const pct = totalOutOf > 0 ? (totalObtained / totalOutOf) * 100 : 0;
+      return {
+        student: s,
+        perSubject,
+        legacyOverall,
+        totalObtained,
+        totalOutOf,
+        pct,
+        graded: !!bucket && bucket.perSubject.size > 0,
+      };
+    });
+
+    return {
+      subjects: namedSubjects,
+      hasLegacyOverall,
+      rows,
+      contributors: Array.from(allEntryAuthors).sort(),
+    };
+  }, [isOverallView, allSubjectMarks, subjects, filteredStudents]);
+
+  /** Stats strip for the Overall view — derived from the pivot, not marksMap. */
+  const overallAnalytics = useMemo(() => {
+    if (!overallView) return null;
+    const graded = overallView.rows.filter((r) => r.graded);
+    if (!graded.length) return null;
+    const pcts = graded.map((r) => r.pct);
+    const highest = Math.max(...pcts);
+    const lowest = Math.min(...pcts);
+    const avg = pcts.reduce((a, b) => a + b, 0) / pcts.length;
+    const passCount = pcts.filter((p) => p >= 50).length;
+    const dist: Record<Grade, number> = {
+      Excellent: pcts.filter((p) => p >= 90).length,
+      Good: pcts.filter((p) => p >= 75 && p < 90).length,
+      Average: pcts.filter((p) => p >= 50 && p < 75).length,
+      "Needs Improvement": pcts.filter((p) => p < 50).length,
+    };
+    return {
+      highest: highest.toFixed(1),
+      lowest: lowest.toFixed(1),
+      avg: avg.toFixed(1),
+      passRate: ((passCount / graded.length) * 100).toFixed(1),
+      dist,
+      gradedCount: graded.length,
+    };
+  }, [overallView]);
+
   // ── CSV ─────────────────────────────────────────────────────────
   const handleExportCSV = () => {
     const header = ["roll_number", "student_name", "marks_obtained", "total_marks", "percentage", "grade", "remarks"];
@@ -260,8 +388,9 @@ export function MarksEntry({
     URL.revokeObjectURL(url);
   };
 
-  const loading = studentsLoading || marksLoading;
+  const loading = studentsLoading || (isOverallView ? overallLoading : marksLoading);
   const canEnter = !!selectedExam;
+  const activeAnalytics = isOverallView ? overallAnalytics : analytics;
 
   return (
     <div className="space-y-5">
@@ -315,7 +444,7 @@ export function MarksEntry({
               value={selectedSubject}
               onChange={(e) => setSelectedSubject(e.target.value)}
               className={fieldCls}
-              disabled={!(selectedCourse || selectedExamObj?.course_id)}
+              disabled={!(selectedCourse || selectedExamObj?.course_id) || !!selectedExamObj?.subject_id}
             >
               <option value="">Overall</option>
               {subjects.map((s) => (
@@ -422,8 +551,8 @@ export function MarksEntry({
         )}
       </Card>
 
-      {/* Toolbar */}
-      {canEnter && students.length > 0 && (
+      {/* Toolbar — only when editing a specific subject */}
+      {canEnter && !isOverallView && students.length > 0 && (
         <div className="flex items-center gap-2 flex-wrap">
           <div className="flex items-center gap-2 bg-white border border-slate-200 rounded-xl px-3 py-1.5 shadow-sm">
             <Zap size={14} className="text-[#D4AF37]" />
@@ -481,14 +610,29 @@ export function MarksEntry({
         </div>
       )}
 
+      {/* Overall mode banner — read-only aggregate across all subjects */}
+      {canEnter && isOverallView && students.length > 0 && (
+        <Card className="px-4 py-3 flex items-start gap-3 bg-gradient-to-br from-[#0B3C5D]/5 to-white border-[#0B3C5D]/10">
+          <div className="bg-[#0B3C5D] text-white p-1.5 rounded-lg shrink-0">
+            <BarChart3 size={14} />
+          </div>
+          <div className="min-w-0 flex-1">
+            <p className="text-sm font-bold text-slate-800">Overall view</p>
+            <p className="text-[11px] text-slate-500 mt-0.5">
+              Showing every student's marks across all subjects of this exam. Pick a specific subject above to enter or edit scores.
+            </p>
+          </div>
+        </Card>
+      )}
+
       {/* Quick analytics strip */}
-      {canEnter && analytics && students.length > 0 && (
+      {canEnter && activeAnalytics && students.length > 0 && (
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
           {[
-            { label: "Highest", value: `${analytics.highest}%`, icon: <ArrowUp size={16} />, accent: "bg-emerald-500" },
-            { label: "Lowest", value: `${analytics.lowest}%`, icon: <ArrowDown size={16} />, accent: "bg-rose-500" },
-            { label: "Average", value: `${analytics.avg}%`, icon: <BarChart3 size={16} />, accent: "bg-[#0B3C5D]" },
-            { label: "Pass Rate", value: `${analytics.passRate}%`, icon: <Trophy size={16} />, accent: "bg-amber-400" },
+            { label: "Highest", value: `${activeAnalytics.highest}%`, icon: <ArrowUp size={16} />, accent: "bg-emerald-500" },
+            { label: "Lowest", value: `${activeAnalytics.lowest}%`, icon: <ArrowDown size={16} />, accent: "bg-rose-500" },
+            { label: "Average", value: `${activeAnalytics.avg}%`, icon: <BarChart3 size={16} />, accent: "bg-[#0B3C5D]" },
+            { label: "Pass Rate", value: `${activeAnalytics.passRate}%`, icon: <Trophy size={16} />, accent: "bg-amber-400" },
           ].map((c) => (
             <Card key={c.label} className="p-4 flex items-center gap-3">
               <div className={`w-10 h-10 rounded-xl ${c.accent} text-white flex items-center justify-center`}>
@@ -504,14 +648,14 @@ export function MarksEntry({
       )}
 
       {/* Grade Distribution Bar */}
-      {canEnter && analytics && students.length > 0 && (
+      {canEnter && activeAnalytics && students.length > 0 && (
         <Card className="px-5 py-4">
           <p className="text-[11px] font-bold uppercase tracking-widest text-slate-400 mb-3">
             Grade Distribution — {students.length} students
           </p>
           <div className="flex h-7 rounded-lg overflow-hidden gap-px">
             {(["Excellent", "Good", "Average", "Needs Improvement"] as Grade[]).map((grade) => {
-              const count = analytics.dist[grade];
+              const count = activeAnalytics.dist[grade];
               const w = students.length > 0 ? (count / students.length) * 100 : 0;
               if (w === 0) return null;
               return (
@@ -531,7 +675,7 @@ export function MarksEntry({
               <div key={grade} className="flex items-center gap-1.5">
                 <div className={`w-2.5 h-2.5 rounded-sm ${GRADE_CFG[grade].bar}`} />
                 <span className="text-[11px] text-slate-500">
-                  {grade} ({analytics.dist[grade]})
+                  {grade} ({activeAnalytics.dist[grade]})
                 </span>
               </div>
             ))}
@@ -581,6 +725,11 @@ export function MarksEntry({
               ? "No students match your search."
               : "No students in this course."
           }
+        />
+      ) : isOverallView ? (
+        <OverallMarksTable
+          overall={overallView}
+          studentTotal={students.length}
         />
       ) : (
         <>
@@ -656,5 +805,241 @@ export function MarksEntry({
         </>
       )}
     </div>
+  );
+}
+
+// ────────────────────────────────────────────────────────────────────
+// Overall pivot table — read-only summary across every subject of the
+// active exam. Each student shows their score per subject, plus an
+// aggregated total, percentage, and grade.
+// ────────────────────────────────────────────────────────────────────
+
+type OverallSubjectCell = {
+  subjectId: string;
+  subjectName: string;
+  obtained: number | null;
+  total: number | null;
+};
+
+type OverallRow = {
+  student: StudentLite;
+  perSubject: OverallSubjectCell[];
+  legacyOverall: { obtained: number; total: number } | null;
+  totalObtained: number;
+  totalOutOf: number;
+  pct: number;
+  graded: boolean;
+};
+
+type OverallViewModel = {
+  subjects: { id: string; name: string }[];
+  hasLegacyOverall: boolean;
+  rows: OverallRow[];
+};
+
+function OverallMarksTable({
+  overall, studentTotal,
+}: {
+  overall: OverallViewModel | null;
+  studentTotal: number;
+}) {
+  if (!overall) {
+    return (
+      <EmptyState
+        icon={<FileSpreadsheet size={26} />}
+        title="No marks recorded yet"
+        hint="Select a subject above to start entering scores for this exam."
+      />
+    );
+  }
+
+  const { subjects: subs, hasLegacyOverall, rows } = overall;
+
+  if (subs.length === 0 && !hasLegacyOverall) {
+    return (
+      <EmptyState
+        icon={<FileSpreadsheet size={26} />}
+        title="No subject-scoped marks yet for this exam"
+        hint="Pick a subject from the filter to start entering scores. Aggregated totals will appear here once any subject has marks."
+      />
+    );
+  }
+
+  const gradedCount = rows.filter((r) => r.graded).length;
+
+  return (
+    <>
+      {/* Desktop */}
+      <Card className="hidden md:block overflow-hidden">
+        <div className="overflow-x-auto max-h-[60vh] overflow-y-auto">
+          <table className="w-full text-left border-collapse">
+            <thead className="sticky top-0 z-10 bg-slate-50 backdrop-blur">
+              <tr className="border-b border-slate-200">
+                <th className="py-3 px-4 text-[11px] font-bold uppercase tracking-widest text-slate-500 whitespace-nowrap">
+                  Roll
+                </th>
+                <th className="py-3 px-4 text-[11px] font-bold uppercase tracking-widest text-slate-500 whitespace-nowrap">
+                  Student
+                </th>
+                {subs.map((s) => (
+                  <th
+                    key={s.id}
+                    className="py-3 px-3 text-[11px] font-bold uppercase tracking-widest text-slate-500 whitespace-nowrap text-center"
+                    title={s.name}
+                  >
+                    {s.name}
+                  </th>
+                ))}
+                {hasLegacyOverall && (
+                  <th className="py-3 px-3 text-[11px] font-bold uppercase tracking-widest text-amber-600 whitespace-nowrap text-center">
+                    Overall (legacy)
+                  </th>
+                )}
+                <th className="py-3 px-4 text-[11px] font-black uppercase tracking-widest text-[#0B3C5D] whitespace-nowrap text-right">
+                  Total
+                </th>
+                <th className="py-3 px-4 text-[11px] font-bold uppercase tracking-widest text-slate-500 whitespace-nowrap text-right">
+                  %
+                </th>
+                <th className="py-3 px-4 text-[11px] font-bold uppercase tracking-widest text-slate-500 whitespace-nowrap">
+                  Grade
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((row) => {
+                const grade = row.graded ? getGrade(row.pct) : null;
+                return (
+                  <tr
+                    key={row.student.id}
+                    className="border-b border-slate-100 hover:bg-slate-50/60 transition-colors"
+                  >
+                    <td className="py-3 px-4 text-sm font-bold text-slate-700 tabular-nums">
+                      {row.student.roll_number ?? "—"}
+                    </td>
+                    <td className="py-3 px-4">
+                      <p className="text-sm font-bold text-slate-800 truncate">{row.student.full_name}</p>
+                      {row.student.batches?.name && (
+                        <p className="text-[11px] text-slate-400 truncate">{row.student.batches.name}</p>
+                      )}
+                    </td>
+                    {row.perSubject.map((c) => (
+                      <td key={c.subjectId} className="py-3 px-3 text-center tabular-nums">
+                        {c.obtained == null ? (
+                          <span className="text-slate-300">—</span>
+                        ) : (
+                          <span className="text-sm font-bold text-slate-700">
+                            {c.obtained}
+                            <span className="text-[10px] font-semibold text-slate-400">/{c.total}</span>
+                          </span>
+                        )}
+                      </td>
+                    ))}
+                    {hasLegacyOverall && (
+                      <td className="py-3 px-3 text-center tabular-nums">
+                        {row.legacyOverall ? (
+                          <span className="text-sm font-bold text-amber-700">
+                            {row.legacyOverall.obtained}
+                            <span className="text-[10px] font-semibold text-amber-400">/{row.legacyOverall.total}</span>
+                          </span>
+                        ) : (
+                          <span className="text-slate-300">—</span>
+                        )}
+                      </td>
+                    )}
+                    <td className="py-3 px-4 text-right tabular-nums">
+                      {row.graded ? (
+                        <span className="text-sm font-black text-[#0B3C5D]">
+                          {row.totalObtained}
+                          <span className="text-[10px] font-bold text-slate-400">/{row.totalOutOf}</span>
+                        </span>
+                      ) : (
+                        <span className="text-slate-300 text-sm">—</span>
+                      )}
+                    </td>
+                    <td className="py-3 px-4 text-right tabular-nums text-sm font-bold text-slate-700">
+                      {row.graded ? `${row.pct.toFixed(1)}%` : <span className="text-slate-300">—</span>}
+                    </td>
+                    <td className="py-3 px-4">
+                      {grade ? (
+                        <span className={`inline-block px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-widest text-white ${GRADE_CFG[grade].bar}`}>
+                          {grade}
+                        </span>
+                      ) : (
+                        <span className="text-slate-300 text-xs">—</span>
+                      )}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+        <div className="px-5 py-3 border-t border-slate-100 bg-slate-50/60 flex items-center justify-between">
+          <p className="text-xs text-slate-400 font-medium">
+            Showing {rows.length} of {studentTotal} students · {gradedCount} graded across {subs.length} subject{subs.length === 1 ? "" : "s"}
+          </p>
+          <p className="text-[11px] text-slate-400 font-medium hidden lg:block">
+            Pick a subject filter to enter marks · totals update automatically
+          </p>
+        </div>
+      </Card>
+
+      {/* Mobile */}
+      <div className="md:hidden space-y-2">
+        {rows.map((row) => {
+          const grade = row.graded ? getGrade(row.pct) : null;
+          return (
+            <Card key={row.student.id} className="p-4">
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-bold text-slate-800 truncate">{row.student.full_name}</p>
+                  <p className="text-[11px] text-slate-400 truncate">
+                    {row.student.roll_number ? `Roll ${row.student.roll_number}` : "No roll"}
+                    {row.student.batches?.name ? ` · ${row.student.batches.name}` : ""}
+                  </p>
+                </div>
+                <div className="text-right">
+                  <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Total</p>
+                  <p className="text-base font-black text-[#0B3C5D] leading-tight">
+                    {row.graded ? `${row.totalObtained}/${row.totalOutOf}` : "—"}
+                  </p>
+                  <p className="text-[11px] font-bold text-slate-500 tabular-nums">
+                    {row.graded ? `${row.pct.toFixed(1)}%` : ""}
+                  </p>
+                </div>
+              </div>
+
+              <div className="mt-3 grid grid-cols-2 gap-1.5">
+                {row.perSubject.map((c) => (
+                  <div key={c.subjectId} className="bg-slate-50 rounded-lg px-2 py-1.5">
+                    <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 truncate">{c.subjectName}</p>
+                    <p className="text-xs font-bold text-slate-700 tabular-nums">
+                      {c.obtained == null ? "—" : `${c.obtained}/${c.total}`}
+                    </p>
+                  </div>
+                ))}
+                {row.legacyOverall && (
+                  <div className="bg-amber-50 rounded-lg px-2 py-1.5">
+                    <p className="text-[10px] font-bold uppercase tracking-widest text-amber-700">Overall</p>
+                    <p className="text-xs font-bold text-amber-700 tabular-nums">
+                      {row.legacyOverall.obtained}/{row.legacyOverall.total}
+                    </p>
+                  </div>
+                )}
+              </div>
+
+              {grade && (
+                <div className="mt-3">
+                  <span className={`inline-block px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-widest text-white ${GRADE_CFG[grade].bar}`}>
+                    {grade}
+                  </span>
+                </div>
+              )}
+            </Card>
+          );
+        })}
+      </div>
+    </>
   );
 }

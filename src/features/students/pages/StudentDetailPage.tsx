@@ -5,7 +5,7 @@ import Link from "next/link";
 import { 
   ChevronLeft, Building2, BookOpen, Users, Calendar, Phone, Mail, MapPin, 
   CheckCircle2, Clock, Award, FileText, Settings, Download, Share2, 
-  ArrowUpRight, AlertCircle, TrendingUp, Info, UserCircle
+  ArrowUpRight, AlertCircle, TrendingUp, Info, UserCircle, ChevronDown, ChevronUp
 } from "lucide-react";
 import { useStudent, useStudentAttendance, useStudentMarks, useSubjectsByCourse } from "../hooks";
 import StudentModal from "../components/StudentModal";
@@ -65,8 +65,24 @@ function SummaryCard({ label, value, sub, icon: Icon, trend }: { label: string; 
 export default function StudentDetailPage({ id }: Props) {
   const { data: student, isLoading } = useStudent(id);
   const { data: attendance = [] }     = useStudentAttendance(id, !!student);
-  const { data: marks = [] }          = useStudentMarks(id, !!student);
+  const { data: rawMarks = [] }       = useStudentMarks(id, !!student);
   const { data: subjects = [] }        = useSubjectsByCourse(student?.course_id ?? "", !!student);
+  
+  // Deduplicate marks: if there are subject-specific marks for an exam, ignore the overall (null subject_id) mark
+  const marks = (() => {
+    const examsWithSubjectSpecificMarks = new Set<string>();
+    for (const m of rawMarks) {
+      if (m.exam_id && m.subject_id !== null && m.subject_id !== undefined) {
+        examsWithSubjectSpecificMarks.add(m.exam_id);
+      }
+    }
+    return rawMarks.filter((m) => {
+      if (m.exam_id && (m.subject_id === null || m.subject_id === undefined) && examsWithSubjectSpecificMarks.has(m.exam_id)) {
+        return false;
+      }
+      return true;
+    });
+  })();
   
   const [modalOpen, setModalOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<"overview" | "attendance" | "marks" | "fees">("overview");
@@ -78,6 +94,12 @@ export default function StudentDetailPage({ id }: Props) {
   // Filters for marks vertical timeline
   const [marksSubjectFilter, setMarksSubjectFilter] = useState<string>("");
   const [marksRoleFilter, setMarksRoleFilter] = useState<string>("");
+
+  const [marksViewMode, setMarksViewMode] = useState<"subjects" | "timeline">("subjects");
+  const [expandedSubjects, setExpandedSubjects] = useState<Record<string, boolean>>({});
+  const toggleSubjectExpand = (subId: string) => {
+    setExpandedSubjects(prev => ({ ...prev, [subId]: !prev[subId] }));
+  };
 
   const handleDownloadPhoto = () => {
     if (!student?.profile_photo_url) return;
@@ -540,16 +562,71 @@ export default function StudentDetailPage({ id }: Props) {
                   return matchSubject && matchRole;
                 });
 
+                // Calculate overall subject-wise averages taking role filter into account
+                const subjectAverages = subjects.map((sub: any) => {
+                  const subjectMarks = marks.filter((m) => {
+                    const matchSubject = m.subject_id === sub.id;
+                    const markerRole = m.teachers ? "Teacher" : "Admin";
+                    const matchRole = !marksRoleFilter || markerRole === marksRoleFilter;
+                    return matchSubject && matchRole;
+                  });
+                  if (subjectMarks.length === 0) return null;
+                  const pctList = subjectMarks.map(m => {
+                    const total = m.total_marks ?? m.exams?.total_marks ?? 100;
+                    return Number(m.percentage ?? ((m.marks_obtained / total) * 100));
+                  });
+                  return pctList.reduce((a, b) => a + b, 0) / pctList.length;
+                }).filter((avg): avg is number => avg !== null);
+
+                const overallSubjectAvg = subjectAverages.length > 0
+                  ? subjectAverages.reduce((a, b) => a + b, 0) / subjectAverages.length
+                  : 0;
+
                 const marksPctList = filteredMarks.map(m => {
                   const total = m.total_marks ?? m.exams?.total_marks ?? 100;
                   return Number(m.percentage ?? ((m.marks_obtained / (total || 100)) * 100));
                 });
-                const marksAvg = marksPctList.length > 0 ? marksPctList.reduce((a, b) => a + b, 0) / marksPctList.length : 0;
+
+                const marksAvg = marksSubjectFilter
+                  ? (marksPctList.length > 0 ? marksPctList.reduce((a, b) => a + b, 0) / marksPctList.length : 0)
+                  : overallSubjectAvg;
                 const marksMax = marksPctList.length > 0 ? Math.max(...marksPctList) : 0;
                 const marksMin = marksPctList.length > 0 ? Math.min(...marksPctList) : 0;
 
                 return (
                   <div className="animate-in slide-in-from-right-4 duration-500 space-y-6">
+                    {/* View mode toggle and overall stats */}
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                      <div className="flex bg-slate-100 p-1.5 rounded-2xl border border-slate-200/60 max-w-[280px]">
+                        <button
+                          onClick={() => setMarksViewMode("subjects")}
+                          className={`flex-1 py-2 px-4 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all duration-300 ${
+                            marksViewMode === "subjects"
+                              ? "bg-white text-[#0B3C5D] shadow-sm"
+                              : "text-slate-400 hover:text-slate-600"
+                          }`}
+                        >
+                          Subject Summary
+                        </button>
+                        <button
+                          onClick={() => setMarksViewMode("timeline")}
+                          className={`flex-1 py-2 px-4 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all duration-300 ${
+                            marksViewMode === "timeline"
+                              ? "bg-white text-[#0B3C5D] shadow-sm"
+                              : "text-slate-400 hover:text-slate-600"
+                          }`}
+                        >
+                          Timeline
+                        </button>
+                      </div>
+
+                      {marksViewMode === "subjects" && (
+                        <div className="text-sm font-black text-slate-500">
+                          Total Course Subjects: <span className="text-[#0B3C5D]">{subjects.length}</span>
+                        </div>
+                      )}
+                    </div>
+
                     {/* Summary metrics cards */}
                     <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
                       {[
@@ -565,128 +642,292 @@ export default function StudentDetailPage({ id }: Props) {
                       ))}
                     </div>
 
-                    {/* Filters header bar */}
-                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 bg-slate-50 border border-slate-200 rounded-2xl">
-                      <div className="flex flex-wrap items-center gap-4">
-                        {/* Subject Filter */}
-                        <div className="flex flex-col">
-                          <label className="text-[10px] font-black uppercase tracking-wider text-slate-400 mb-1">Subject</label>
-                          <select
-                            value={marksSubjectFilter}
-                            onChange={(e) => setMarksSubjectFilter(e.target.value)}
-                            className="px-3 py-2 text-xs bg-white border border-slate-200 rounded-xl outline-none focus:border-[#0B3C5D]"
-                          >
-                            <option value="">All Subjects</option>
-                            {subjects.map((sub: any) => (
-                              <option key={sub.id} value={sub.id}>{sub.name}</option>
-                            ))}
-                          </select>
-                        </div>
+                    {marksViewMode === "subjects" ? (
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        {subjects.map((sub: any) => {
+                          const subjectMarks = marks.filter((m) => m.subject_id === sub.id);
+                          const hasMarks = subjectMarks.length > 0;
+                          
+                          let avg = 0;
+                          let max = 0;
+                          let min = 0;
+                          let grade = "Needs Improvement";
+                          let gradeStyle = GRADE_CFG["Needs Improvement"];
 
-                        {/* Evaluator Role Filter */}
-                        <div className="flex flex-col">
-                          <label className="text-[10px] font-black uppercase tracking-wider text-slate-400 mb-1">Evaluated By</label>
-                          <select
-                            value={marksRoleFilter}
-                            onChange={(e) => setMarksRoleFilter(e.target.value)}
-                            className="px-3 py-2 text-xs bg-white border border-slate-200 rounded-xl outline-none focus:border-[#0B3C5D]"
-                          >
-                            <option value="">All Roles</option>
-                            <option value="Teacher">Teachers</option>
-                            <option value="Admin">Admin (ATOMUS)</option>
-                          </select>
-                        </div>
-                      </div>
-                      <div className="text-right shrink-0">
-                        <p className="text-xs font-bold text-slate-400">Total Scoped Marks</p>
-                        <p className="text-lg font-black text-slate-800">{filteredMarks.length}</p>
-                      </div>
-                    </div>
+                          if (hasMarks) {
+                            const pctList = subjectMarks.map(m => {
+                              const total = m.total_marks ?? m.exams?.total_marks ?? 100;
+                              return Number(m.percentage ?? ((m.marks_obtained / total) * 100));
+                            });
+                            avg = pctList.reduce((a, b) => a + b, 0) / pctList.length;
+                            max = Math.max(...pctList);
+                            min = Math.min(...pctList);
+                            grade = getGrade(avg);
+                            gradeStyle = GRADE_CFG[grade as keyof typeof GRADE_CFG];
+                          }
 
-                    {/* Marks Timeline */}
-                    {filteredMarks.length === 0 ? (
-                      <div className="py-16 text-center border border-dashed border-slate-200 rounded-2xl bg-slate-50/30">
-                        <div className="bg-slate-100 w-14 h-14 rounded-full flex items-center justify-center mx-auto mb-3 text-slate-400">
-                          <Award size={20} />
-                        </div>
-                        <p className="text-sm font-bold text-slate-600">No examination records match filters</p>
-                        <p className="text-xs text-slate-400 mt-1">Try resetting the subject or evaluator role filters.</p>
-                      </div>
-                    ) : (
-                      <div className="relative pl-6 sm:pl-8 before:absolute before:left-[11px] before:sm:left-[15px] before:top-2 before:bottom-2 before:w-[2px] before:bg-slate-100 space-y-6">
-                        {filteredMarks.map((rec) => {
-                          const examName = rec.exams?.name ?? "Daily Assessment";
-                          const date = rec.mark_date || rec.exams?.exam_date || rec.created_at || new Date().toISOString();
-                          const subjectName = rec.subjects?.name ?? "Overall";
-                          const total = rec.total_marks ?? rec.exams?.total_marks ?? 100;
-                          const percentage = Number(rec.percentage ?? ((rec.marks_obtained / total) * 100));
-                          const grade = getGrade(percentage);
-                          const gradeStyle = GRADE_CFG[grade]?.badge ?? "bg-slate-50 text-slate-500 border border-slate-100";
+                          const isExpanded = expandedSubjects[sub.id];
 
                           return (
-                            <div key={rec.id} className="relative group animate-in fade-in duration-300">
-                              {/* Timeline bullet indicator node */}
-                              <div className={`absolute -left-[29px] -left:sm-[33px] top-1.5 w-3 h-3 sm:w-4 sm:h-4 rounded-full ${GRADE_CFG[grade]?.bar ? GRADE_CFG[grade].bar : 'bg-slate-300'} ring-4 ring-white shadow transition-all duration-300 group-hover:scale-125 z-10`} />
-
-                              <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-sm hover:shadow-md hover:border-slate-300 transition-all duration-200">
-                                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                            <div
+                              key={sub.id}
+                              className="bg-white rounded-[2rem] border border-slate-200 shadow-sm hover:shadow-md hover:border-slate-300 transition-all duration-300 overflow-hidden flex flex-col"
+                            >
+                              {/* Card Header */}
+                              <div className="p-6 flex-1 flex flex-col justify-between">
+                                <div className="flex justify-between items-start gap-4">
                                   <div>
-                                    <div className="flex items-center gap-2 flex-wrap">
-                                      <span className="text-xs font-black text-slate-800 flex items-center gap-1">
-                                        <Calendar size={12} className="text-slate-400" />
-                                        {new Date(date).toLocaleDateString("en-US", {
-                                          month: "short", day: "numeric", year: "numeric"
-                                        })}
-                                      </span>
-                                      {rec.exams?.exam_scope === "course" && (
-                                        <span className="text-[9px] font-black text-amber-600 bg-amber-50 border border-amber-100 px-1.5 py-0.2 rounded uppercase tracking-wider">
-                                          Course-Wide
-                                        </span>
-                                      )}
-                                    </div>
-
-                                    <h4 className="text-sm font-black text-slate-900 mt-1">{examName}</h4>
-
-                                    <div className="flex items-center gap-2 mt-2 flex-wrap">
-                                      <span className="text-[10px] font-black text-[#0B3C5D] bg-[#0B3C5D]/5 px-2 py-0.5 rounded border border-[#0B3C5D]/10 flex items-center gap-1">
-                                        <BookOpen size={10} className="text-[#0B3C5D]/60" />
-                                        {subjectName}
-                                      </span>
-
-                                      <span className="text-[10px] font-semibold text-slate-500 bg-slate-50 border border-slate-200 px-2 py-0.5 rounded-full">
-                                        Score: <strong className="text-slate-700">{rec.marks_obtained} / {total}</strong>
-                                      </span>
-
-                                      {rec.teachers?.full_name ? (
-                                        <span className="text-[10px] font-semibold text-emerald-700 bg-emerald-50 border border-emerald-100 px-2 py-0.5 rounded-full">
-                                          Marked by {rec.teachers.full_name}
-                                        </span>
-                                      ) : (
-                                        <span className="text-[10px] font-semibold text-slate-600 bg-slate-50 border border-slate-200 px-2 py-0.5 rounded-full">
-                                          Marked by Admin (ATOMUS)
-                                        </span>
-                                      )}
-                                    </div>
-                                  </div>
-
-                                  <div className="flex items-center gap-2 shrink-0 self-start sm:self-center">
-                                    <span className="text-base font-black text-[#0B3C5D]">{Math.round(percentage)}%</span>
-                                    <span className={`text-[10px] font-black uppercase tracking-wider px-2.5 py-1 rounded-full ${gradeStyle}`}>
-                                      {grade}
+                                    <span className="text-[9px] font-black px-2.5 py-0.5 rounded-lg bg-slate-50 text-slate-400 border border-slate-200 uppercase tracking-widest">
+                                      {sub.subject_code || "SUBJ"}
                                     </span>
+                                    <h4 className="text-base font-black text-slate-900 mt-2 tracking-tight">
+                                      {sub.name}
+                                    </h4>
+                                    <div className="flex items-center gap-2 mt-1">
+                                      <span className="text-[10px] text-slate-400 font-bold">
+                                        {sub.subject_type || "Core"}
+                                      </span>
+                                      {sub.class_level && (
+                                        <>
+                                          <span className="text-slate-200 text-xs">•</span>
+                                          <span className="text-[10px] text-slate-400 font-bold">
+                                            Level {sub.class_level}
+                                          </span>
+                                        </>
+                                      )}
+                                    </div>
                                   </div>
+
+                                  {hasMarks ? (
+                                    <div className="text-right shrink-0">
+                                      <span className="text-2xl font-black text-slate-900 leading-none">
+                                        {Math.round(avg)}%
+                                      </span>
+                                      <div className="mt-1">
+                                        <span className={`text-[8px] font-black uppercase tracking-wider px-2.5 py-1 rounded-full ${gradeStyle.badge}`}>
+                                          {grade}
+                                        </span>
+                                      </div>
+                                    </div>
+                                  ) : (
+                                    <span className="text-[9px] font-black text-slate-400 bg-slate-50 border border-slate-200 px-2.5 py-1 rounded-full uppercase tracking-wider">
+                                      No Marks
+                                    </span>
+                                  )}
                                 </div>
 
-                                {rec.remarks && (
-                                  <div className="mt-3 text-xs text-slate-500 font-medium italic border-t border-slate-100 pt-2.5">
-                                    "{rec.remarks}"
+                                {hasMarks && (
+                                  <div className="mt-6 space-y-4">
+                                    {/* Progress bar */}
+                                    <div className="space-y-1">
+                                      <div className="h-2 w-full bg-slate-100 rounded-full overflow-hidden">
+                                        <div
+                                          className={`h-full ${gradeStyle.bar} rounded-full transition-all duration-500`}
+                                          style={{ width: `${avg}%` }}
+                                        />
+                                      </div>
+                                    </div>
+
+                                    {/* Stats grid */}
+                                    <div className="grid grid-cols-3 gap-2 pt-2 border-t border-slate-50 text-center">
+                                      <div>
+                                        <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest">Exams</p>
+                                        <p className="text-xs font-black text-slate-700 mt-0.5">{subjectMarks.length}</p>
+                                      </div>
+                                      <div>
+                                        <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest">Highest</p>
+                                        <p className="text-xs font-black text-emerald-600 mt-0.5">{Math.round(max)}%</p>
+                                      </div>
+                                      <div>
+                                        <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest">Lowest</p>
+                                        <p className="text-xs font-black text-rose-600 mt-0.5">{Math.round(min)}%</p>
+                                      </div>
+                                    </div>
+                                  </div>
+                                )}
+
+                                {!hasMarks && (
+                                  <div className="mt-6 py-4 border-2 border-dashed border-slate-100 rounded-2xl bg-slate-50/50 flex flex-col items-center justify-center text-center">
+                                    <p className="text-[10px] text-slate-400 font-bold">No evaluation records found yet.</p>
                                   </div>
                                 )}
                               </div>
+
+                              {/* Accordion trigger/content if there are marks */}
+                              {hasMarks && (
+                                <div className="border-t border-slate-100 bg-slate-50/30">
+                                  <button
+                                    onClick={() => toggleSubjectExpand(sub.id)}
+                                    className="w-full px-6 py-3 flex items-center justify-between text-xs font-black text-[#0B3C5D] hover:bg-slate-55 transition-colors"
+                                  >
+                                    <span>{isExpanded ? "Hide Scores" : "View Scores"}</span>
+                                    {isExpanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+                                  </button>
+
+                                  {isExpanded && (
+                                    <div className="px-6 pb-6 pt-2 space-y-3 bg-white border-t border-slate-50 animate-in fade-in duration-300">
+                                      {subjectMarks.map((rec) => {
+                                        const examName = rec.exams?.name ?? "Daily Assessment";
+                                        const date = rec.mark_date || rec.exams?.exam_date || rec.created_at || new Date().toISOString();
+                                        const total = rec.total_marks ?? rec.exams?.total_marks ?? 100;
+                                        const percentage = Number(rec.percentage ?? ((rec.marks_obtained / total) * 100));
+                                        const recGrade = getGrade(percentage);
+                                        const recGradeStyle = GRADE_CFG[recGrade];
+
+                                        return (
+                                          <div key={rec.id} className="p-3 bg-slate-50 rounded-xl border border-slate-150 flex items-center justify-between gap-4 text-xs">
+                                            <div className="space-y-0.5">
+                                              <p className="font-black text-slate-800">{examName}</p>
+                                              <p className="text-[10px] text-slate-400 font-bold">
+                                                {new Date(date).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
+                                              </p>
+                                            </div>
+                                            <div className="flex items-center gap-2.5">
+                                              <div className="text-right">
+                                                <p className="font-bold text-slate-600">{rec.marks_obtained} <span className="text-[10px] text-slate-400 font-medium">/ {total}</span></p>
+                                                <p className="text-[10px] font-black text-[#0B3C5D]">{Math.round(percentage)}%</p>
+                                              </div>
+                                              <span className={`text-[8px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full ${recGradeStyle.badge}`}>
+                                                {recGrade}
+                                              </span>
+                                            </div>
+                                          </div>
+                                        );
+                                      })}
+                                    </div>
+                                  )}
+                                </div>
+                              )}
                             </div>
                           );
                         })}
                       </div>
+                    ) : (
+                      <>
+                        {/* Filters header bar */}
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 bg-slate-50 border border-slate-200 rounded-2xl">
+                          <div className="flex flex-wrap items-center gap-4">
+                            {/* Subject Filter */}
+                            <div className="flex flex-col">
+                              <label className="text-[10px] font-black uppercase tracking-wider text-slate-400 mb-1">Subject</label>
+                              <select
+                                value={marksSubjectFilter}
+                                onChange={(e) => setMarksSubjectFilter(e.target.value)}
+                                className="px-3 py-2 text-xs bg-white border border-slate-200 rounded-xl outline-none focus:border-[#0B3C5D]"
+                              >
+                                <option value="">All Subjects</option>
+                                {subjects.map((sub: any) => (
+                                  <option key={sub.id} value={sub.id}>{sub.name}</option>
+                                ))}
+                              </select>
+                            </div>
+
+                            {/* Evaluator Role Filter */}
+                            <div className="flex flex-col">
+                              <label className="text-[10px] font-black uppercase tracking-wider text-slate-400 mb-1">Evaluated By</label>
+                              <select
+                                value={marksRoleFilter}
+                                onChange={(e) => setMarksRoleFilter(e.target.value)}
+                                className="px-3 py-2 text-xs bg-white border border-slate-200 rounded-xl outline-none focus:border-[#0B3C5D]"
+                              >
+                                <option value="">All Roles</option>
+                                <option value="Teacher">Teachers</option>
+                                <option value="Admin">Admin (ATOMUS)</option>
+                              </select>
+                            </div>
+                          </div>
+                          <div className="text-right shrink-0">
+                            <p className="text-xs font-bold text-slate-400">Total Scoped Marks</p>
+                            <p className="text-lg font-black text-slate-800">{filteredMarks.length}</p>
+                          </div>
+                        </div>
+
+                        {/* Marks Timeline */}
+                        {filteredMarks.length === 0 ? (
+                          <div className="py-16 text-center border border-dashed border-slate-200 rounded-2xl bg-slate-50/30">
+                            <div className="bg-slate-100 w-14 h-14 rounded-full flex items-center justify-center mx-auto mb-3 text-slate-400">
+                              <Award size={20} />
+                            </div>
+                            <p className="text-sm font-bold text-slate-600">No examination records match filters</p>
+                            <p className="text-xs text-slate-400 mt-1">Try resetting the subject or evaluator role filters.</p>
+                          </div>
+                        ) : (
+                          <div className="relative pl-6 sm:pl-8 before:absolute before:left-[11px] before:sm:left-[15px] before:top-2 before:bottom-2 before:w-[2px] before:bg-slate-100 space-y-6">
+                            {filteredMarks.map((rec) => {
+                              const examName = rec.exams?.name ?? "Daily Assessment";
+                              const date = rec.mark_date || rec.exams?.exam_date || rec.created_at || new Date().toISOString();
+                              const subjectName = rec.subjects?.name ?? "Overall";
+                              const total = rec.total_marks ?? rec.exams?.total_marks ?? 100;
+                              const percentage = Number(rec.percentage ?? ((rec.marks_obtained / total) * 100));
+                              const grade = getGrade(percentage);
+                              const gradeStyle = GRADE_CFG[grade]?.badge ?? "bg-slate-50 text-slate-500 border border-slate-100";
+
+                              return (
+                                <div key={rec.id} className="relative group animate-in fade-in duration-300">
+                                  {/* Timeline bullet indicator node */}
+                                  <div className={`absolute -left-[29px] -left:sm-[33px] top-1.5 w-3 h-3 sm:w-4 sm:h-4 rounded-full ${GRADE_CFG[grade]?.bar ? GRADE_CFG[grade].bar : 'bg-slate-300'} ring-4 ring-white shadow transition-all duration-300 group-hover:scale-125 z-10`} />
+
+                                  <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-sm hover:shadow-md hover:border-slate-300 transition-all duration-200">
+                                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                                      <div>
+                                        <div className="flex items-center gap-2 flex-wrap">
+                                          <span className="text-xs font-black text-slate-800 flex items-center gap-1">
+                                            <Calendar size={12} className="text-slate-400" />
+                                            {new Date(date).toLocaleDateString("en-US", {
+                                              month: "short", day: "numeric", year: "numeric"
+                                            })}
+                                          </span>
+                                          {rec.exams?.exam_scope === "course" && (
+                                            <span className="text-[9px] font-black text-amber-600 bg-amber-50 border border-amber-100 px-1.5 py-0.2 rounded uppercase tracking-wider">
+                                              Course-Wide
+                                            </span>
+                                          )}
+                                        </div>
+
+                                        <h4 className="text-sm font-black text-slate-900 mt-1">{examName}</h4>
+
+                                        <div className="flex items-center gap-2 mt-2 flex-wrap">
+                                          <span className="text-[10px] font-black text-[#0B3C5D] bg-[#0B3C5D]/5 px-2 py-0.5 rounded border border-[#0B3C5D]/10 flex items-center gap-1">
+                                            <BookOpen size={10} className="text-[#0B3C5D]/60" />
+                                            {subjectName}
+                                          </span>
+
+                                          <span className="text-[10px] font-semibold text-slate-500 bg-slate-50 border border-slate-200 px-2 py-0.5 rounded-full">
+                                            Score: <strong className="text-slate-700">{rec.marks_obtained} / {total}</strong>
+                                          </span>
+
+                                          {rec.teachers?.full_name ? (
+                                            <span className="text-[10px] font-semibold text-emerald-700 bg-emerald-50 border border-emerald-100 px-2 py-0.5 rounded-full">
+                                              Marked by {rec.teachers.full_name}
+                                            </span>
+                                          ) : (
+                                            <span className="text-[10px] font-semibold text-slate-650 bg-slate-50 border border-slate-200 px-2 py-0.5 rounded-full">
+                                              Marked by Admin (ATOMUS)
+                                            </span>
+                                          )}
+                                        </div>
+                                      </div>
+
+                                      <div className="flex items-center gap-2 shrink-0 self-start sm:self-center">
+                                        <span className="text-base font-black text-[#0B3C5D]">{Math.round(percentage)}%</span>
+                                        <span className={`text-[10px] font-black uppercase tracking-wider px-2.5 py-1 rounded-full ${gradeStyle}`}>
+                                          {grade}
+                                        </span>
+                                      </div>
+                                    </div>
+
+                                    {rec.remarks && (
+                                      <div className="mt-3 text-xs text-slate-500 font-medium italic border-t border-slate-100 pt-2.5">
+                                        "{rec.remarks}"
+                                      </div>
+                                    )}
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        )}
+                      </>
                     )}
                   </div>
                 );
