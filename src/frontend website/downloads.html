@@ -293,6 +293,46 @@
       height: 150px;
       border-radius: 8px;
     }
+
+    /* Coming Soon Overlay styling */
+    .coming-soon-overlay {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(255, 255, 255, 0.75);
+      backdrop-filter: blur(6px);
+      -webkit-backdrop-filter: blur(6px);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      z-index: 10;
+      transition: all 0.3s ease;
+    }
+
+    .coming-soon-badge {
+      background: linear-gradient(135deg, #0B3C5D 0%, #1d5f8a 100%);
+      color: #fff;
+      font-size: 13px;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: 2px;
+      padding: 12px 28px;
+      border-radius: 50px;
+      box-shadow: 0 10px 25px rgba(11, 60, 93, 0.3);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      transform: translateY(0);
+      transition: all 0.3s ease;
+    }
+
+    .dl-card:hover .coming-soon-badge {
+      transform: scale(1.05);
+      box-shadow: 0 12px 30px rgba(11, 60, 93, 0.4);
+    }
   </style>
 
 </head>
@@ -391,6 +431,11 @@
         <!-- iOS Download Card -->
         <div class="col-md-6 col-lg-5" data-aos="fade-up" data-aos-delay="200" data-aos-duration="1500">
           <div class="dl-card ios">
+            <div class="coming-soon-overlay">
+              <span class="coming-soon-badge">
+                <i class="fa-solid fa-clock"></i> Coming Soon
+              </span>
+            </div>
             <div class="dl-icon-wrapper">
               <i class="fa-brands fa-apple"></i>
             </div>
