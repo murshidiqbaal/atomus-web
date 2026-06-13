@@ -56,12 +56,23 @@ function TeacherCard({ teacher, onEdit, onToggleStatus }: Props) {
         <div className="flex items-center gap-2"><Phone size={12} /><span className="font-mono">{teacher.phone_number ?? "—"}</span></div>
       </div>
 
-      {teacher.password_hash && (
-        <div className="text-[10px] text-slate-400 font-bold bg-amber-50 px-2.5 py-1.5 rounded-xl border border-amber-200/50 flex items-center justify-between">
-          <span>PASSWORD:</span>
-          <span className="font-mono text-[#D4AF37] select-all">{teacher.password_hash}</span>
+      <div className="space-y-1.5 bg-slate-50 p-2.5 rounded-xl border border-slate-100">
+        <div className="text-[10px] text-slate-400 font-bold flex items-center justify-between">
+          <span>LOGIN:</span>
+          <span className="font-mono text-slate-600 select-all">{teacher.email}</span>
         </div>
-      )}
+        {teacher.password_hash ? (
+          <div className="text-[10px] text-slate-400 font-bold flex items-center justify-between pt-1.5 border-t border-slate-200/50">
+            <span>PASSWORD:</span>
+            <span className="font-mono text-[#D4AF37] select-all">{teacher.password_hash}</span>
+          </div>
+        ) : (
+          <div className="text-[10px] text-slate-400 font-bold flex items-center justify-between pt-1.5 border-t border-slate-200/50">
+            <span>PASSWORD:</span>
+            <span className="text-[10px] font-bold text-slate-400 italic">Managed by Auth</span>
+          </div>
+        )}
+      </div>
 
       <div className="grid grid-cols-3 gap-2 pt-1">
         <div className="bg-slate-50 rounded-lg py-2 text-center">

@@ -67,8 +67,19 @@ function TeacherRow({ teacher, onEdit, onToggleStatus, onResetPassword, onDelete
       </td>
 
       <td className="px-4 py-3 hidden md:table-cell">
-        <p className="text-xs text-slate-700 truncate max-w-[14rem]">{teacher.email}</p>
-        <p className="text-[11px] text-slate-400 mt-0.5 font-mono">{teacher.phone_number ?? "—"}</p>
+        <p className="text-sm text-slate-700 font-mono">{teacher.phone_number ?? "—"}</p>
+        <p className="text-[10px] text-slate-400 uppercase tracking-wide font-bold mt-0.5">
+          Login: <span className="font-mono">{teacher.email || "—"}</span>
+        </p>
+        {teacher.password_hash ? (
+          <p className="text-[10px] text-[#D4AF37] uppercase tracking-wide font-bold mt-0.5">
+            Password: <span className="font-mono select-all bg-amber-50 px-1 rounded border border-amber-200/50">{teacher.password_hash}</span>
+          </p>
+        ) : (
+          <p className="text-[10px] text-slate-400 uppercase tracking-wide font-bold mt-0.5">
+            Password: <span className="text-[10px] font-bold text-slate-400 italic">Managed by Auth</span>
+          </p>
+        )}
       </td>
 
       <td className="px-4 py-3 hidden lg:table-cell">
@@ -105,15 +116,7 @@ function TeacherRow({ teacher, onEdit, onToggleStatus, onResetPassword, onDelete
         <span className="text-[11px] font-semibold text-slate-600">{teacher.experience_years ?? 0}y</span>
       </td>
 
-      <td className="px-4 py-3 hidden xl:table-cell">
-        {teacher.password_hash ? (
-          <span className="font-mono text-xs text-[#D4AF37] select-all bg-amber-50 px-2 py-1 rounded border border-amber-200/50">
-            {teacher.password_hash}
-          </span>
-        ) : (
-          <span className="text-[10px] font-bold text-slate-400 italic">Managed by Auth</span>
-        )}
-      </td>
+
 
       <td className="px-4 py-3">
         <span className={`text-[10px] font-bold px-2 py-1 rounded-lg ${STATUS_BADGE[teacher.account_status] ?? "bg-slate-100 text-slate-500"}`}>

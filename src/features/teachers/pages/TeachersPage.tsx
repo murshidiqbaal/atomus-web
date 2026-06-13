@@ -360,7 +360,7 @@ export default function TeachersPage() {
               <table className="w-full text-left">
                 <thead>
                   <tr className="border-b border-slate-100 bg-slate-50/80">
-                    {["Teacher", "Campus", "Contact", "Subjects", "Batches", "Exp.", "Password", "Status", "Actions"].map((h, i) => (
+                    {["Teacher", "Campus", "Contact / Login", "Subjects", "Batches", "Exp.", "Status", "Actions"].map((h, i) => (
                       <th
                         key={h}
                         className={`px-4 py-3 text-[11px] font-bold text-slate-400 uppercase tracking-wide whitespace-nowrap
@@ -369,8 +369,7 @@ export default function TeachersPage() {
                           ${i === 3 ? "hidden lg:table-cell" : ""}
                           ${i === 4 ? "hidden xl:table-cell" : ""}
                           ${i === 5 ? "hidden md:table-cell" : ""}
-                          ${i === 6 ? "hidden xl:table-cell" : ""}
-                          ${i === 8 ? "text-right" : ""}
+                          ${i === 7 ? "text-right" : ""}
                         `}
                       >
                         {h}
