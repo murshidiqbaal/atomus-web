@@ -36,11 +36,26 @@ const StudentRow = React.memo(function StudentRow({ student, onEdit }: Props) {
         <div className="flex items-center gap-4 min-w-0">
           <div className="relative shrink-0">
             {student.profile_photo_url ? (
-              <img
-                src={student.profile_photo_url}
-                alt={student.full_name}
-                className="w-12 h-12 rounded-[1rem] object-cover shadow-sm border border-slate-200 group-hover:scale-110 transition-transform duration-500"
-              />
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  const fileId = student.profile_photo_drive_id;
+                  if (fileId) {
+                    window.open(`https://drive.google.com/file/d/${fileId}/view`, "_blank");
+                  } else {
+                    window.open(student.profile_photo_url!, "_blank");
+                  }
+                }}
+                className="cursor-pointer focus:outline-none block"
+                title="View image in Google Drive"
+              >
+                <img
+                  src={student.profile_photo_url}
+                  alt={student.full_name}
+                  className="w-12 h-12 rounded-[1rem] object-cover shadow-sm border border-slate-200 group-hover:scale-110 transition-transform duration-500"
+                />
+              </button>
             ) : (
               <div className="w-12 h-12 rounded-[1rem] bg-[#0B3C5D]/5 text-[#0B3C5D] flex items-center justify-center text-sm font-black border border-[#0B3C5D]/10">
                 {student.full_name.charAt(0).toUpperCase()}

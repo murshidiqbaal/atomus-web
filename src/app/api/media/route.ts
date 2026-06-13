@@ -14,7 +14,38 @@ export async function GET(request: NextRequest) {
     return new Response("Missing media file id parameter", { status: 400 });
   }
 
+  // Fallback to direct public googleusercontent fetch
+  const fallbackFetch = async () => {
+    const publicUrl = `https://lh3.googleusercontent.com/d/${fileId}`;
+    const response = await fetch(publicUrl);
+    if (!response.ok) {
+      throw new Error(`Public fetch failed with status ${response.status}`);
+    }
+    const contentType = response.headers.get("Content-Type") || "image/jpeg";
+    const headers: Record<string, string> = {
+      "Content-Type": contentType,
+      "Cache-Control": "public, max-age=31536000, immutable",
+    };
+    const download = searchParams.get("download");
+    if (download === "true") {
+      let ext = "jpg";
+      if (contentType.includes("png")) ext = "png";
+      else if (contentType.includes("gif")) ext = "gif";
+      else if (contentType.includes("webp")) ext = "webp";
+      else if (contentType.includes("pdf")) ext = "pdf";
+      headers["Content-Disposition"] = `attachment; filename="student_profile.${ext}"`;
+    }
+    return new Response(response.body, { headers });
+  };
+
   try {
+    // Check if we have credentials before calling getDrive() to avoid throwing immediately
+    const hasOAuth = !!process.env.GOOGLE_REFRESH_TOKEN;
+    const hasServiceAccount = !!process.env.GOOGLE_SERVICE_ACCOUNT_JSON;
+    if (!hasOAuth && !hasServiceAccount) {
+      return await fallbackFetch();
+    }
+
     const drive = getDrive();
 
     // 1. Get file metadata to check mimeType
@@ -53,7 +84,12 @@ export async function GET(request: NextRequest) {
       headers,
     });
   } catch (error: any) {
-    console.error("Failed to proxy Drive file:", error);
-    return new Response(`Failed to load media: ${error.message}`, { status: 502 });
+    console.warn("Failed to proxy Drive file via API client, attempting public fallback:", error.message);
+    try {
+      return await fallbackFetch();
+    } catch (fallbackError: any) {
+      console.error("Public fallback also failed:", fallbackError);
+      return new Response(`Failed to load media: ${error.message}`, { status: 502 });
+    }
   }
 }
