@@ -5,6 +5,8 @@ export interface CampusInput {
   name: string;
   location?: string | null;
   isActive?: boolean;
+  paymentQrUrl?: string | null;
+  paymentQrDriveId?: string | null;
 }
 
 function mapCampusRow(row: any): Campus {
@@ -15,6 +17,8 @@ function mapCampusRow(row: any): Campus {
     isActive: row.is_active,
     createdAt: row.created_at,
     courseCount: row.campus_courses?.[0]?.count ?? undefined,
+    paymentQrUrl: row.payment_qr_url ?? null,
+    paymentQrDriveId: row.payment_qr_drive_id ?? null,
   };
 }
 
@@ -72,9 +76,11 @@ export class SupabaseCampusRepository implements ICampusRepository {
 
   async updateCampus(id: string, patch: Partial<CampusInput>): Promise<Campus> {
     const updates: Record<string, unknown> = {};
-    if (patch.name !== undefined)     updates.name = patch.name.trim();
-    if (patch.location !== undefined) updates.location = patch.location?.trim() || null;
-    if (patch.isActive !== undefined) updates.is_active = patch.isActive;
+    if (patch.name !== undefined)             updates.name = patch.name.trim();
+    if (patch.location !== undefined)         updates.location = patch.location?.trim() || null;
+    if (patch.isActive !== undefined)         updates.is_active = patch.isActive;
+    if (patch.paymentQrUrl !== undefined)     updates.payment_qr_url = patch.paymentQrUrl;
+    if (patch.paymentQrDriveId !== undefined) updates.payment_qr_drive_id = patch.paymentQrDriveId;
 
     const { data, error } = await supabase
       .from("campuses")

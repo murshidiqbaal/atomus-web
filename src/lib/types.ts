@@ -89,6 +89,8 @@ export interface Campus {
   isActive: boolean;
   createdAt: string;
   courseCount?: number;
+  paymentQrUrl?: string | null;
+  paymentQrDriveId?: string | null;
 }
 
 export interface Course {

@@ -9,7 +9,7 @@ import {
   LayoutDashboard, Users, UserCircle, GraduationCap, BookOpen,
   BookMarked, CalendarCheck, FileSpreadsheet, CreditCard, Megaphone,
   BarChart3, Settings, Menu, X, Bell, Search, ChevronDown,
-  LogOut, Calculator, Award, Timer
+  LogOut, Calculator, Award, Timer, QrCode
 } from 'lucide-react';
 
 type NavItem = { href: string; label: string; icon: any; roles?: Exclude<AppRole, null>[] };
@@ -25,6 +25,7 @@ const navItems: readonly NavItem[] = [
   { href: '/teacher-attendance', label: 'Teacher Attendance', icon: Timer, roles: ['admin', 'staff'] },
   { href: '/marks', label: 'Marks', icon: FileSpreadsheet, roles: ['admin', 'staff'] },
   { href: '/fees', label: 'Fees', icon: CreditCard, roles: ['admin'] },
+  { href: '/payment-qr', label: 'Payment QR', icon: QrCode, roles: ['admin'] },
   { href: '/expenses', label: 'Expenses', icon: Calculator, roles: ['admin'] },
   { href: '/announcements', label: 'Announcements', icon: Megaphone, roles: ['admin', 'staff'] },
   { href: '/reports', label: 'Reports', icon: BarChart3, roles: ['admin'] },
@@ -45,6 +46,7 @@ const ROLE_PATH_RULES: { prefix: string; allow: Exclude<AppRole, null>[] }[] = [
   { prefix: '/teacher-attendance', allow: ['admin', 'staff'] },
   { prefix: '/marks', allow: ['admin', 'staff'] },
   { prefix: '/fees', allow: ['admin'] },
+  { prefix: '/payment-qr', allow: ['admin'] },
   { prefix: '/expenses', allow: ['admin'] },
   { prefix: '/announcements', allow: ['admin', 'staff'] },
   { prefix: '/reports', allow: ['admin'] },

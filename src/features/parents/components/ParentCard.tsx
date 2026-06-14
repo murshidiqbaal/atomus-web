@@ -32,9 +32,32 @@ function ParentCard({ parent, onEdit, onResetPassword, onDelete, onToggleStatus 
   return (
     <div className="bg-white rounded-2xl border border-slate-200 p-4 space-y-3">
       <div className="flex items-start gap-3">
-        <div className="w-10 h-10 rounded-xl bg-[#0B3C5D]/10 text-[#0B3C5D] flex items-center justify-center text-sm font-black shrink-0">
-          {parent.full_name.charAt(0).toUpperCase()}
-        </div>
+        {parent.profile_photo_url ? (
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              const fileId = parent.profile_photo_drive_id;
+              if (fileId) {
+                window.open(`https://drive.google.com/file/d/${fileId}/view`, "_blank");
+              } else {
+                window.open(parent.profile_photo_url!, "_blank");
+              }
+            }}
+            className="cursor-pointer focus:outline-none block shrink-0"
+            title="View image in Google Drive"
+          >
+            <img
+              src={parent.profile_photo_url}
+              alt={parent.full_name}
+              className="w-10 h-10 rounded-xl object-cover border border-slate-200 hover:scale-105 transition-transform"
+            />
+          </button>
+        ) : (
+          <div className="w-10 h-10 rounded-xl bg-[#0B3C5D]/10 text-[#0B3C5D] flex items-center justify-center text-sm font-black shrink-0">
+            {parent.full_name.charAt(0).toUpperCase()}
+          </div>
+        )}
         <div className="flex-1 min-w-0">
           <p className="text-sm font-bold text-slate-800 truncate">{parent.full_name}</p>
           <p className="text-xs text-slate-400 truncate">{parent.email}</p>

@@ -5,7 +5,7 @@ import Link from "next/link";
 import {
   ArrowLeft, Mail, Phone, KeyRound, Power, Pencil, Trash2, Plus, Link2, UserPlus,
   CheckCircle2, AlertCircle, X, BookOpen, Layers, CalendarDays, Loader2, Unlink,
-  ChevronRight, ExternalLink, ShieldCheck, GraduationCap
+  ChevronRight, ExternalLink, ShieldCheck, GraduationCap, Download
 } from "lucide-react";
 import {
   useParent, useDeleteParent, useResetParentPassword, useToggleParentStatus, useUnlinkStudent,
@@ -129,6 +129,27 @@ export default function ParentDetailPage({ id }: { id: string }) {
     setTimeout(() => setToast(null), 4000);
   }
 
+  const handleDownloadPhoto = () => {
+    if (!parent?.profile_photo_url) return;
+
+    let fileId = parent.profile_photo_drive_id || null;
+    if (!fileId) {
+      try {
+        const u = new URL(parent.profile_photo_url, window.location.origin);
+        fileId = u.searchParams.get("id");
+      } catch {
+        fileId = null;
+      }
+    }
+
+    if (fileId) {
+      window.open(`https://drive.google.com/uc?export=download&id=${fileId}`, "_blank");
+    } else {
+      const separator = parent.profile_photo_url.includes("?") ? "&" : "?";
+      window.open(`${parent.profile_photo_url}${separator}download=true`, "_blank");
+    }
+  };
+
   const students = parent?.students ?? [];
 
   const distinct = useMemo(() => {
@@ -224,39 +245,74 @@ export default function ParentDetailPage({ id }: { id: string }) {
           <ArrowLeft size={16} />
           Back to Directory
         </Link>
-        <div className="relative">
-          <button
-            onClick={() => setActionMenu((v) => !v)}
-            className="flex items-center gap-2 px-6 py-3 bg-white border border-slate-200 rounded-2xl text-sm font-black text-slate-700 hover:bg-slate-50 transition-all shadow-sm active:scale-95"
-          >
-            Management Actions
-            <ChevronRight size={16} className={`transition-transform duration-300 ${actionMenu ? "rotate-90" : ""}`} />
-          </button>
-          {actionMenu && (
-            <div className="absolute right-0 top-full mt-3 w-56 bg-white border border-slate-200 rounded-3xl shadow-2xl z-20 overflow-hidden animate-in zoom-in-95 duration-200 p-2">
-              <button onClick={() => { setActionMenu(false); setEditOpen(true); }} className="w-full flex items-center gap-3 px-4 py-3 text-sm font-bold text-slate-700 hover:bg-slate-50 rounded-2xl transition-colors">
-                <Pencil size={16} className="text-slate-400" /> Edit Profile
-              </button>
-              <button onClick={() => { setActionMenu(false); handleReset(); }} className="w-full flex items-center gap-3 px-4 py-3 text-sm font-bold text-slate-700 hover:bg-slate-50 rounded-2xl transition-colors">
-                <KeyRound size={16} className="text-slate-400" /> Reset Password
-              </button>
-              <button onClick={() => { setActionMenu(false); handleToggle(); }} className="w-full flex items-center gap-3 px-4 py-3 text-sm font-bold text-slate-700 hover:bg-slate-50 rounded-2xl transition-colors">
-                <Power size={16} className="text-slate-400" /> {parent.account_status === "Active" ? "Disable Account" : "Enable Account"}
-              </button>
-              <div className="h-px bg-slate-100 my-2" />
-              <button onClick={() => { setActionMenu(false); handleDelete(); }} className="w-full flex items-center gap-3 px-4 py-3 text-sm font-bold text-rose-600 hover:bg-rose-50 rounded-2xl transition-colors">
-                <Trash2 size={16} /> Delete Account
-              </button>
-            </div>
+        <div className="flex items-center gap-3">
+          {parent.profile_photo_url && (
+            <button
+              onClick={handleDownloadPhoto}
+              title="Download Profile Picture directly from Google Drive"
+              className="flex items-center justify-center gap-2 bg-white border border-slate-200 text-slate-600 px-5 py-3 rounded-2xl text-sm font-black hover:bg-slate-50 transition-all shadow-sm active:scale-95 group"
+            >
+              <Download size={18} className="text-slate-400 group-hover:text-[#0B3C5D] transition-colors" />
+              Download Photo
+            </button>
           )}
+          <div className="relative">
+            <button
+              onClick={() => setActionMenu((v) => !v)}
+              className="flex items-center gap-2 px-6 py-3 bg-white border border-slate-200 rounded-2xl text-sm font-black text-slate-700 hover:bg-slate-50 transition-all shadow-sm active:scale-95"
+            >
+              Management Actions
+              <ChevronRight size={16} className={`transition-transform duration-300 ${actionMenu ? "rotate-90" : ""}`} />
+            </button>
+            {actionMenu && (
+              <div className="absolute right-0 top-full mt-3 w-56 bg-white border border-slate-200 rounded-3xl shadow-2xl z-20 overflow-hidden animate-in zoom-in-95 duration-200 p-2">
+                <button onClick={() => { setActionMenu(false); setEditOpen(true); }} className="w-full flex items-center gap-3 px-4 py-3 text-sm font-bold text-slate-700 hover:bg-slate-50 rounded-2xl transition-colors">
+                  <Pencil size={16} className="text-slate-400" /> Edit Profile
+                </button>
+                <button onClick={() => { setActionMenu(false); handleReset(); }} className="w-full flex items-center gap-3 px-4 py-3 text-sm font-bold text-slate-700 hover:bg-slate-50 rounded-2xl transition-colors">
+                  <KeyRound size={16} className="text-slate-400" /> Reset Password
+                </button>
+                <button onClick={() => { setActionMenu(false); handleToggle(); }} className="w-full flex items-center gap-3 px-4 py-3 text-sm font-bold text-slate-700 hover:bg-slate-50 rounded-2xl transition-colors">
+                  <Power size={16} className="text-slate-400" /> {parent.account_status === "Active" ? "Disable Account" : "Enable Account"}
+                </button>
+                <div className="h-px bg-slate-100 my-2" />
+                <button onClick={() => { setActionMenu(false); handleDelete(); }} className="w-full flex items-center gap-3 px-4 py-3 text-sm font-bold text-rose-600 hover:bg-rose-50 rounded-2xl transition-colors">
+                  <Trash2 size={16} /> Delete Account
+                </button>
+              </div>
+            )}
+          </div>
         </div>
       </div>
 
       <div className="bg-white rounded-[3rem] border border-slate-200 p-10 shadow-sm">
         <div className="flex flex-col lg:flex-row lg:items-center gap-10">
-          <div className="w-24 h-24 rounded-[2.5rem] bg-gradient-to-br from-[#0B3C5D] to-[#0B3C5D]/80 text-white text-3xl font-black flex items-center justify-center shrink-0 shadow-2xl shadow-blue-900/30 border-4 border-white ring-1 ring-slate-100">
-            {parent.full_name.charAt(0).toUpperCase()}
-          </div>
+          {parent.profile_photo_url ? (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                const fileId = parent.profile_photo_drive_id;
+                if (fileId) {
+                  window.open(`https://drive.google.com/file/d/${fileId}/view`, "_blank");
+                } else {
+                  window.open(parent.profile_photo_url!, "_blank");
+                }
+              }}
+              className="cursor-pointer focus:outline-none block shrink-0"
+              title="View image in Google Drive"
+            >
+              <img
+                src={parent.profile_photo_url}
+                alt={parent.full_name}
+                className="w-24 h-24 rounded-[2.5rem] object-cover border-4 border-white ring-1 ring-slate-100 shadow-2xl shadow-blue-900/30 hover:scale-105 transition-transform"
+              />
+            </button>
+          ) : (
+            <div className="w-24 h-24 rounded-[2.5rem] bg-gradient-to-br from-[#0B3C5D] to-[#0B3C5D]/80 text-white text-3xl font-black flex items-center justify-center shrink-0 shadow-2xl shadow-blue-900/30 border-4 border-white ring-1 ring-slate-100">
+              {parent.full_name.charAt(0).toUpperCase()}
+            </div>
+          )}
 
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-4 flex-wrap">

@@ -4,7 +4,8 @@ export type DriveFolderKey =
   | "parents"
   | "posters"
   | "certificates"
-  | "announcements";
+  | "announcements"
+  | "payment_qrs";
 
 const DEFAULTS: Record<DriveFolderKey, string> = {
   teachers:      "1TRnGXnjCY7c4OKtVWJSwXLcvIKzKJ1TU",
@@ -13,6 +14,7 @@ const DEFAULTS: Record<DriveFolderKey, string> = {
   posters:       "1rP4OL4BQoalRh8mt5R93deoMQmtWRtBn",
   certificates:  "15z4pIXHZAfrmcEhmMoOkgJYyx-wmH9UZ",
   announcements: "1aQhpKOk2qAU8BGISmgVWwDTcgW40G42j",
+  payment_qrs:   "1rP4OL4BQoalRh8mt5R93deoMQmtWRtBn", // Default fallbacks to posters folder
 };
 
 export const DRIVE_FOLDERS: Record<DriveFolderKey, string> = {
@@ -22,4 +24,6 @@ export const DRIVE_FOLDERS: Record<DriveFolderKey, string> = {
   posters:       process.env.GOOGLE_DRIVE_FOLDER_POSTERS       ?? process.env.GOOGLE_DRIVE_POSTERS_FOLDER       ?? DEFAULTS.posters,
   certificates:  process.env.GOOGLE_DRIVE_FOLDER_CERTIFICATES  ?? process.env.GOOGLE_DRIVE_CERTIFICATES_FOLDER  ?? DEFAULTS.certificates,
   announcements: process.env.GOOGLE_DRIVE_FOLDER_ANNOUNCEMENTS ?? process.env.GOOGLE_DRIVE_ANNOUNCEMENTS_FOLDER ?? DEFAULTS.announcements,
+  payment_qrs:   process.env.GOOGLE_DRIVE_FOLDER_PAYMENT_QRS   ?? process.env.GOOGLE_DRIVE_PAYMENT_QRS_FOLDER   ?? DEFAULTS.payment_qrs,
 };
+

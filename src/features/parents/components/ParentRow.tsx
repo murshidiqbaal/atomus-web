@@ -47,9 +47,32 @@ function ParentRow({ parent, onEdit, onResetPassword, onDelete, onToggleStatus }
     <tr className="border-b border-slate-100 hover:bg-slate-50/60 transition-colors">
       <td className="px-4 py-3">
         <div className="flex items-center gap-3">
-          <div className="w-9 h-9 rounded-xl bg-[#0B3C5D]/10 text-[#0B3C5D] flex items-center justify-center text-xs font-black shrink-0">
-            {parent.full_name.charAt(0).toUpperCase()}
-          </div>
+          {parent.profile_photo_url ? (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                const fileId = parent.profile_photo_drive_id;
+                if (fileId) {
+                  window.open(`https://drive.google.com/file/d/${fileId}/view`, "_blank");
+                } else {
+                  window.open(parent.profile_photo_url!, "_blank");
+                }
+              }}
+              className="cursor-pointer focus:outline-none block shrink-0"
+              title="View image in Google Drive"
+            >
+              <img
+                src={parent.profile_photo_url}
+                alt={parent.full_name}
+                className="w-9 h-9 rounded-xl object-cover border border-slate-200 hover:scale-105 transition-transform"
+              />
+            </button>
+          ) : (
+            <div className="w-9 h-9 rounded-xl bg-[#0B3C5D]/10 text-[#0B3C5D] flex items-center justify-center text-xs font-black shrink-0">
+              {parent.full_name.charAt(0).toUpperCase()}
+            </div>
+          )}
           <div className="min-w-0">
             <p className="text-sm font-bold text-slate-800 truncate">{parent.full_name}</p>
             <p className="text-xs text-slate-400 truncate">{parent.email}</p>
