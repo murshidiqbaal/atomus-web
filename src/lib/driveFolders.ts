@@ -14,7 +14,7 @@ const DEFAULTS: Record<DriveFolderKey, string> = {
   posters:       "1rP4OL4BQoalRh8mt5R93deoMQmtWRtBn",
   certificates:  "15z4pIXHZAfrmcEhmMoOkgJYyx-wmH9UZ",
   announcements: "1aQhpKOk2qAU8BGISmgVWwDTcgW40G42j",
-  payment_qrs:   "1rP4OL4BQoalRh8mt5R93deoMQmtWRtBn", // Default fallbacks to posters folder
+  payment_qrs:   "13L4iFGTvIa5TdGa8b4eqCaMNn5ORlNYF", // Default for payments QR codes
 };
 
 export const DRIVE_FOLDERS: Record<DriveFolderKey, string> = {

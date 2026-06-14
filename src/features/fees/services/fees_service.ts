@@ -187,11 +187,12 @@ export const feesService = {
     let q = supabase
       .from("student_fees")
       .select(
-        "*, students!inner(id, full_name, academic_status, admission_number, roll_number, campus_id, course_id, courses(id, name), campuses(id, name), parents(phone_number, username))",
+        "*, fee_structures(id, name), students!inner(id, full_name, academic_status, admission_number, roll_number, campus_id, course_id, courses(id, name), campuses(id, name), parents(phone_number, username))",
       )
       .order("updated_at", { ascending: false, nullsFirst: false });
 
     if (filters.status !== "All") q = q.eq("payment_status", filters.status);
+    if (filters.fee_structure_id) q = q.eq("fee_structure_id", filters.fee_structure_id);
     if (filters.course_id) q = q.eq("students.course_id", filters.course_id);
     if (filters.campus_id) q = q.eq("students.campus_id", filters.campus_id);
     if (filters.academic_status && filters.academic_status !== "All") {
@@ -220,23 +221,24 @@ export const feesService = {
     return rows;
   },
 
-  async getStudentFee(student_id: string): Promise<StudentFee | null> {
+  /** All fee rows (one per structure) for a student. */
+  async listStudentFeesForStudent(student_id: string): Promise<StudentFee[]> {
     const { data, error } = await supabase
       .from("student_fees")
       .select(
-        "*, students!inner(id, full_name, admission_number, roll_number, campus_id, course_id, courses(id, name), campuses(id, name))",
+        "*, fee_structures(id, name), students!inner(id, full_name, admission_number, roll_number, campus_id, course_id, courses(id, name), campuses(id, name))",
       )
       .eq("student_id", student_id)
-      .maybeSingle();
+      .order("created_at", { ascending: true });
     if (error) throw error;
-    return data ? normaliseStudentFee(data as Record<string, unknown>) : null;
+    return (data ?? []).map((r) => normaliseStudentFee(r as Record<string, unknown>));
   },
 
-  async applyDiscount(student_id: string, new_total: number, new_discount: number): Promise<void> {
+  async applyDiscount(student_fee_id: string, new_total: number, new_discount: number): Promise<void> {
     const { data: current, error: rErr } = await supabase
       .from("student_fees")
       .select("paid_amount")
-      .eq("student_id", student_id)
+      .eq("id", student_fee_id)
       .maybeSingle();
     if (rErr) throw rErr;
 
@@ -253,15 +255,15 @@ export const feesService = {
         balance_amount: balance,
         payment_status: status,
       })
-      .eq("student_id", student_id);
+      .eq("id", student_fee_id);
     if (error) throw error;
   },
 
-  async updatePaymentStatus(student_id: string, status: string): Promise<void> {
+  async updatePaymentStatus(student_fee_id: string, status: string): Promise<void> {
     const { error } = await supabase
       .from("student_fees")
       .update({ payment_status: status })
-      .eq("student_id", student_id);
+      .eq("id", student_fee_id);
     if (error) throw error;
   },
 
@@ -290,9 +292,12 @@ export const feesService = {
 
     const studentIds = students.map((s) => s.id as string);
 
+    // Skip only students who already have THIS structure — a student may hold
+    // several different structures, so we dedupe on (student, structure).
     const { data: existing, error: eErr } = await supabase
       .from("student_fees")
       .select("student_id")
+      .eq("fee_structure_id", fs.id)
       .in("student_id", studentIds);
     if (eErr) throw eErr;
     const have = new Set((existing ?? []).map((r) => r.student_id as string));
@@ -316,7 +321,11 @@ export const feesService = {
 
     if (rows.length === 0) return { assigned: 0, skipped: studentIds.length };
 
-    const { error: iErr } = await supabase.from("student_fees").insert(rows);
+    // Upsert on the (student, structure) pair so a pre-existing row or a
+    // double-click can't abort the whole batch with a duplicate-key error.
+    const { error: iErr } = await supabase
+      .from("student_fees")
+      .upsert(rows, { onConflict: "student_id,fee_structure_id", ignoreDuplicates: true });
     if (iErr) throw iErr;
 
     return { assigned: rows.length, skipped: studentIds.length - rows.length };
@@ -341,11 +350,13 @@ export const feesService = {
     const start = args.start_date || todayISO();
     const termStatus = buildTermStatusFromStructure(terms, fs.fee_frequency, start);
 
-    // Upsert by student_id (UNIQUE).
+    // Upsert by (student, structure) — re-assigning the SAME structure refreshes
+    // its terms; a different structure becomes an additional row.
     const { data: existing } = await supabase
       .from("student_fees")
       .select("id, paid_amount")
       .eq("student_id", args.student_id)
+      .eq("fee_structure_id", fs.id)
       .maybeSingle();
 
     const paid = Number(existing?.paid_amount ?? 0);
@@ -354,13 +365,12 @@ export const feesService = {
       const { data, error } = await supabase
         .from("student_fees")
         .update({
-          fee_structure_id: fs.id,
           total_fee: total,
           balance_amount: Math.max(0, total - paid),
           payment_status: paid >= total ? "Paid" : paid > 0 ? "Partial" : "Pending",
           term_status: termStatus,
         })
-        .eq("student_id", args.student_id)
+        .eq("id", existing.id)
         .select("*")
         .single();
       if (error) throw error;
@@ -391,27 +401,60 @@ export const feesService = {
 
     // Apply the payment to the named term in term_status (if provided) before
     // inserting the transaction. The DB trigger updates the aggregate row.
-    if (input.term_name) {
-      const { data: sf } = await supabase
-        .from("student_fees")
-        .select("term_status")
-        .eq("student_id", input.student_id)
-        .maybeSingle();
-      if (sf && Array.isArray(sf.term_status)) {
-        const terms = (sf.term_status as TermStatus[]).map((t) =>
+    // Target the specific structure row when given; otherwise fall back to the
+    // student's single legacy row.
+    let sfQuery = supabase
+      .from("student_fees")
+      .select("id, term_status");
+    sfQuery = input.student_fee_id
+      ? sfQuery.eq("id", input.student_fee_id)
+      : sfQuery.eq("student_id", input.student_id);
+    const { data: sf } = await sfQuery.maybeSingle();
+
+    const targetFeeId = (sf?.id as string | undefined) ?? input.student_fee_id ?? null;
+
+    if (sf && Array.isArray(sf.term_status)) {
+      let terms = sf.term_status as TermStatus[];
+      let remaining = Number(input.amount_paid);
+
+      if (input.term_name && input.term_name !== "auto") {
+        terms = terms.map((t) =>
           t.term_name === input.term_name
-            ? { ...t, amount_paid: Number(t.amount_paid) + Number(input.amount_paid) }
+            ? { ...t, amount_paid: Number(t.amount_paid) + remaining }
             : t,
         );
-        await supabase
-          .from("student_fees")
-          .update({ term_status: recomputeTermStatuses(terms) })
-          .eq("student_id", input.student_id);
+      } else {
+        // Auto-allocate cascade
+        terms = terms.map((t) => {
+          if (remaining <= 0) return t;
+          const due = Number(t.amount_due) || 0;
+          const paid = Number(t.amount_paid) || 0;
+          const balance = Math.max(0, due - paid);
+          if (balance <= 0) return t;
+
+          const toPay = Math.min(remaining, balance);
+          remaining -= toPay;
+          return { ...t, amount_paid: paid + toPay };
+        });
+
+        // Remainder overpayment goes to the last term
+        if (remaining > 0 && terms.length > 0) {
+          const lastIdx = terms.length - 1;
+          terms[lastIdx].amount_paid = Number(terms[lastIdx].amount_paid) + remaining;
+        }
       }
+
+      const tsUpdate = supabase
+        .from("student_fees")
+        .update({ term_status: recomputeTermStatuses(terms) });
+      await (targetFeeId
+        ? tsUpdate.eq("id", targetFeeId)
+        : tsUpdate.eq("student_id", input.student_id));
     }
 
     const stamped = {
       student_id: input.student_id,
+      student_fee_id: targetFeeId,
       amount_paid: input.amount_paid,
       payment_date: input.payment_date,
       payment_method: input.payment_method,
@@ -427,6 +470,55 @@ export const feesService = {
       .single();
     if (error) throw error;
     return data as PaymentTransaction;
+  },
+
+  async updateStudentTermStatus(
+    student_fee_id: string,
+    term_name: string,
+    patch: { amount_due?: number; amount_paid?: number; due_date?: string }
+  ): Promise<void> {
+    const { data: sf, error: fErr } = await supabase
+      .from("student_fees")
+      .select("total_fee, discount_amount, paid_amount, term_status, admission_fee")
+      .eq("id", student_fee_id)
+      .maybeSingle();
+    if (fErr) throw fErr;
+    if (!sf) throw new Error("Student fee record not found.");
+
+    let terms = Array.isArray(sf.term_status) ? (sf.term_status as TermStatus[]) : [];
+    terms = terms.map((t) => {
+      if (t.term_name === term_name) {
+        return { ...t, ...patch };
+      }
+      return t;
+    });
+
+    // Recompute statuses (Paid/Partial/Pending/Overdue) for terms
+    terms = recomputeTermStatuses(terms);
+
+    // Recompute total student fee and balance
+    const admission = Number(sf.admission_fee ?? 0);
+    const discount = Number(sf.discount_amount ?? 0);
+    
+    // Sum of all term amount_due + admission_fee
+    const newTotal = terms.reduce((acc, t) => acc + (Number(t.amount_due) || 0), 0) + admission;
+    const newPaid = terms.reduce((acc, t) => acc + (Number(t.amount_paid) || 0), 0);
+    const newBalance = Math.max(0, newTotal - discount - newPaid);
+    
+    const overallStatus =
+      newBalance === 0 ? "Paid" : newPaid > 0 ? "Partial" : "Pending";
+
+    const { error } = await supabase
+      .from("student_fees")
+      .update({
+        term_status: terms,
+        total_fee: newTotal,
+        paid_amount: newPaid,
+        balance_amount: newBalance,
+        payment_status: overallStatus,
+      })
+      .eq("id", student_fee_id);
+    if (error) throw error;
   },
 
   async listPayments(filters: FeeFilters): Promise<PaymentTransaction[]> {
@@ -476,12 +568,14 @@ export const feesService = {
     return (data ?? null) as PaymentTransaction | null;
   },
 
-  async listStudentPayments(student_id: string): Promise<PaymentTransaction[]> {
-    const { data, error } = await supabase
+  async listStudentPayments(student_id: string, student_fee_id?: string): Promise<PaymentTransaction[]> {
+    let q = supabase
       .from("payment_transactions")
       .select("*")
       .eq("student_id", student_id)
       .order("payment_date", { ascending: false });
+    if (student_fee_id) q = q.eq("student_fee_id", student_fee_id);
+    const { data, error } = await q;
     if (error) throw error;
     return (data ?? []) as PaymentTransaction[];
   },
@@ -628,12 +722,15 @@ export const feesService = {
     name: string;
     amount: number;
     due_date: string;
+    student_fee_id?: string;
   }): Promise<StudentFee> {
-    const { data: sf } = await supabase
-      .from("student_fees")
-      .select("*")
-      .eq("student_id", args.student_id)
-      .maybeSingle();
+    // Attach to the chosen structure row when given; otherwise the student's
+    // single/first row, or create a standalone manual row if they have none.
+    const sfQuery = supabase.from("student_fees").select("*");
+    const { data: sf } = await (args.student_fee_id
+      ? sfQuery.eq("id", args.student_fee_id)
+      : sfQuery.eq("student_id", args.student_id)
+    ).limit(1).maybeSingle();
 
     const newTerm: TermStatus = {
       term_name: args.name.trim(),
@@ -660,7 +757,7 @@ export const feesService = {
           payment_status: newStatus,
           term_status: updatedTerms,
         })
-        .eq("student_id", args.student_id)
+        .eq("id", sf.id)
         .select("*")
         .single();
       if (error) throw error;

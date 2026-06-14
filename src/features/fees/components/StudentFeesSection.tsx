@@ -1,6 +1,6 @@
 "use client";
 
-import { memo, useState } from "react";
+import { memo, useState, useEffect } from "react";
 import {
   CreditCard, Percent, Loader2, Wallet, Users,
 } from "lucide-react";
@@ -90,6 +90,11 @@ export const StudentFeeCard = memo(function StudentFeeCardImpl({
               <p className="text-[11px] font-mono text-slate-400 truncate">
                 {row.students?.admission_number ?? "—"} · {course} · {campus}
               </p>
+              {row.fee_structures?.name && (
+                <p className="text-[10px] font-bold text-[#0B3C5D] truncate">
+                  {row.fee_structures.name}
+                </p>
+              )}
             </div>
           </div>
 
@@ -103,7 +108,7 @@ export const StudentFeeCard = memo(function StudentFeeCardImpl({
             <select
               value={row.payment_status}
               onChange={(e) => updateStatus.mutate(
-                { student_id: row.student_id, status: e.target.value },
+                { student_fee_id: row.id, status: e.target.value },
                 {
                   onSuccess: () => onToast("success", `Updated payment status to ${e.target.value}.`),
                   onError: (err) => onToast("error", err instanceof Error ? err.message : "Update failed."),
@@ -171,10 +176,17 @@ function CollectPanel({
   const [txnId, setTxnId] = useState("");
   const [date, setDate] = useState(todayISO());
   const [remarks, setRemarks] = useState("");
+  const [termName, setTermName] = useState("auto");
+
+  const balance = Number(row.balance_amount);
+
+  useEffect(() => {
+    setTermName("auto");
+    setAmount("");
+  }, [row.id]);
 
   const [discountAmt, setDiscountAmt] = useState(String(row.discount_amount ?? 0));
 
-  const balance = Number(row.balance_amount);
   const submit = (e: React.FormEvent) => {
     e.preventDefault();
     const amt = Number(amount);
@@ -189,11 +201,13 @@ function CollectPanel({
     record.mutate(
       {
         student_id: row.student_id,
+        student_fee_id: row.id,
         amount_paid: amt,
         payment_method: method,
         payment_date: date,
         transaction_id: txnId.trim() || null,
         remarks: remarks.trim() || null,
+        term_name: termName === "auto" ? null : termName,
       },
       {
         onSuccess: () => onToast("success", `Recorded ${formatINR(amt)}.`),
@@ -213,7 +227,7 @@ function CollectPanel({
     const originalGross = Number(row.total_fee) + Number(row.discount_amount);
     const newTotal = Math.max(0, originalGross - d);
     discount.mutate(
-      { student_id: row.student_id, new_total: newTotal, new_discount: d },
+      { student_fee_id: row.id, new_total: newTotal, new_discount: d },
       {
         onSuccess: () => onToast("success", "Discount applied."),
         onError: (e) => onToast("error", e instanceof Error ? e.message : "Discount failed."),
@@ -223,7 +237,7 @@ function CollectPanel({
 
   return (
     <div className="p-4 bg-slate-50/60 border-t border-slate-100">
-      <form onSubmit={submit} className="grid grid-cols-1 md:grid-cols-5 gap-2.5">
+      <form onSubmit={submit} className="grid grid-cols-1 md:grid-cols-6 gap-2.5">
         <div className="md:col-span-1">
           <Label>Amount</Label>
           <div className="relative">
@@ -239,6 +253,32 @@ function CollectPanel({
               required
             />
           </div>
+        </div>
+        <div>
+          <Label>Apply to Term</Label>
+          <select
+            value={termName}
+            onChange={(e) => {
+              setTermName(e.target.value);
+              if (e.target.value !== "auto") {
+                const termObj = row.term_status?.find((t) => t.term_name === e.target.value);
+                if (termObj) {
+                  const termDue = Math.max(0, termObj.amount_due - termObj.amount_paid);
+                  setAmount(String(termDue));
+                }
+              } else {
+                setAmount("");
+              }
+            }}
+            className={fieldCls}
+          >
+            <option value="auto">Auto-allocate</option>
+            {row.term_status?.map((t) => (
+              <option key={t.term_name} value={t.term_name}>
+                {t.term_name} ({formatINR(Math.max(0, t.amount_due - t.amount_paid))})
+              </option>
+            ))}
+          </select>
         </div>
         <div>
           <Label>Method</Label>
@@ -281,7 +321,7 @@ function CollectPanel({
             Record Payment
           </button>
         </div>
-        <div className="md:col-span-5">
+        <div className="md:col-span-6">
           <Label>Remarks (optional)</Label>
           <input
             type="text"

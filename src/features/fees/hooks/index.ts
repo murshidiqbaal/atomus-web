@@ -26,7 +26,7 @@ export const QK = {
 
 function filterKey(f: FeeFilters): string {
   return [
-    f.campus_id, f.course_id, f.status,
+    f.campus_id, f.course_id, f.fee_structure_id, f.status,
     f.search, f.date_from, f.date_to, f.method, f.academic_status,
   ].join("|");
 }
@@ -127,19 +127,19 @@ export function useStudentFees(filters: FeeFilters) {
   });
 }
 
-export function useStudentFee(student_id: string) {
+export function useStudentFeesForStudent(student_id: string) {
   return useQuery({
     queryKey: QK.studentFee(student_id),
-    queryFn: () => feesService.getStudentFee(student_id),
+    queryFn: () => feesService.listStudentFeesForStudent(student_id),
     enabled: !!student_id,
     staleTime: 5_000,
   });
 }
 
-export function useStudentPayments(student_id: string) {
+export function useStudentPayments(student_id: string, student_fee_id?: string) {
   return useQuery({
-    queryKey: QK.studentPayments(student_id),
-    queryFn: () => feesService.listStudentPayments(student_id),
+    queryKey: [...QK.studentPayments(student_id), student_fee_id ?? "*"],
+    queryFn: () => feesService.listStudentPayments(student_id, student_fee_id),
     enabled: !!student_id,
     staleTime: 10_000,
   });
@@ -148,8 +148,8 @@ export function useStudentPayments(student_id: string) {
 export function useApplyDiscount() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (input: { student_id: string; new_total: number; new_discount: number }) =>
-      feesService.applyDiscount(input.student_id, input.new_total, input.new_discount),
+    mutationFn: (input: { student_fee_id: string; new_total: number; new_discount: number }) =>
+      feesService.applyDiscount(input.student_fee_id, input.new_total, input.new_discount),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["fees", "studentFees"] });
       qc.invalidateQueries({ queryKey: ["fees", "studentFee"] });
@@ -161,8 +161,8 @@ export function useApplyDiscount() {
 export function useUpdatePaymentStatus() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (input: { student_id: string; status: string }) =>
-      feesService.updatePaymentStatus(input.student_id, input.status),
+    mutationFn: (input: { student_fee_id: string; status: string }) =>
+      feesService.updatePaymentStatus(input.student_fee_id, input.status),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["fees", "studentFees"] });
       qc.invalidateQueries({ queryKey: ["fees", "studentFee"] });
@@ -224,11 +224,29 @@ export function useCampusRevenue() {
 export function useAddManualFeeItem() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (args: { student_id: string; name: string; amount: number; due_date: string }) =>
+    mutationFn: (args: { student_id: string; name: string; amount: number; due_date: string; student_fee_id?: string }) =>
       feesService.addManualFeeItem(args),
     onSuccess: (_data, args) => {
       qc.invalidateQueries({ queryKey: ["fees", "studentFees"] });
       qc.invalidateQueries({ queryKey: QK.studentFee(args.student_id) });
+      qc.invalidateQueries({ queryKey: QK.stats });
+    },
+  });
+}
+
+export function useUpdateStudentTermStatus() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (args: {
+      student_id: string;
+      student_fee_id: string;
+      term_name: string;
+      patch: { amount_due?: number; amount_paid?: number; due_date?: string };
+    }) => feesService.updateStudentTermStatus(args.student_fee_id, args.term_name, args.patch),
+    onSuccess: (_data, args) => {
+      qc.invalidateQueries({ queryKey: ["fees", "studentFees"] });
+      qc.invalidateQueries({ queryKey: QK.studentFee(args.student_id) });
+      qc.invalidateQueries({ queryKey: ["fees", "studentPayments", args.student_id] });
       qc.invalidateQueries({ queryKey: QK.stats });
     },
   });

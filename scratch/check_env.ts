@@ -1,0 +1,1 @@
+console.log("Environment variables keys:", Object.keys(process.env).filter(k => k.toLowerCase().includes('db') || k.toLowerCase().includes('pass') || k.toLowerCase().includes('sql') || k.toLowerCase().includes('supabase')));

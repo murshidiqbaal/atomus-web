@@ -4,7 +4,7 @@ import { useMemo, useState } from "react";
 import {
   ArrowDownRight, History, Printer,
 } from "lucide-react";
-import { usePayments, useStudentFee } from "../hooks";
+import { usePayments, useStudentFeesForStudent } from "../hooks";
 import { FeeFilters, PaymentTransaction, formatINR } from "../types";
 import { Card, EmptyState } from "./ui";
 import { Receipt } from "./Receipt";
@@ -130,7 +130,9 @@ function HistoryRow({
 function ReceiptModal({
   payment, onClose,
 }: { payment: PaymentTransaction; onClose: () => void }) {
-  const { data: sf } = useStudentFee(payment.student_id);
-  return <Receipt payment={payment} studentFee={sf ?? null} onClose={onClose} />;
+  const { data: fees = [] } = useStudentFeesForStudent(payment.student_id);
+  // Show the structure this payment belongs to; fall back to the first row.
+  const sf = fees.find((f) => f.id === payment.student_fee_id) ?? fees[0] ?? null;
+  return <Receipt payment={payment} studentFee={sf} onClose={onClose} />;
 }
 

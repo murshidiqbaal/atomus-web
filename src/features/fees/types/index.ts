@@ -107,6 +107,8 @@ export interface StudentFee {
   updated_at: string | null;
   term_status: TermStatus[];
 
+  fee_structures?: { id: string; name: string | null } | null;
+
   students?: {
     id: string;
     full_name: string;
@@ -138,6 +140,7 @@ export interface StudentFeeInsert {
 export interface PaymentTransaction {
   id: string;
   student_id: string;
+  student_fee_id?: string | null;
   amount_paid: number;
   payment_date: string;
   payment_method: PaymentMethod | string;
@@ -160,6 +163,8 @@ export interface PaymentTransaction {
 
 export interface PaymentTransactionInsert {
   student_id: string;
+  /** The specific student_fees row (structure) this payment applies to. */
+  student_fee_id?: string | null;
   amount_paid: number;
   payment_date: string;     // YYYY-MM-DD
   payment_method: string;
@@ -174,6 +179,7 @@ export interface PaymentTransactionInsert {
 export interface FeeFilters {
   campus_id: string;
   course_id: string;
+  fee_structure_id: string;
   status: PaymentStatus | "All";
   search: string;
   date_from: string;
@@ -186,6 +192,7 @@ export function emptyFilters(): FeeFilters {
   return {
     campus_id: "",
     course_id: "",
+    fee_structure_id: "",
     status: "All",
     search: "",
     date_from: "",

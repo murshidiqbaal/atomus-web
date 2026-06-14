@@ -1,14 +1,11 @@
+import fs from "fs/promises";
+import path from "path";
 import { NextResponse } from "next/server";
 import { getServerAuth } from "@/lib/auth/server_auth";
 import { deleteDriveFile } from "@/lib/uploadToDrive";
 
 export const runtime = "nodejs";
 
-/**
- * Deletes a Drive file. Used when an admin replaces a profile photo or
- * removes an announcement banner. Failure is non-fatal client-side — orphan
- * Drive files are tolerable.
- */
 export async function DELETE(request: Request): Promise<Response> {
   const auth = await getServerAuth();
   if (!auth.authed) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -20,6 +17,24 @@ export async function DELETE(request: Request): Promise<Response> {
     return NextResponse.json({ error: "Missing ?id=<drive_file_id>" }, { status: 400 });
   }
 
+  // 1. Delete local file if it was uploaded locally (starts with "local-")
+  if (id.startsWith("local-")) {
+    try {
+      const parts = id.split("-");
+      // Format: local-[folderKey]-[fileName]
+      const folderKey = parts[1];
+      const fileName = parts.slice(2).join("-");
+      
+      const filePath = path.join(process.cwd(), "public", "uploads", folderKey, fileName);
+      await fs.unlink(filePath);
+      return NextResponse.json({ deleted: true });
+    } catch (err: any) {
+      console.warn("Failed to delete local file:", err.message);
+      return NextResponse.json({ deleted: false });
+    }
+  }
+
+  // 2. Fallback: Delete from Google Drive
   const ok = await deleteDriveFile(id);
   return NextResponse.json({ deleted: ok });
 }

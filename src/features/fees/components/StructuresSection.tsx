@@ -25,6 +25,13 @@ import {
 } from "../types";
 import { Card, EmptyState, fieldCls, Label } from "./ui";
 
+/** Pull a readable message out of an Error or a Supabase PostgrestError object. */
+function errMsg(e: unknown): string {
+  if (e instanceof Error) return e.message;
+  if (e && typeof e === "object" && "message" in e) return String((e as { message: unknown }).message);
+  return "";
+}
+
 interface Props {
   filters: FeeFilters;
   onToast: (type: "success" | "error", msg: string) => void;
@@ -96,7 +103,7 @@ function StructureCard({
           onToast("success", `Assigned to ${r.assigned} students (${r.skipped} already assigned).`);
         }
       },
-      onError: (e) => onToast("error", e instanceof Error ? e.message : "Bulk assign failed."),
+      onError: (e) => onToast("error", errMsg(e) || "Bulk assign failed."),
     });
   };
 

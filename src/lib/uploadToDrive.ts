@@ -31,6 +31,7 @@ export async function uploadFileToDrive(input: UploadInput): Promise<UploadResul
       body: Readable.from(input.buffer),
     },
     fields: "id, name",
+    supportsAllDrives: true,
   });
 
   const fileId = created.data.id;
@@ -42,6 +43,7 @@ export async function uploadFileToDrive(input: UploadInput): Promise<UploadResul
   await drive.permissions.create({
     fileId,
     requestBody: { role: "reader", type: "anyone" },
+    supportsAllDrives: true,
   });
 
   return {
@@ -58,7 +60,7 @@ export async function uploadFileToDrive(input: UploadInput): Promise<UploadResul
 export async function deleteDriveFile(fileId: string): Promise<boolean> {
   try {
     const drive = getDrive();
-    await drive.files.delete({ fileId });
+    await drive.files.delete({ fileId, supportsAllDrives: true });
     return true;
   } catch {
     return false;

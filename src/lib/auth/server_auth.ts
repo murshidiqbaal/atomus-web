@@ -17,7 +17,12 @@ export async function getServerAuth() {
       
     if (authCookies.length > 0) {
       const rawValue = authCookies.map(c => c.value).join('');
-      const sessionData = JSON.parse(decodeURIComponent(rawValue));
+      const decodedValue = decodeURIComponent(rawValue);
+      let jsonStr = decodedValue;
+      if (decodedValue.startsWith('base64-')) {
+        jsonStr = Buffer.from(decodedValue.slice(7), 'base64').toString('utf-8');
+      }
+      const sessionData = JSON.parse(jsonStr);
       const token = sessionData?.access_token;
       
       if (token) {

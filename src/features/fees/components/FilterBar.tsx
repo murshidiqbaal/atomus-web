@@ -51,7 +51,7 @@ export function FilterBar({ value, onChange, show }: Props) {
     value.method !== "All" || value.academic_status !== "Active";
 
   const clearAll = () => onChange({
-    campus_id: "", course_id: "",
+    campus_id: "", course_id: "", fee_structure_id: "",
     status: "All", search: "", date_from: "", date_to: "",
     method: "All", academic_status: "Active",
   });

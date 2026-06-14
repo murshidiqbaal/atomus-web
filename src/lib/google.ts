@@ -29,10 +29,30 @@ export function getOAuth2Client() {
 export function getDrive(): drive_v3.Drive {
   if (cachedDrive) return cachedDrive;
 
+  // 1. Try Google Service Account JSON first
+  const rawServiceAccount = process.env.GOOGLE_SERVICE_ACCOUNT_JSON;
+  if (rawServiceAccount) {
+    try {
+      const credentials = JSON.parse(rawServiceAccount);
+      if (credentials.private_key?.includes("\\n")) {
+        credentials.private_key = credentials.private_key.replace(/\\n/g, "\n");
+      }
+      const auth = new google.auth.GoogleAuth({
+        credentials,
+        scopes: ["https://www.googleapis.com/auth/drive"],
+      });
+      cachedDrive = google.drive({ version: "v3", auth });
+      return cachedDrive;
+    } catch (e: any) {
+      console.warn("Failed to parse GOOGLE_SERVICE_ACCOUNT_JSON, falling back to OAuth:", e.message);
+    }
+  }
+
+  // 2. Fall back to OAuth2 Refresh Token
   const refreshToken = process.env.GOOGLE_REFRESH_TOKEN;
   if (!refreshToken) {
     throw new Error(
-      "GOOGLE_REFRESH_TOKEN is not set. Please authenticate at /api/auth/google first to obtain it, then paste it in your .env.local file.",
+      "Neither GOOGLE_SERVICE_ACCOUNT_JSON nor GOOGLE_REFRESH_TOKEN is set. Please configure one of these variables in your .env.local file."
     );
   }
 

@@ -20,6 +20,9 @@ export interface UploadHandlerOptions {
  *
  * Each `/api/upload/<surface>/route.ts` is a one-liner around this factory.
  */
+import fs from "fs/promises";
+import path from "path";
+
 export function createUploadHandler(opts: UploadHandlerOptions) {
   return async function POST(request: Request): Promise<Response> {
     const auth = await getServerAuth();
@@ -46,6 +49,31 @@ export function createUploadHandler(opts: UploadHandlerOptions) {
       return NextResponse.json({ error: v.message }, { status: v.status });
     }
 
+    const buffer = Buffer.from(await (file as File).arrayBuffer());
+    const fileName = buildFileName(opts.fileNamePrefix, v.fileName);
+
+    // 1. Fallback: Save locally if no Google Drive credentials are configured
+    const hasOAuth = !!process.env.GOOGLE_REFRESH_TOKEN;
+    const hasServiceAccount = !!process.env.GOOGLE_SERVICE_ACCOUNT_JSON;
+
+    if (!hasOAuth && !hasServiceAccount) {
+      try {
+        const uploadDir = path.join(process.cwd(), "public", "uploads", opts.folderKey);
+        await fs.mkdir(uploadDir, { recursive: true });
+        const filePath = path.join(uploadDir, fileName);
+        await fs.writeFile(filePath, buffer);
+
+        return NextResponse.json({
+          fileId: `local-${opts.folderKey}-${fileName}`,
+          imageUrl: `/uploads/${opts.folderKey}/${fileName}`,
+          fileName,
+        }, { status: 200 });
+      } catch (localErr: any) {
+        return NextResponse.json({ error: `Local fallback upload failed: ${localErr.message}` }, { status: 500 });
+      }
+    }
+
+    // 2. Upload to Google Drive
     const folderId = DRIVE_FOLDERS[opts.folderKey];
     if (!folderId) {
       return NextResponse.json(
@@ -55,9 +83,6 @@ export function createUploadHandler(opts: UploadHandlerOptions) {
     }
 
     try {
-      const buffer = Buffer.from(await (file as File).arrayBuffer());
-      const fileName = buildFileName(opts.fileNamePrefix, v.fileName);
-
       const result = await uploadFileToDrive({
         buffer,
         mimeType: v.mimeType,

@@ -1,10 +1,10 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect } from "react";
 import {
   Search, CreditCard, Loader2, CheckCircle2, AlertCircle,
 } from "lucide-react";
-import { useRecordPayment, useStudentFees } from "../hooks";
+import { useFeeStructures, useRecordPayment, useStudentFees } from "../hooks";
 import {
   emptyFilters,
   formatINR,
@@ -23,88 +23,186 @@ interface Props {
 
 export function QuickCollectSection({ onToast }: Props) {
   const [search, setSearch] = useState("");
-  const filters = useMemo(() => ({ ...emptyFilters(), search }), [search]);
+  const [structureId, setStructureId] = useState("");
+  const [selectedTerm, setSelectedTerm] = useState("");
+  const [termStatusFilter, setTermStatusFilter] = useState<"All" | "Unpaid" | "Paid">("Unpaid");
 
-  // Disable network noise until the user types something searchable.
+  const filters = useMemo(
+    () => ({ ...emptyFilters(), search, fee_structure_id: structureId }),
+    [search, structureId],
+  );
+
+  const { data: structures = [] } = useFeeStructures({});
   const { data: rows = [], isLoading } = useStudentFees(filters);
 
   const [selected, setSelected] = useState<StudentFee | null>(null);
   const [receipt, setReceipt] = useState<PaymentTransaction | null>(null);
 
+  // Find the selected structure to determine terms/months and frequency
+  const selectedStructure = useMemo(
+    () => structures.find((s) => s.id === structureId),
+    [structures, structureId]
+  );
+
+  const termOptions = useMemo(() => {
+    if (!selectedStructure || !Array.isArray(selectedStructure.term_details)) return [];
+    return selectedStructure.term_details.map((t) => t.term_name);
+  }, [selectedStructure]);
+
+  const isMonthly = selectedStructure?.fee_frequency === "Monthly";
+  const subFilterLabel = isMonthly ? "Filter by Month" : "Filter by Term";
+
+  // Filter rows on client side if a term/month filter is chosen
+  const filteredRows = useMemo(() => {
+    if (!selectedTerm) return rows;
+    return rows.filter((row) => {
+      const term = row.term_status?.find((t) => t.term_name === selectedTerm);
+      if (!term) return false;
+      
+      const isPaid = term.amount_due > 0 && term.amount_paid >= term.amount_due;
+      if (termStatusFilter === "Unpaid") {
+        return !isPaid;
+      }
+      if (termStatusFilter === "Paid") {
+        return isPaid;
+      }
+      return true;
+    });
+  }, [rows, selectedTerm, termStatusFilter]);
+
+  // Reset selected term when changing structure
+  useEffect(() => {
+    setSelectedTerm("");
+    setTermStatusFilter("Unpaid");
+  }, [structureId]);
+
   // Drop the selection when the search results no longer contain it — the
   // user has narrowed past their old pick. Derived, not effect-driven.
-  const visibleSelected = selected && rows.some((r) => r.id === selected.id) ? selected : null;
+  const visibleSelected = selected && filteredRows.some((r) => r.id === selected.id) ? selected : null;
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-5 gap-4">
       {/* Search results */}
       <div className="lg:col-span-2 space-y-3">
-        <Card className="p-3">
-          <Label>Find student</Label>
-          <div className="relative">
-            <Search
-              size={14}
-              className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none"
-            />
-            <input
-              type="text"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="Name, admission #, roll #…"
-              className={`${fieldCls} pl-9`}
-              autoFocus
-            />
+        <Card className="p-3 space-y-3">
+          <div>
+            <Label>Fee structure</Label>
+            <select
+              value={structureId}
+              onChange={(e) => setStructureId(e.target.value)}
+              className={fieldCls}
+            >
+              <option value="">All structures</option>
+              {structures.map((s) => (
+                <option key={s.id} value={s.id}>
+                  {s.name ?? "Untitled"}
+                  {s.courses?.name ? ` · ${s.courses.name}` : ""}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {structureId && termOptions.length > 0 && (
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <Label>{subFilterLabel}</Label>
+                <select
+                  value={selectedTerm}
+                  onChange={(e) => setSelectedTerm(e.target.value)}
+                  className={fieldCls}
+                >
+                  <option value="">{isMonthly ? "All Months" : "All Terms"}</option>
+                  {termOptions.map((opt) => (
+                    <option key={opt} value={opt}>
+                      {opt}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <Label>Term Status</Label>
+                <select
+                  value={termStatusFilter}
+                  onChange={(e) => setTermStatusFilter(e.target.value as any)}
+                  className={fieldCls}
+                  disabled={!selectedTerm}
+                >
+                  <option value="Unpaid">Unpaid</option>
+                  <option value="Paid">Paid</option>
+                  <option value="All">All</option>
+                </select>
+              </div>
+            </div>
+          )}
+
+          <div>
+            <Label>Find student</Label>
+            <div className="relative">
+              <Search
+                size={14}
+                className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none"
+              />
+              <input
+                type="text"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Name, admission #, roll #…"
+                className={`${fieldCls} pl-9`}
+                autoFocus
+              />
+            </div>
           </div>
         </Card>
 
         <div className="space-y-2 max-h-[60vh] overflow-y-auto">
-          {!search.trim() ? (
-            <EmptyState
-              icon={<Search size={22} />}
-              title="Start by typing a name"
-              hint="Results appear as you type."
-            />
-          ) : isLoading ? (
+          {isLoading ? (
             Array.from({ length: 3 }).map((_, i) => (
               <Card key={i} className="h-16 animate-pulse" />
             ))
-          ) : rows.length === 0 ? (
+          ) : filteredRows.length === 0 ? (
             <EmptyState
               icon={<AlertCircle size={22} />}
               title="No matches"
               hint="Check spelling or admission number."
             />
           ) : (
-            rows.slice(0, 20).map((row) => (
-              <button
-                key={row.id}
-                onClick={() => setSelected(row)}
-                className={`w-full text-left p-3 rounded-2xl border transition-all
-                  ${visibleSelected?.id === row.id
-                    ? "bg-[#0B3C5D] text-white border-[#0B3C5D] shadow-md"
-                    : "bg-white border-slate-200 hover:border-[#0B3C5D]/40 hover:shadow-sm"}`}
-              >
-                <div className="flex items-start justify-between gap-2">
-                  <div className="min-w-0">
-                    <p className="text-sm font-black truncate">
-                      {row.students?.full_name ?? "—"}
-                    </p>
-                    <p className={`text-[11px] font-mono truncate ${
-                      visibleSelected?.id === row.id ? "text-blue-100" : "text-slate-400"
-                    }`}>
-                      {row.students?.admission_number ?? "—"} ·{" "}
-                      {row.students?.courses?.name ?? "—"}
-                    </p>
+            filteredRows.slice(0, 100).map((row) => {
+              const termObj = selectedTerm ? row.term_status?.find((t) => t.term_name === selectedTerm) : null;
+              const statusToDisplay = termObj ? termObj.status : row.payment_status;
+              const balanceToDisplay = termObj ? Math.max(0, termObj.amount_due - termObj.amount_paid) : row.balance_amount;
+              const balanceLabel = termObj ? `${selectedTerm} Balance` : "Balance";
+
+              return (
+                <button
+                  key={row.id}
+                  onClick={() => setSelected(row)}
+                  className={`w-full text-left p-3 rounded-2xl border transition-all
+                    ${visibleSelected?.id === row.id
+                      ? "bg-[#0B3C5D] text-white border-[#0B3C5D] shadow-md"
+                      : "bg-white border-slate-200 hover:border-[#0B3C5D]/40 hover:shadow-sm"}`}
+                >
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0">
+                      <p className="text-sm font-black truncate">
+                        {row.students?.full_name ?? "—"}
+                      </p>
+                      <p className={`text-[11px] font-mono truncate ${
+                        visibleSelected?.id === row.id ? "text-blue-100" : "text-slate-400"
+                      }`}>
+                        {row.students?.admission_number ?? "—"} ·{" "}
+                        {row.fee_structures?.name ?? row.students?.courses?.name ?? "—"}
+                      </p>
+                    </div>
+                    {visibleSelected?.id !== row.id && <StatusPill status={statusToDisplay} />}
                   </div>
-                  {visibleSelected?.id !== row.id && <StatusPill status={row.payment_status} />}
-                </div>
-                <div className={`mt-1.5 text-[11px] font-bold tabular-nums ${
-                  visibleSelected?.id === row.id ? "text-blue-100" : "text-slate-500"
-                }`}>
-                  Balance: {formatINR(row.balance_amount)}
-                </div>
-              </button>
-            ))
+                  <div className={`mt-1.5 text-[11px] font-bold tabular-nums ${
+                    visibleSelected?.id === row.id ? "text-blue-100" : "text-slate-500"
+                  }`}>
+                    {balanceLabel}: {formatINR(balanceToDisplay)}
+                  </div>
+                </button>
+              );
+            })
           )}
         </div>
       </div>
@@ -114,6 +212,7 @@ export function QuickCollectSection({ onToast }: Props) {
         {visibleSelected ? (
           <CollectForm
             row={visibleSelected}
+            initialTermName={selectedTerm || "auto"}
             onToast={onToast}
             onPaid={(tx) => {
               setReceipt(tx);
@@ -142,9 +241,10 @@ export function QuickCollectSection({ onToast }: Props) {
 }
 
 function CollectForm({
-  row, onToast, onPaid,
+  row, initialTermName, onToast, onPaid,
 }: {
   row: StudentFee;
+  initialTermName: string;
   onToast: (t: "success" | "error", m: string) => void;
   onPaid: (tx: PaymentTransaction) => void;
 }) {
@@ -156,6 +256,20 @@ function CollectForm({
   const [date, setDate] = useState(todayISO());
   const [txnId, setTxnId] = useState("");
   const [remarks, setRemarks] = useState("");
+  const [termName, setTermName] = useState(initialTermName);
+
+  useEffect(() => {
+    setTermName(initialTermName);
+    if (initialTermName !== "auto") {
+      const termObj = row.term_status?.find((t) => t.term_name === initialTermName);
+      if (termObj) {
+        const termDue = Math.max(0, termObj.amount_due - termObj.amount_paid);
+        setAmount(String(termDue));
+        return;
+      }
+    }
+    setAmount(String(Math.min(balance, 5000) || 0));
+  }, [row.id, balance, initialTermName]);
 
   const submit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -171,11 +285,13 @@ function CollectForm({
     record.mutate(
       {
         student_id: row.student_id,
+        student_fee_id: row.id,
         amount_paid: amt,
         payment_method: method,
         payment_date: date,
         transaction_id: txnId.trim() || null,
         remarks: remarks.trim() || null,
+        term_name: termName === "auto" ? null : termName,
       },
       {
         onSuccess: (tx) => {
@@ -250,6 +366,33 @@ function CollectForm({
               required
             />
           </div>
+        </div>
+
+        <div>
+          <Label>Apply to Term</Label>
+          <select
+            value={termName}
+            onChange={(e) => {
+              setTermName(e.target.value);
+              if (e.target.value !== "auto") {
+                const termObj = row.term_status?.find((t) => t.term_name === e.target.value);
+                if (termObj) {
+                  const termDue = Math.max(0, termObj.amount_due - termObj.amount_paid);
+                  setAmount(String(termDue));
+                }
+              } else {
+                setAmount(String(Math.min(balance, 5000) || 0));
+              }
+            }}
+            className={fieldCls}
+          >
+            <option value="auto">Auto-allocate (First Due First)</option>
+            {row.term_status?.map((t) => (
+              <option key={t.term_name} value={t.term_name}>
+                {t.term_name} — {formatINR(Math.max(0, t.amount_due - t.amount_paid))} due (Total: {formatINR(t.amount_due)})
+              </option>
+            ))}
+          </select>
         </div>
 
         <div className="grid grid-cols-2 gap-2">
