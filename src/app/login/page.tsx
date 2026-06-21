@@ -19,18 +19,64 @@ export default function LoginPage() {
     setLoading(true);
     setError("");
 
-    const { error: authError } = await supabase.auth.signInWithPassword({ email, password });
-
-    if (authError) {
-      if (matchesMasterAdmin(email, password)) {
-        setMasterAdminFlag();
-        window.location.href = "/admin";
+    try {
+      // 1. Run pre-login check (lockout, username resolving)
+      const preRes = await fetch("/api/auth/pre-login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ usernameOrEmail: email })
+      });
+      const preData = await preRes.json();
+      if (!preRes.ok || preData.error) {
+        setError(preData.error || "Login check failed");
+        setLoading(false);
         return;
       }
-      setError(authError.message);
+
+      const resolvedEmail = preData.email || email;
+
+      // 2. Perform Supabase authentication
+      const { error: authError } = await supabase.auth.signInWithPassword({
+        email: resolvedEmail,
+        password
+      });
+
+      if (authError) {
+        // Fallback for local testing / master-admin
+        if (matchesMasterAdmin(email, password)) {
+          setMasterAdminFlag();
+          window.location.href = "/admin";
+          return;
+        }
+
+        // 3. Register failed attempt in db
+        const failRes = await fetch("/api/auth/login-failed", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ usernameOrEmail: email })
+        });
+        const failData = await failRes.json();
+        
+        setError(failData.message || authError.message);
+        setLoading(false);
+      } else {
+        // 4. Register login success and check force password change
+        const successRes = await fetch("/api/auth/login-success", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ usernameOrEmail: email })
+        });
+        const successData = await successRes.json();
+
+        if (successData.must_change_password) {
+          router.push("/change-password");
+        } else {
+          router.push("/admin");
+        }
+      }
+    } catch (err: any) {
+      setError(err.message || "An unexpected error occurred during login.");
       setLoading(false);
-    } else {
-      router.push("/admin");
     }
   };
 
@@ -72,12 +118,12 @@ export default function LoginPage() {
 
             <form onSubmit={handleLogin} className="space-y-5">
               <div className="space-y-1.5">
-                <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Email Address</label>
+                <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Username or Email Address</label>
                 <input
                   required
-                  type="email"
-                  placeholder="admin@atomus.edu"
-                  autoComplete="email"
+                  type="text"
+                  placeholder="admin@atomus.edu or username"
+                  autoComplete="username"
                   className="w-full border border-slate-200 rounded-xl px-4 py-3 text-sm outline-none focus:border-[#0B3C5D] focus:ring-2 focus:ring-[#0B3C5D]/10 transition-all"
                   value={email}
                   onChange={e => setEmail(e.target.value)}
@@ -102,6 +148,15 @@ export default function LoginPage() {
                     className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-700 transition-colors"
                   >
                     {showPwd ? <EyeOff size={18} /> : <Eye size={18} />}
+                  </button>
+                </div>
+                <div className="flex justify-end">
+                  <button
+                    type="button"
+                    onClick={() => router.push("/forgot-password")}
+                    className="text-xs font-bold text-[#D4AF37] hover:text-[#0B3C5D] hover:underline transition-colors mt-1"
+                  >
+                    Forgot Password?
                   </button>
                 </div>
               </div>

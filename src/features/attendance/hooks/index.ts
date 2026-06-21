@@ -26,8 +26,18 @@ export const QK = {
     batchId: string | undefined,
     date: string,
     subjectId: string | null,
+    studentIds?: string[],
   ) =>
-    ["attendance", "records", campusId, courseId, batchId ?? "all", date, subjectId ?? "overall"] as const,
+    [
+      "attendance",
+      "records",
+      campusId || "all",
+      courseId || "all",
+      batchId || "all",
+      date,
+      subjectId || "overall",
+      studentIds ? studentIds.join(",") : "all",
+    ] as const,
 };
 
 export function useCurrentUser() {
@@ -131,18 +141,27 @@ export function useAttRecords(
   batch_id: string | undefined,
   attendance_date: string,
   subject_id: string | null,
+  student_ids?: string[],
 ) {
   return useQuery({
-    queryKey: QK.records(campus_id, course_id, batch_id, attendance_date, subject_id),
+    queryKey: QK.records(
+      campus_id,
+      course_id,
+      batch_id,
+      attendance_date,
+      subject_id,
+      student_ids,
+    ),
     queryFn: () =>
       attendanceService.listAttendance({
-        campus_id,
-        course_id,
-        batch_id,
+        campus_id: campus_id || undefined,
+        course_id: course_id || undefined,
+        batch_id: batch_id || undefined,
         attendance_date,
         subject_id,
+        student_ids,
       }),
-    enabled: !!attendance_date,
+    enabled: !!attendance_date && (!student_ids || student_ids.length > 0),
     staleTime: 10_000,
   });
 }
@@ -160,9 +179,10 @@ export function useSaveAttendance(
   batch_id: string | undefined,
   attendance_date: string,
   subject_id: string | null,
+  student_ids?: string[],
 ) {
   const qc = useQueryClient();
-  const key = QK.records(campus_id, course_id, batch_id, attendance_date, subject_id);
+  const key = QK.records(campus_id, course_id, batch_id, attendance_date, subject_id, student_ids);
 
   return useMutation({
     mutationFn: (rows: AttendanceUpsertRow[]) => attendanceService.upsertAttendance(rows),

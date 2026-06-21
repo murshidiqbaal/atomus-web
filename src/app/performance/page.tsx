@@ -26,7 +26,7 @@ const STATUS_COLORS: Record<string, { bg: string; text: string; border: string }
 const PAGE_SIZE = 10;
 
 export default function AcademicPerformancePage() {
-  const [activeTab, setActiveTab] = useState<"overview" | "directory" | "subjects" | "correlation" | "rankings" | "alerts" | "reports">("overview");
+  const [activeTab, setActiveTab] = useState<"overview" | "exams" | "directory" | "subjects" | "correlation" | "rankings" | "alerts" | "reports">("overview");
   
   // Data States
   const [performanceRecords, setPerformanceRecords] = useState<any[]>([]);
@@ -44,18 +44,31 @@ export default function AcademicPerformancePage() {
   const [selectedStatus, setSelectedStatus] = useState("");
   const [page, setPage] = useState(1);
 
+  // Exam Performance States
+  const [selectedExamId, setSelectedExamId] = useState("");
+  const [timeframe, setTimeframe] = useState<"daily" | "weekly" | "monthly">("daily");
+  const [examsList, setExamsList] = useState<any[]>([]);
+  const [studentExamMarks, setStudentExamMarks] = useState<any[]>([]);
+  const [examPage, setExamPage] = useState(1);
+
+  useEffect(() => {
+    setExamPage(1);
+  }, [search, selectedCampus, selectedCourse, selectedBatch, selectedExamId]);
+
   // Load baseline tables
   useEffect(() => {
     async function loadBaselines() {
       try {
-        const [campusesRes, coursesRes, batchesRes] = await Promise.all([
+        const [campusesRes, coursesRes, batchesRes, examsRes] = await Promise.all([
           supabase.from("campuses").select("id, name"),
           supabase.from("courses").select("id, name"),
           supabase.from("batches").select("id, name, course_id, campus_id"),
+          supabase.from("exams").select("id, name, exam_date, course_id").order("exam_date", { ascending: false }),
         ]);
         setCampuses(campusesRes.data ?? []);
         setCourses(coursesRes.data ?? []);
         setBatches(batchesRes.data ?? []);
+        setExamsList(examsRes.data ?? []);
       } catch (err) {
         console.error("Error loading baseline filters:", err);
       }
@@ -67,25 +80,89 @@ export default function AcademicPerformancePage() {
   const fetchPerformanceData = async () => {
     setIsLoading(true);
     try {
-      // 1. Fetch joined performance stats
-      const { data, error } = await supabase
-        .from("student_academic_performance")
+      // 1. Fetch all students
+      const { data: studentsData, error: studentsError } = await supabase
+        .from("students")
         .select(`
-          *,
+          id,
+          full_name,
+          roll_number,
+          photo_url,
+          campus_id,
+          course_id,
+          batch_id,
+          campuses:campus_id(name),
+          courses:course_id(name),
+          batches:batch_id(name)
+        `);
+
+      if (studentsError) throw studentsError;
+
+      // 2. Fetch all calculated academic performance records
+      const { data: perfData, error: perfError } = await supabase
+        .from("student_academic_performance")
+        .select("*");
+
+      if (perfError) throw perfError;
+
+      const perfMap = new Map<string, any>();
+      (perfData ?? []).forEach(p => {
+        perfMap.set(p.student_id, p);
+      });
+
+      const processedRecords = (studentsData ?? []).map(student => {
+        const perf = perfMap.get(student.id);
+        return {
+          id: perf?.id || `temp-${student.id}`,
+          student_id: student.id,
+          campus_id: student.campus_id,
+          course_id: student.course_id,
+          batch_id: student.batch_id,
+          attendance_percentage: perf?.attendance_percentage ?? 0,
+          marks_percentage: perf?.marks_percentage ?? 0,
+          academic_performance_score: perf?.academic_performance_score ?? 0,
+          progress_status: perf?.progress_status ?? "Average",
+          total_exams: perf?.total_exams ?? 0,
+          total_periods: perf?.total_periods ?? 0,
+          present_periods: perf?.present_periods ?? 0,
+          absent_periods: perf?.absent_periods ?? 0,
+          late_periods: perf?.late_periods ?? 0,
+          leave_periods: perf?.leave_periods ?? 0,
+          calculated_at: perf?.calculated_at || new Date().toISOString(),
+          students: student
+        };
+      }).sort((a, b) => b.academic_performance_score - a.academic_performance_score);
+
+      setPerformanceRecords(processedRecords);
+
+      // 3. Fetch student exam marks
+      const { data: examMarks, error: examMarksErr } = await supabase
+        .from("marks")
+        .select(`
+          id,
+          marks_obtained,
+          total_marks,
+          exam_id,
+          student_id,
+          remarks,
           students:student_id (
-            id,
             full_name,
             roll_number,
-            photo_url,
-            campuses:campus_id(name),
-            courses:course_id(name),
-            batches:batch_id(name)
+            campus_id,
+            course_id,
+            batch_id,
+            courses:course_id (name)
+          ),
+          exams:exam_id (
+            name,
+            exam_date,
+            course_id,
+            total_marks
           )
-        `)
-        .order("academic_performance_score", { ascending: false });
+        `);
 
-      if (error) throw error;
-      setPerformanceRecords(data ?? []);
+      if (examMarksErr) throw examMarksErr;
+      setStudentExamMarks(examMarks ?? []);
 
       // 2. Fetch subject analytics
       let subQ = supabase.from("subjects").select("id, name, course_id");
@@ -155,7 +232,9 @@ export default function AcademicPerformancePage() {
     setSelectedCourse("");
     setSelectedBatch("");
     setSelectedStatus("");
+    setSelectedExamId("");
     setPage(1);
+    setExamPage(1);
   };
 
   // Filter batches based on selected campus or course
@@ -190,6 +269,70 @@ export default function AcademicPerformancePage() {
     const start = (page - 1) * PAGE_SIZE;
     return filteredRecords.slice(start, start + PAGE_SIZE);
   }, [filteredRecords, page]);
+
+  const filteredExamMarks = useMemo(() => {
+    return studentExamMarks.filter(m => {
+      const student = m.students;
+      const exam = m.exams;
+      if (!student || !exam) return false;
+
+      if (selectedCampus && student.campus_id !== selectedCampus) return false;
+      if (selectedCourse && student.course_id !== selectedCourse) return false;
+      if (selectedBatch && student.batch_id !== selectedBatch) return false;
+      if (selectedExamId && m.exam_id !== selectedExamId) return false;
+
+      // search query
+      const q = search.toLowerCase();
+      if (q && !student.full_name?.toLowerCase().includes(q) && !student.roll_number?.toLowerCase().includes(q)) return false;
+
+      return true;
+    });
+  }, [studentExamMarks, selectedCampus, selectedCourse, selectedBatch, selectedExamId, search]);
+
+  const examTrendData = useMemo(() => {
+    const groups: Record<string, { sum: number; count: number; dateVal: Date }> = {};
+
+    for (const m of filteredExamMarks) {
+      const exam = m.exams;
+      if (!exam || !exam.exam_date) continue;
+
+      const dateStr = exam.exam_date;
+      const date = new Date(dateStr);
+      const score = m.total_marks > 0 ? (Number(m.marks_obtained) / Number(m.total_marks)) * 100 : 0;
+
+      let key = "";
+      if (timeframe === "daily") {
+        key = new Date(dateStr).toLocaleDateString("en-IN", { month: "short", day: "numeric" });
+      } else if (timeframe === "weekly") {
+        const oneJan = new Date(date.getFullYear(), 0, 1);
+        const numberOfDays = Math.floor((date.getTime() - oneJan.getTime()) / (24 * 60 * 60 * 1000));
+        const weekNum = Math.ceil((date.getDay() + 1 + numberOfDays) / 7);
+        key = `Wk ${weekNum} (${date.toLocaleString("en-US", { month: "short" })})`;
+      } else {
+        key = date.toLocaleString("en-US", { month: "short", year: "2-digit" });
+      }
+
+      if (!groups[key]) {
+        groups[key] = { sum: 0, count: 0, dateVal: date };
+      }
+      groups[key].sum += score;
+      groups[key].count += 1;
+    }
+
+    return Object.entries(groups)
+      .map(([key, val]) => ({
+        label: key,
+        avgScore: Math.round((val.sum / val.count) * 10) / 10,
+        dateVal: val.dateVal
+      }))
+      .sort((a, b) => a.dateVal.getTime() - b.dateVal.getTime());
+  }, [filteredExamMarks, timeframe]);
+
+  const totalExamPages = Math.ceil(filteredExamMarks.length / PAGE_SIZE) || 1;
+  const paginatedExamMarks = useMemo(() => {
+    const start = (examPage - 1) * PAGE_SIZE;
+    return filteredExamMarks.slice(start, start + PAGE_SIZE);
+  }, [filteredExamMarks, examPage]);
 
   // Overall Statistics Calculators
   const globalStats = useMemo(() => {
@@ -329,6 +472,104 @@ export default function AcademicPerformancePage() {
     window.print();
   };
 
+  const handleExportExcel = () => {
+    let headers: string[] = [];
+    let rows: any[][] = [];
+    let filename = "";
+
+    if (activeTab === "exams") {
+      filename = `Student_Exam_Scores_${new Date().toISOString().split("T")[0]}.csv`;
+      headers = [
+        "Student Name",
+        "Roll Number",
+        "Campus",
+        "Course",
+        "Exam Name",
+        "Exam Date",
+        "Marks Obtained",
+        "Total Marks",
+        "Percentage Score",
+        "Remarks"
+      ];
+      rows = filteredExamMarks.map(m => {
+        const pct = m.total_marks > 0 ? Math.round((Number(m.marks_obtained) / Number(m.total_marks)) * 100) : 0;
+        return [
+          m.students?.full_name || "—",
+          m.students?.roll_number || "—",
+          campuses.find(c => c.id === m.students?.campus_id)?.name || "—",
+          m.students?.courses?.name || "—",
+          m.exams?.name || "—",
+          m.exams?.exam_date || "—",
+          m.marks_obtained,
+          m.total_marks,
+          `${pct}%`,
+          m.remarks || ""
+        ];
+      });
+    } else {
+      filename = `Student_Overall_Performance_${new Date().toISOString().split("T")[0]}.csv`;
+      headers = [
+        "Student Name",
+        "Roll Number",
+        "Campus",
+        "Course",
+        "Batch",
+        "Attendance Percentage",
+        "Present Periods",
+        "Total Periods",
+        "Exams Percentage",
+        "Total Exams",
+        "Cumulative Score",
+        "Progress Status",
+        "Batch Rank",
+        "Course Rank",
+        "Campus Rank"
+      ];
+      rows = filteredRecords.map(rec => {
+        const student = rec.students;
+        const ranks = getRankingsForStudent(rec.student_id, rec.batch_id, rec.course_id, rec.campus_id);
+        return [
+          student?.full_name || "—",
+          student?.roll_number || "—",
+          student?.campuses?.name || "—",
+          student?.courses?.name || "—",
+          student?.batches?.name || "—",
+          `${rec.attendance_percentage}%`,
+          rec.present_periods,
+          rec.total_periods,
+          `${rec.marks_percentage}%`,
+          rec.total_exams,
+          `${rec.academic_performance_score}%`,
+          rec.progress_status || "—",
+          `#${ranks.batch}`,
+          `#${ranks.course}`,
+          `#${ranks.campus}`
+        ];
+      });
+    }
+
+    // Combine headers and rows
+    const csvContent = [
+      headers.join(","),
+      ...rows.map(row => row.map(val => {
+        const strVal = String(val ?? "");
+        if (strVal.includes(",") || strVal.includes('"') || strVal.includes("\n")) {
+          return `"${strVal.replace(/"/g, '""')}"`;
+        }
+        return strVal;
+      }).join(","))
+    ].join("\n");
+
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.setAttribute("href", url);
+    link.setAttribute("download", filename);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
   return (
     <div className="p-4 sm:p-8 space-y-10 max-w-[1600px] mx-auto animate-in fade-in slide-in-from-bottom-4 duration-700 print:p-0 print:space-y-4">
       
@@ -363,6 +604,13 @@ export default function AcademicPerformancePage() {
           >
             <Activity size={16} className="text-[#0B3C5D]" />
             Sync Supabase
+          </button>
+          <button
+            onClick={handleExportExcel}
+            className="flex items-center gap-2 bg-[#D4AF37] text-white px-5 py-3 rounded-2xl text-sm font-black hover:bg-[#D4AF37]/90 transition-all shadow-md active:scale-95 animate-fadeIn"
+          >
+            <Download size={16} />
+            Export Excel
           </button>
           <button
             onClick={handlePrint}
@@ -430,6 +678,7 @@ export default function AcademicPerformancePage() {
       <div className="flex border-b border-slate-200 gap-1 overflow-x-auto pb-px scrollbar-none print:hidden">
         {[
           { id: "overview", label: "Overview", icon: PieIcon },
+          { id: "exams", label: "Exam Performance", icon: Award },
           { id: "directory", label: "Student Directory", icon: Users },
           { id: "subjects", label: "Subject Analytics", icon: BarChart3 },
           { id: "correlation", label: "Discipline & Correlation", icon: Activity },
@@ -601,6 +850,264 @@ export default function AcademicPerformancePage() {
                   </div>
                 </div>
               </div>
+            </div>
+          )}
+
+          {/* TAB: EXAM PERFORMANCE ANALYTICS */}
+          {activeTab === "exams" && (
+            <div className="space-y-8">
+              
+              {/* FILTERS PANEL */}
+              <div className="bg-white rounded-[2.5rem] border border-slate-200 p-6 shadow-sm space-y-4">
+                <div className="flex flex-col xl:flex-row gap-4">
+                  {/* Search */}
+                  <div className="relative flex-1 min-w-0">
+                    <Search size={18} className="absolute left-5 top-1/2 -translate-y-1/2 text-slate-400" />
+                    <input
+                      type="text"
+                      placeholder="Search student by name or roll number..."
+                      value={search}
+                      onChange={(e) => setSearch(e.target.value)}
+                      className="w-full pl-14 pr-6 py-4 bg-white border border-slate-200 rounded-[1.5rem] text-sm outline-none focus:border-[#0B3C5D] focus:ring-8 focus:ring-[#0B3C5D]/5 transition-all shadow-sm placeholder:text-slate-400"
+                    />
+                  </div>
+
+                  {/* Dropdowns */}
+                  <div className="flex items-center gap-3 flex-wrap">
+                    {/* Campus Selector */}
+                    <div className="flex items-center gap-2 bg-white border border-slate-200 rounded-[1.25rem] px-4 py-1.5 shadow-sm hover:border-[#D4AF37] transition-colors group">
+                      <Building2 size={16} className="text-slate-400 group-hover:text-[#D4AF37] transition-colors" />
+                      <select
+                        value={selectedCampus}
+                        onChange={(e) => { setSelectedCampus(e.target.value); setSelectedBatch(""); }}
+                        className="bg-transparent text-xs font-black text-slate-700 outline-none cursor-pointer py-2 pr-2 appearance-none"
+                      >
+                        <option value="">All Campuses</option>
+                        {campuses.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                      </select>
+                    </div>
+
+                    {/* Course Selector */}
+                    <div className="flex items-center gap-2 bg-white border border-slate-200 rounded-[1.25rem] px-4 py-1.5 shadow-sm hover:border-[#0B3C5D] transition-colors group">
+                      <BookOpen size={16} className="text-slate-400 group-hover:text-[#0B3C5D] transition-colors" />
+                      <select
+                        value={selectedCourse}
+                        onChange={(e) => { setSelectedCourse(e.target.value); setSelectedBatch(""); setSelectedExamId(""); }}
+                        className="bg-transparent text-xs font-black text-slate-700 outline-none cursor-pointer py-2 pr-2 appearance-none"
+                      >
+                        <option value="">All Courses</option>
+                        {courses.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                      </select>
+                    </div>
+
+                    {/* Batch Selector */}
+                    <div className="flex items-center gap-2 bg-white border border-slate-200 rounded-[1.25rem] px-4 py-1.5 shadow-sm hover:border-[#0B3C5D] transition-colors group">
+                      <Users size={16} className="text-slate-400 group-hover:text-[#0B3C5D] transition-colors" />
+                      <select
+                        value={selectedBatch}
+                        onChange={(e) => setSelectedBatch(e.target.value)}
+                        className="bg-transparent text-xs font-black text-slate-700 outline-none cursor-pointer py-2 pr-2 appearance-none"
+                      >
+                        <option value="">All Batches</option>
+                        {filteredBatches.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
+                      </select>
+                    </div>
+
+                    {/* Exam Selector */}
+                    <div className="flex items-center gap-2 bg-white border border-slate-200 rounded-[1.25rem] px-4 py-1.5 shadow-sm hover:border-[#D4AF37] transition-colors group">
+                      <Award size={16} className="text-slate-400 group-hover:text-[#D4AF37] transition-colors" />
+                      <select
+                        value={selectedExamId}
+                        onChange={(e) => setSelectedExamId(e.target.value)}
+                        className="bg-transparent text-xs font-black text-slate-700 outline-none cursor-pointer py-2 pr-2 appearance-none"
+                      >
+                        <option value="">All Exams</option>
+                        {examsList
+                          .filter(e => !selectedCourse || e.course_id === selectedCourse)
+                          .map(e => (
+                            <option key={e.id} value={e.id}>
+                              {e.name} ({e.exam_date ? new Date(e.exam_date).toLocaleDateString("en-IN", { month: "short", day: "numeric" }) : "Upcoming"})
+                            </option>
+                          ))}
+                      </select>
+                    </div>
+
+                    {(search || selectedCampus || selectedCourse || selectedBatch || selectedExamId) && (
+                      <button
+                        onClick={() => { setSelectedExamId(""); handleResetFilters(); }}
+                        className="flex items-center gap-2 px-5 py-3 text-rose-600 hover:bg-rose-50 rounded-[1.25rem] text-xs font-black transition-all active:scale-95"
+                      >
+                        <RotateCcw size={16} />
+                        Clear
+                      </button>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* CHART & DETAILS SUMMARY */}
+              <div className="grid grid-cols-1 gap-8">
+                {/* Score Trend Card */}
+                <div className="bg-white rounded-[2.5rem] border border-slate-200 p-6 shadow-sm">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
+                    <div>
+                      <h2 className="text-lg font-black text-[#0B3C5D] tracking-tight">Exam Performance Score Trend</h2>
+                      <p className="text-xs text-slate-400 mt-0.5">Average scores grouped by chosen timeframe</p>
+                    </div>
+                    <div className="flex items-center bg-slate-100 p-1 rounded-xl">
+                      {["daily", "weekly", "monthly"].map((t) => (
+                        <button
+                          key={t}
+                          onClick={() => setTimeframe(t as any)}
+                          className={`text-xs font-bold px-4 py-2 rounded-lg uppercase tracking-wider transition-all ${
+                            timeframe === t
+                              ? "bg-white text-[#0B3C5D] shadow-sm"
+                              : "text-slate-400 hover:text-slate-600"
+                          }`}
+                        >
+                          {t}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  <div className="h-[280px]">
+                    {examTrendData.length === 0 ? (
+                      <div className="h-full flex items-center justify-center text-slate-400 text-xs font-bold">
+                        No exam logs matching current filters
+                      </div>
+                    ) : (
+                      <ResponsiveContainer width="100%" height="100%">
+                        <AreaChart data={examTrendData}>
+                          <defs>
+                            <linearGradient id="examTrendGrad" x1="0" y1="0" x2="0" y2="1">
+                              <stop offset="5%" stopColor="#D4AF37" stopOpacity={0.2} />
+                              <stop offset="95%" stopColor="#D4AF37" stopOpacity={0} />
+                            </linearGradient>
+                          </defs>
+                          <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                          <XAxis dataKey="label" tick={{ fill: '#94a3b8', fontSize: 10, fontWeight: 700 }} axisLine={false} tickLine={false} />
+                          <YAxis domain={[0, 100]} tick={{ fill: '#94a3b8', fontSize: 11 }} axisLine={false} tickLine={false} tickFormatter={(v) => `${v}%`} />
+                          <Tooltip contentStyle={{ borderRadius: 12, border: 'none', fontSize: 12 }} formatter={(v) => [`${v}%`, 'Average Score']} />
+                          <Area type="monotone" dataKey="avgScore" stroke="#D4AF37" strokeWidth={3} fillOpacity={1} fill="url(#examTrendGrad)" dot={{ fill: '#D4AF37', r: 5 }} />
+                        </AreaChart>
+                      </ResponsiveContainer>
+                    )}
+                  </div>
+                </div>
+
+                {/* Score Directory Table Card */}
+                <div className="bg-white rounded-[2.5rem] border border-slate-200 overflow-hidden shadow-sm">
+                  <div className="p-6 border-b border-slate-100">
+                    <h3 className="text-base font-black text-slate-900">Student Exam Performance Directory</h3>
+                    <p className="text-xs text-slate-400 mt-0.5">Individual scholar scores for examinations</p>
+                  </div>
+
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left">
+                      <thead>
+                        <tr className="bg-slate-50/50 border-b border-slate-100">
+                          {["Scholar Profile", "Roll No", "Exam Details", "Marks Obtained", "Percentage Score", "Remarks"].map((h) => (
+                            <th key={h} className="px-6 py-5 text-[10px] font-black text-slate-400 uppercase tracking-[0.15em] whitespace-nowrap">
+                              {h}
+                            </th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-50">
+                        {paginatedExamMarks.map((m) => {
+                          const pct = m.total_marks > 0 ? Math.round((Number(m.marks_obtained) / Number(m.total_marks)) * 100) : 0;
+                          const badge = pct >= 90 ? STATUS_COLORS["Excellent"] :
+                                        pct >= 75 ? STATUS_COLORS["Good"] :
+                                        pct >= 60 ? STATUS_COLORS["Average"] :
+                                        pct >= 40 ? STATUS_COLORS["Needs Improvement"] : STATUS_COLORS["At Risk"];
+
+                          return (
+                            <tr key={m.id} className="hover:bg-slate-50/60 transition-colors">
+                              <td className="px-6 py-4">
+                                <div>
+                                  <p className="text-sm font-black text-slate-900">{m.students?.full_name}</p>
+                                  <span className="text-[9px] text-slate-400 font-bold uppercase tracking-wider">
+                                    {m.students?.courses?.name ?? "No Course"}
+                                  </span>
+                                </div>
+                              </td>
+                              <td className="px-6 py-4">
+                                <span className="font-mono text-[10px] font-black text-[#0B3C5D] bg-[#0B3C5D]/5 px-2.5 py-1.5 rounded-lg border border-[#0B3C5D]/10 uppercase tracking-wider">
+                                  {m.students?.roll_number}
+                                </span>
+                              </td>
+                              <td className="px-6 py-4">
+                                <div>
+                                  <p className="text-xs font-black text-slate-800">{m.exams?.name}</p>
+                                  <span className="text-[9px] text-slate-400 font-bold uppercase mt-0.5">
+                                    {m.exams?.exam_date ? new Date(m.exams.exam_date).toLocaleDateString("en-IN", { month: "short", day: "numeric" }) : "—"}
+                                  </span>
+                                </div>
+                              </td>
+                              <td className="px-6 py-4">
+                                <span className="text-xs font-bold text-slate-700">
+                                  {m.marks_obtained} / {m.total_marks}
+                                </span>
+                              </td>
+                              <td className="px-6 py-4">
+                                <div className="flex items-center gap-2">
+                                  <span className="text-sm font-black text-[#0B3C5D]">{pct}%</span>
+                                  <span className={`text-[8px] font-black px-1.5 py-0.5 rounded uppercase tracking-widest ${badge.bg} ${badge.text}`}>
+                                    {pct >= 90 ? "Excellent" :
+                                     pct >= 75 ? "Good" :
+                                     pct >= 60 ? "Average" :
+                                     pct >= 40 ? "Needs Imp" : "At Risk"}
+                                  </span>
+                                </div>
+                              </td>
+                              <td className="px-6 py-4">
+                                <span className="text-xs text-slate-400 font-medium italic">
+                                  {m.remarks || "—"}
+                                </span>
+                              </td>
+                            </tr>
+                          );
+                        })}
+
+                        {filteredExamMarks.length === 0 && (
+                          <tr>
+                            <td colSpan={6} className="py-20 text-center">
+                              <p className="text-slate-900 font-black text-lg">No exam scores found</p>
+                              <p className="text-slate-400 text-xs mt-1">Please check selection or reset filters.</p>
+                            </td>
+                          </tr>
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+
+                  {totalExamPages > 1 && (
+                    <div className="flex flex-col sm:flex-row items-center justify-between px-8 py-6 bg-white border-t border-slate-100 gap-4">
+                      <p className="text-[11px] font-bold text-slate-400 uppercase tracking-widest">
+                        Showing <span className="text-slate-900">{(examPage - 1) * PAGE_SIZE + 1} – {Math.min(examPage * PAGE_SIZE, filteredExamMarks.length)}</span> of <span className="text-slate-900 font-black">{filteredExamMarks.length}</span> Scores
+                      </p>
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={() => setExamPage(p => Math.max(1, p - 1))}
+                          disabled={examPage === 1}
+                          className="w-10 h-10 flex items-center justify-center rounded-xl border border-slate-200 text-slate-600 hover:bg-slate-50 disabled:opacity-30 transition-all"
+                        >
+                          <ChevronLeft size={16} />
+                        </button>
+                        <span className="text-xs font-black text-slate-700 px-4">Page {examPage} of {totalExamPages}</span>
+                        <button
+                          onClick={() => setExamPage(p => Math.min(totalExamPages, p + 1))}
+                          disabled={examPage === totalExamPages}
+                          className="w-10 h-10 flex items-center justify-center rounded-xl bg-[#0B3C5D] text-white disabled:opacity-30 transition-all"
+                        >
+                          <ChevronRight size={16} />
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+
             </div>
           )}
 

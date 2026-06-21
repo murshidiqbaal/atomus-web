@@ -45,7 +45,7 @@ function StudentAttendanceCardImpl({
   }, [isFocused]);
 
   // Map each selectable status to its styling config
-  const statuses: Exclude<AttendanceStatus, "Unmarked">[] = ["Present", "Absent", "Late", "Leave"];
+  const statuses: Exclude<AttendanceStatus, "Unmarked" | "Leave">[] = ["Present", "Absent", "Late"];
 
   return (
     <div

@@ -171,7 +171,7 @@ export default function TeacherAttendancePage() {
         )}
 
         {active === "analytics" && (
-          <AttendanceAnalytics />
+          <AttendanceAnalytics filters={filters} onOpenSession={setOpenSessionId} />
         )}
 
         {active === "performance" && (

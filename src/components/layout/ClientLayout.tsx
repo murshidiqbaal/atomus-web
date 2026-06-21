@@ -5,11 +5,12 @@ import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import QueryProvider from '@/providers/QueryProvider';
 import { useAuth, ROLE_HOME, AppRole } from '@/providers/AuthProvider';
+import { PermissionProvider, usePermissions } from '@/features/staff-access/hooks/usePermissions';
 import {
   LayoutDashboard, Users, UserCircle, GraduationCap, BookOpen,
   BookMarked, CalendarCheck, FileSpreadsheet, CreditCard, Megaphone,
   BarChart3, Settings, Menu, X, Bell, Search, ChevronDown,
-  LogOut, Calculator, Award, Timer, QrCode
+  LogOut, Calculator, Award, Timer, QrCode, Shield
 } from 'lucide-react';
 
 type NavItem = { href: string; label: string; icon: any; roles?: Exclude<AppRole, null>[] };
@@ -35,8 +36,44 @@ const navItems: readonly NavItem[] = [
   { href: '/parent-dashboard', label: 'My Children', icon: LayoutDashboard, roles: ['parent'] },
 ];
 
+const staffNavItems: readonly NavItem[] = [
+  { href: '/admin/staff', label: 'Dashboard', icon: LayoutDashboard, roles: ['admin', 'staff'] },
+  { href: '/admin/staff/accounts', label: 'Staff Accounts', icon: Users, roles: ['admin', 'staff'] },
+  { href: '/admin/staff/permissions', label: 'Roles & Permissions', icon: Shield, roles: ['admin', 'staff'] },
+  { href: '/admin/staff/logs', label: 'Activity Logs', icon: FileSpreadsheet, roles: ['admin', 'staff'] },
+];
+
+const ROUTE_TO_MODULE: Record<string, string> = {
+  '/admin': 'Dashboard',
+  '/students': 'Students',
+  '/parents': 'Parents',
+  '/teachers': 'Teachers',
+  '/courses': 'Courses',
+  '/subjects': 'Subjects',
+  '/attendance': 'Attendance',
+  '/teacher-attendance': 'Attendance',
+  '/marks': 'Marks',
+  '/fees': 'Fees',
+  '/payment-qr': 'Fees',
+  '/expenses': 'Expenses',
+  '/announcements': 'Announcements',
+  '/reports': 'Reports',
+  '/performance': 'Reports',
+  '/settings': 'Settings',
+  '/admin/staff': 'Staff Access',
+};
+
+function getModuleForPath(path: string): string | null {
+  for (const [route, module] of Object.entries(ROUTE_TO_MODULE)) {
+    if (path === route || path.startsWith(route + '/')) {
+      return module;
+    }
+  }
+  return null;
+}
+
 const ROLE_PATH_RULES: { prefix: string; allow: Exclude<AppRole, null>[] }[] = [
-  { prefix: '/admin', allow: ['admin'] },
+  { prefix: '/admin', allow: ['admin', 'staff'] }, // allow staff to access admin prefix for staff sub-routes
   { prefix: '/students', allow: ['admin', 'staff'] },
   { prefix: '/parents', allow: ['admin', 'staff'] },
   { prefix: '/teachers', allow: ['admin', 'staff'] },
@@ -45,12 +82,12 @@ const ROLE_PATH_RULES: { prefix: string; allow: Exclude<AppRole, null>[] }[] = [
   { prefix: '/attendance', allow: ['admin', 'staff'] },
   { prefix: '/teacher-attendance', allow: ['admin', 'staff'] },
   { prefix: '/marks', allow: ['admin', 'staff'] },
-  { prefix: '/fees', allow: ['admin'] },
+  { prefix: '/fees', allow: ['admin', 'staff'] }, // allow staff to access fees (gated by RLS/Permissions)
   { prefix: '/payment-qr', allow: ['admin'] },
-  { prefix: '/expenses', allow: ['admin'] },
+  { prefix: '/expenses', allow: ['admin', 'staff'] }, // allow staff to access expenses (gated)
   { prefix: '/announcements', allow: ['admin', 'staff'] },
-  { prefix: '/reports', allow: ['admin'] },
-  { prefix: '/settings', allow: ['admin', 'teacher', 'parent'] },
+  { prefix: '/reports', allow: ['admin', 'staff'] }, // allow staff to access reports (gated)
+  { prefix: '/settings', allow: ['admin', 'teacher', 'parent', 'staff'] },
   { prefix: '/teacher-dashboard', allow: ['teacher', 'admin'] },
   { prefix: '/parent-dashboard', allow: ['parent', 'admin'] },
 ];
@@ -59,6 +96,22 @@ function isPathAllowed(pathname: string, role: Exclude<AppRole, null>): boolean 
   const rule = ROLE_PATH_RULES.find((r) => pathname === r.prefix || pathname.startsWith(r.prefix + '/'));
   if (!rule) return true; // unknown routes default to allowed (admin shell shows them)
   return rule.allow.includes(role);
+}
+
+function getStaffHomeRoute(permissions: any): string {
+  for (const item of navItems) {
+    const module = ROUTE_TO_MODULE[item.href];
+    if (module && permissions?.[module]?.view) {
+      return item.href;
+    }
+  }
+  for (const item of staffNavItems) {
+    const module = ROUTE_TO_MODULE[item.href];
+    if (module && permissions?.[module]?.view) {
+      return item.href;
+    }
+  }
+  return '/403';
 }
 
 function isItemActive(href: string, pathname: string) {
@@ -92,33 +145,67 @@ const SidebarItem = React.memo(function SidebarItem({
   );
 });
 
-export default function ClientLayout({ children }: { children: React.ReactNode }) {
+function ClientLayoutContent({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
-  const { session, user, role, loading, signOut } = useAuth();
-  const authed = !!session || !!user; // user covers the master-admin override
+  const { session, user, role, loading, signOut, profile } = useAuth();
+  const { permissions, loading: permsLoading } = usePermissions();
+  const authed = !!session || !!user;
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
 
-  const isLoginPage = pathname === '/login';
+  // Initialize sidebar state based on screen size and localStorage
+  React.useEffect(() => {
+    const isDesktop = window.innerWidth >= 1024;
+    const stored = localStorage.getItem('sidebar_open');
+    const targetState = stored !== null ? stored === 'true' : isDesktop;
+    
+    const timer = setTimeout(() => {
+      setSidebarOpen(targetState);
+    }, 0);
+
+    return () => clearTimeout(timer);
+  }, []);
+
+  const isPublicPage = pathname === '/login' || pathname === '/forgot-password' || pathname.startsWith('/reset-password');
 
   // Route protection + role-based gating
   React.useEffect(() => {
-    if (loading) return;
+    if (loading || permsLoading) return;
 
-    if (!authed && !isLoginPage) {
+    if (!authed && !isPublicPage) {
       router.replace('/login');
       return;
     }
-    if (authed && isLoginPage) {
-      const home = role ? ROLE_HOME[role] : '/admin';
+    if (authed && isPublicPage) {
+      const home = role === 'staff' ? getStaffHomeRoute(permissions) : (role ? ROLE_HOME[role] : '/admin');
       router.replace(home);
       return;
     }
-    if (authed && role && !isPathAllowed(pathname, role)) {
-      router.replace(ROLE_HOME[role]);
+
+    if (authed && role) {
+      if (profile?.mustChangePassword && pathname !== '/change-password') {
+        router.replace('/change-password');
+        return;
+      }
+      if (role === 'staff') {
+        const module = getModuleForPath(pathname);
+        if (module && (!permissions || !permissions[module]?.view)) {
+          if (pathname === '/admin') {
+            const allowedRoute = getStaffHomeRoute(permissions);
+            router.replace(allowedRoute);
+            return;
+          }
+          router.replace('/403');
+          return;
+        }
+      }
+      if (!isPathAllowed(pathname, role)) {
+        const home = role === 'staff' ? getStaffHomeRoute(permissions) : ROLE_HOME[role];
+        router.replace(home);
+      }
     }
-  }, [authed, role, loading, isLoginPage, pathname, router]);
+  }, [authed, role, loading, permsLoading, permissions, isPublicPage, pathname, router, profile]);
 
   // Global Ctrl+Shift+A navigation shortcut to admin panel
   React.useEffect(() => {
@@ -133,9 +220,22 @@ export default function ClientLayout({ children }: { children: React.ReactNode }
   }, [router]);
 
   // Stable callbacks so memoized SidebarItem children don't re-render on
-  // every parent render (e.g. when the profile dropdown toggles).
-  const closeSidebar = useCallback(() => setSidebarOpen(false), []);
-  const toggleSidebar = useCallback(() => setSidebarOpen((v) => !v), []);
+  // every parent render
+  const closeSidebar = useCallback(() => {
+    if (window.innerWidth < 1024) {
+      setSidebarOpen(false);
+    }
+  }, []);
+
+  const toggleSidebar = useCallback(() => {
+    setSidebarOpen((v) => {
+      const next = !v;
+      if (window.innerWidth >= 1024) {
+        localStorage.setItem('sidebar_open', String(next));
+      }
+      return next;
+    });
+  }, []);
   const toggleProfile = useCallback(() => setProfileOpen((v) => !v), []);
   const closeProfile = useCallback(() => setProfileOpen(false), []);
   const handleSignOut = useCallback(() => {
@@ -143,9 +243,17 @@ export default function ClientLayout({ children }: { children: React.ReactNode }
     signOut();
   }, [signOut]);
 
-  const sidebarNav = useMemo(
-    () => navItems
-      .filter((item) => !item.roles || (role && item.roles.includes(role)))
+  const sidebarNav = useMemo(() => {
+    // Filter standard navigation items
+    const mainFiltered = navItems
+      .filter((item) => {
+        if (item.roles && (!role || !item.roles.includes(role))) return false;
+        if (role === 'staff') {
+          const module = ROUTE_TO_MODULE[item.href];
+          if (module && (!permissions || !permissions[module]?.view)) return false;
+        }
+        return true;
+      })
       .map((item) => (
         <SidebarItem
           key={item.href}
@@ -155,11 +263,39 @@ export default function ClientLayout({ children }: { children: React.ReactNode }
           active={isItemActive(item.href, pathname)}
           onClick={closeSidebar}
         />
-      )),
-    [pathname, role, closeSidebar],
-  );
+      ));
 
-  if (loading) {
+    // Filter staff sub-navigation items
+    const hasStaffAccess = role === 'admin' || (role === 'staff' && permissions?.['Staff Access']?.view);
+    const staffFiltered = hasStaffAccess
+      ? staffNavItems.map((item) => (
+          <SidebarItem
+            key={item.href}
+            href={item.href}
+            label={item.label}
+            icon={item.icon}
+            active={isItemActive(item.href, pathname)}
+            onClick={closeSidebar}
+          />
+        ))
+      : [];
+
+    return (
+      <div className="space-y-4">
+        <div className="space-y-0.5">{mainFiltered}</div>
+        {staffFiltered.length > 0 && (
+          <div className="space-y-1">
+            <div className="pt-4 px-3 mb-1 text-[10px] font-bold text-white/30 uppercase tracking-widest">
+              Staff Access
+            </div>
+            <div className="space-y-0.5">{staffFiltered}</div>
+          </div>
+        )}
+      </div>
+    );
+  }, [pathname, role, permissions, closeSidebar]);
+
+  if (loading || permsLoading) {
     return (
       <div className="h-screen w-screen flex items-center justify-center bg-[#0B3C5D]">
         <div className="w-12 h-12 border-4 border-white/20 border-t-white rounded-full animate-spin" />
@@ -167,8 +303,8 @@ export default function ClientLayout({ children }: { children: React.ReactNode }
     );
   }
 
-  if (isLoginPage) return <>{children}</>;
-  if (!authed) return null; // Prevent flash of content
+  if (isPublicPage) return <>{children}</>;
+  if (!authed) return null;
 
   return (
     <div className="flex h-screen overflow-hidden">
@@ -182,41 +318,47 @@ export default function ClientLayout({ children }: { children: React.ReactNode }
 
       {/* Sidebar */}
       <aside className={`
-        fixed lg:static inset-y-0 left-0 z-40 w-[260px] bg-[#0B3C5D] flex flex-col h-screen shrink-0
-        transform transition-transform duration-300 ease-out
-        ${sidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
+        fixed lg:static inset-y-0 left-0 z-40 bg-[#0B3C5D] flex flex-col h-screen shrink-0
+        transition-all duration-300 ease-in-out
+        ${sidebarOpen 
+          ? 'w-[260px] translate-x-0' 
+          : 'w-[260px] -translate-x-full lg:w-0 lg:translate-x-0 lg:overflow-hidden'
+        }
       `}>
-        {/* Logo */}
-        <div className="px-5 py-6 border-b border-white/10">
-          <div className="flex items-center gap-3">
-            <div className="bg-[#D4AF37] p-2 rounded-xl shrink-0">
-              <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
-                <path d="M12 2L2 7L12 12L22 7L12 2Z" stroke="#0B3C5D" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
-                <path d="M2 17L12 22L22 17" stroke="#0B3C5D" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
-                <path d="M2 12L12 17L22 12" stroke="#0B3C5D" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
-              </svg>
-            </div>
-            <div>
-              <h1 className="text-white font-black text-lg tracking-tight leading-none">ATOMUS</h1>
-              <p className="text-white/40 text-[10px] font-bold uppercase tracking-widest mt-0.5">.edu Admin</p>
+        <div className="w-[260px] flex flex-col h-screen shrink-0">
+          {/* Logo */}
+          <div className="px-5 py-6 border-b border-white/10">
+            <div className="flex items-center gap-3">
+              <div className="bg-[#D4AF37] p-2 rounded-xl shrink-0">
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
+                  <path d="M12 2L2 7L12 12L22 7L12 2Z" stroke="#0B3C5D" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
+                  <path d="M2 17L12 22L22 17" stroke="#0B3C5D" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
+                  <path d="M2 12L12 17L22 12" stroke="#0B3C5D" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
+              </div>
+              <div>
+                <h1 className="text-white font-black text-lg tracking-tight leading-none">ATOMUS</h1>
+                <p className="text-white/40 text-[10px] font-bold uppercase tracking-widest mt-0.5">.edu Admin</p>
+              </div>
             </div>
           </div>
-        </div>
 
-        {/* Navigation */}
-        <nav className="flex-1 px-3 py-4 pb-6 space-y-0.5 overflow-y-auto scrollbar-thin">
-          {sidebarNav}
-        </nav>
+          {/* Navigation */}
+          <nav className="flex-1 px-3 py-4 pb-6 space-y-0.5 overflow-y-auto scrollbar-thin">
+            {sidebarNav}
+          </nav>
+        </div>
       </aside>
 
       {/* Main Area */}
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
         {/* Top Bar */}
         <header className="bg-white border-b border-slate-200 px-6 py-3 flex items-center gap-4 shrink-0 z-20">
-          {/* Mobile Hamburger */}
+          {/* Sidebar Toggle */}
           <button
             onClick={toggleSidebar}
-            className="lg:hidden p-2 text-slate-500 hover:text-slate-800 hover:bg-slate-100 rounded-xl transition-colors"
+            className="p-2 text-slate-500 hover:text-slate-800 hover:bg-slate-100 rounded-xl transition-colors"
+            aria-label="Toggle Sidebar"
           >
             {sidebarOpen ? <X size={20} /> : <Menu size={20} />}
           </button>
@@ -284,5 +426,13 @@ export default function ClientLayout({ children }: { children: React.ReactNode }
         </main>
       </div>
     </div>
+  );
+}
+
+export default function ClientLayout({ children }: { children: React.ReactNode }) {
+  return (
+    <PermissionProvider>
+      <ClientLayoutContent>{children}</ClientLayoutContent>
+    </PermissionProvider>
   );
 }

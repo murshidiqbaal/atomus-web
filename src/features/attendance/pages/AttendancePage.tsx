@@ -30,14 +30,16 @@ export default function AttendancePage() {
   });
 
   const { data: students = [], isLoading: studentsLoading } = useAttStudents(
-    filters.campus_id, filters.course_id, filters.batch_id,
+    filters.campus_id, filters.course_id, filters.batch_id || undefined,
   );
+  const studentIds = useMemo(() => students.map((s) => s.id), [students]);
   const { data: records = [], isLoading: recordsLoading } = useAttRecords(
     filters.campus_id,
     filters.course_id,
-    filters.batch_id,
+    filters.batch_id || undefined,
     filters.attendance_date,
     null,
+    studentIds,
   );
   const { data: subjects = [] } = useAttSubjects(filters.course_id);
 
@@ -532,7 +534,6 @@ export default function AttendancePage() {
                     <option value="Present">Present</option>
                     <option value="Absent">Absent</option>
                     <option value="Late">Late</option>
-                    <option value="Leave">Leave</option>
                   </select>
                 </div>
 
@@ -648,13 +649,11 @@ export default function AttendancePage() {
                                     ${log.status === "Present" ? "text-emerald-700 border-emerald-300" : ""}
                                     ${log.status === "Absent" ? "text-rose-700 border-rose-300" : ""}
                                     ${log.status === "Late" ? "text-amber-700 border-amber-300" : ""}
-                                    ${log.status === "Leave" ? "text-sky-700 border-sky-300" : ""}
                                   `}
                                 >
                                   <option value="Present">Present</option>
                                   <option value="Absent">Absent</option>
                                   <option value="Late">Late</option>
-                                  <option value="Leave">Leave</option>
                                 </select>
                               )}
                              </td>
@@ -871,7 +870,6 @@ export default function AttendancePage() {
                       <option value="Present">Present</option>
                       <option value="Absent">Absent</option>
                       <option value="Late">Late</option>
-                      <option value="Leave">Leave</option>
                     </select>
                   </div>
 

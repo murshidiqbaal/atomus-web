@@ -21,6 +21,7 @@ export type UserProfile = {
   subjectIds?: string[];
   batchIds?: string[];
   linkedStudentIds?: string[];
+  mustChangePassword?: boolean;
 } | null;
 
 export type UserPermissions = {
@@ -174,12 +175,50 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     async function fetchProfile() {
       setProfileLoading(true);
       try {
-        if (role === 'admin' || role === 'staff') {
-          if (!cancelled) {
+        if (role === 'admin') {
+          const { data: admin, error: adminErr } = await supabase
+            .from('admins')
+            .select('id, full_name, email, must_change_password')
+            .eq('auth_id', user!.id)
+            .maybeSingle();
+
+          if (!adminErr && admin && !cancelled) {
+            setProfile({
+              id: admin.id,
+              name: admin.full_name,
+              email: admin.email,
+              mustChangePassword: admin.must_change_password,
+            });
+          } else if (!cancelled) {
             setProfile({
               id: user!.id,
-              name: (user!.user_metadata?.full_name as string) || (role === 'staff' ? 'Staff User' : 'Admin User'),
+              name: (user!.user_metadata?.full_name as string) || 'Admin User',
               email: user!.email,
+              mustChangePassword: false,
+            });
+          }
+        } else if (role === 'staff') {
+          const { data: staff } = await supabase
+            .from('staff_accounts')
+            .select('id, full_name, email, phone, campus_id, must_change_password')
+            .eq('auth_id', user!.id)
+            .maybeSingle();
+
+          if (staff && !cancelled) {
+            setProfile({
+              id: staff.id,
+              name: staff.full_name,
+              email: staff.email,
+              phone: staff.phone || undefined,
+              campusId: staff.campus_id,
+              mustChangePassword: staff.must_change_password,
+            });
+          } else if (!cancelled) {
+            setProfile({
+              id: user!.id,
+              name: (user!.user_metadata?.full_name as string) || 'Staff User',
+              email: user!.email,
+              mustChangePassword: false,
             });
           }
         } else if (role === 'teacher') {

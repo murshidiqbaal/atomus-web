@@ -16,7 +16,7 @@ import { useSaveAttendance, useTeacherRestrictions } from "../hooks";
 import { StudentAttendanceCard } from "./StudentAttendanceCard";
 import { Card, EmptyState, fieldCls, STATUS_CFG } from "./ui";
 
-const FILTER_STATUSES = ["All", "Present", "Absent", "Late", "Leave", "Unmarked"] as const;
+const FILTER_STATUSES = ["All", "Present", "Absent", "Late", "Unmarked"] as const;
 type StatusFilter = (typeof FILTER_STATUSES)[number];
 
 const AUTO_SAVE_DELAY_MS = 1000;
@@ -52,9 +52,11 @@ export function AttendanceGrid({
   const teacherBlocked = teacherCtx.isTeacher && isOverallMode;
   const editingBlocked = futureBlocked || teacherBlocked;
 
+  const studentIds = useMemo(() => students.map((s) => s.id), [students]);
   const saveMut = useSaveAttendance(
     filters.campus_id, filters.course_id, filters.batch_id || undefined,
     filters.attendance_date, null,
+    studentIds,
   );
 
   // ── Derived: server truth indexed by student_id ────────
@@ -293,7 +295,6 @@ export function AttendanceGrid({
           p: "Present",
           a: "Absent",
           l: "Late",
-          v: "Leave",
           u: "Unmarked",
         };
         const targetStatus = statusMap[key];
@@ -384,7 +385,7 @@ export function AttendanceGrid({
         {/* Keyboard shortcut legend */}
         <div className="hidden lg:inline-flex items-center gap-2 bg-slate-50 border border-slate-100 rounded-xl px-3 py-1.5 text-[10px] text-slate-500">
           <Keyboard size={12} className="text-slate-400" />
-          <span>Quick keys: <kbd className="bg-white border px-1 rounded shadow-sm text-slate-800">↑</kbd> <kbd className="bg-white border px-1 rounded shadow-sm text-slate-800">↓</kbd> to navigate · <kbd className="bg-white border px-1.5 rounded shadow-sm text-slate-800 font-bold">P</kbd>resent · <kbd className="bg-white border px-1.5 rounded shadow-sm text-slate-800 font-bold">A</kbd>bsent · <kbd className="bg-white border px-1.5 rounded shadow-sm text-slate-800 font-bold">L</kbd>ate · <kbd className="bg-white border px-1.5 rounded shadow-sm text-slate-800 font-bold">V</kbd>eave</span>
+          <span>Quick keys: <kbd className="bg-white border px-1 rounded shadow-sm text-slate-800">↑</kbd> <kbd className="bg-white border px-1 rounded shadow-sm text-slate-800">↓</kbd> to navigate · <kbd className="bg-white border px-1.5 rounded shadow-sm text-slate-800 font-bold">P</kbd>resent · <kbd className="bg-white border px-1.5 rounded shadow-sm text-slate-800 font-bold">A</kbd>bsent · <kbd className="bg-white border px-1.5 rounded shadow-sm text-slate-800 font-bold">L</kbd>ate</span>
         </div>
 
         <div className="inline-flex items-center gap-2 text-[11px] font-bold">
@@ -412,11 +413,10 @@ export function AttendanceGrid({
       </div>
 
       {/* Stat summary grid */}
-      <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         <StatCard label="Present" count={stats.Present} total={totalCells} status="Present" icon={<CheckCircle2 size={15} />} />
         <StatCard label="Absent"  count={stats.Absent}  total={totalCells} status="Absent"  icon={<XCircle size={15} />} />
         <StatCard label="Late"    count={stats.Late}    total={totalCells} status="Late"    icon={<Clock size={15} />} />
-        <StatCard label="Leave"   count={stats.Leave}   total={totalCells} status="Leave"   icon={<CalendarPlus size={15} />} />
         <StatCard label="Unmarked" count={stats.Unmarked} total={totalCells} status="Unmarked" icon={<MinusCircle size={15} />} />
       </div>
 

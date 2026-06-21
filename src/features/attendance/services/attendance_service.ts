@@ -188,15 +188,20 @@ export const attendanceService = {
     batch_id?: string;
     attendance_date: string;
     subject_id: string | null;
+    student_ids?: string[];
   }): Promise<AttendanceRecord[]> {
     let q = supabase
       .from("attendance")
       .select("*")
       .eq("attendance_date", args.attendance_date);
 
-    if (args.campus_id) q = q.eq("campus_id", args.campus_id);
-    if (args.course_id) q = q.eq("course_id", args.course_id);
-    if (args.batch_id) q = q.eq("batch_id", args.batch_id);
+    if (args.student_ids && args.student_ids.length > 0) {
+      q = q.in("student_id", args.student_ids);
+    } else {
+      if (args.campus_id) q = q.eq("campus_id", args.campus_id);
+      if (args.course_id) q = q.eq("course_id", args.course_id);
+      if (args.batch_id) q = q.eq("batch_id", args.batch_id);
+    }
     if (args.subject_id) q = q.eq("subject_id", args.subject_id);
 
     const { data, error } = await q;
