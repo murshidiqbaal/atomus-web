@@ -123,72 +123,74 @@ export function AttendanceGrid({
     [students],
   );
 
+  // Keep a ref of pending state so flush() can read the latest edits 
+  // without triggering timer-resetting rebuilds, avoiding side-effects inside state setters.
+  const pendingRef = useRef<Pending>({});
+  pendingRef.current = pending;
+
   const flush = useCallback(() => {
     if (timerRef.current) {
       clearTimeout(timerRef.current);
       timerRef.current = null;
     }
 
-    setPending((cur) => {
-      if (Object.keys(cur).length === 0) return cur;
-      if (editingBlocked) return cur;
+    const cur = pendingRef.current;
+    if (Object.keys(cur).length === 0) return;
+    if (editingBlocked) return;
 
-      const teacherIdForRow = teacherCtx.isTeacher ? teacherCtx.teacher?.id ?? null : null;
-      const rows: AttendanceUpsertRow[] = [];
-      const keys: string[] = [];
+    const teacherIdForRow = teacherCtx.isTeacher ? teacherCtx.teacher?.id ?? null : null;
+    const rows: AttendanceUpsertRow[] = [];
+    const keys: string[] = [];
 
-      for (const [studentId, status] of Object.entries(cur)) {
-        const student = studentLookup.get(studentId);
-        if (!student) continue;
+    for (const [studentId, status] of Object.entries(cur)) {
+      const student = studentLookup.get(studentId);
+      if (!student) continue;
 
-        rows.push({
-          student_id: student.id,
-          campus_id: student.campus_id || filters.campus_id || null,
-          course_id: student.course_id || filters.course_id || null,
-          batch_id: student.batch_id || filters.batch_id || null,
-          subject_id: subjectId,
-          teacher_id: teacherIdForRow,
-          attendance_date: filters.attendance_date,
-          status,
-          remarks: null,
+      rows.push({
+        student_id: student.id,
+        campus_id: student.campus_id || filters.campus_id || null,
+        course_id: student.course_id || filters.course_id || null,
+        batch_id: student.batch_id || filters.batch_id || null,
+        subject_id: subjectId,
+        teacher_id: teacherIdForRow,
+        attendance_date: filters.attendance_date,
+        status,
+        remarks: null,
+      });
+      keys.push(studentId);
+    }
+
+    if (rows.length === 0) return;
+
+    setInFlight((prev) => {
+      const next = new Set(prev);
+      for (const k of keys) next.add(k);
+      return next;
+    });
+
+    saveMut.mutate(rows, {
+      onSuccess: () => {
+        setInFlight((prev) => {
+          const next = new Set(prev);
+          for (const k of keys) next.delete(k);
+          return next;
         });
-        keys.push(studentId);
-      }
-
-      if (rows.length === 0) return cur;
-
-      setInFlight((prev) => {
-        const next = new Set(prev);
-        for (const k of keys) next.add(k);
-        return next;
-      });
-
-      saveMut.mutate(rows, {
-        onSuccess: () => {
-          setInFlight((prev) => {
-            const next = new Set(prev);
-            for (const k of keys) next.delete(k);
-            return next;
-          });
-          setPending((p) => {
-            const next = { ...p };
-            for (const k of keys) {
-              if (next[k] !== undefined && next[k] === cur[k]) delete next[k];
-            }
-            return next;
-          });
-        },
-        onError: (err) => {
-          setInFlight((prev) => {
-            const next = new Set(prev);
-            for (const k of keys) next.delete(k);
-            return next;
-          });
-          onToast("error", err instanceof Error ? err.message : "Failed to save.");
-        },
-      });
-
-      return cur;
+        setPending((p) => {
+          const next = { ...p };
+          for (const k of keys) {
+            if (next[k] !== undefined && next[k] === cur[k]) delete next[k];
+          }
+          return next;
+        });
+      },
+      onError: (err) => {
+        setInFlight((prev) => {
+          const next = new Set(prev);
+          for (const k of keys) next.delete(k);
+          return next;
+        });
+        onToast("error", err instanceof Error ? err.message : "Failed to save.");
+      },
     });
   }, [
     editingBlocked, teacherCtx, filters, subjectId, studentLookup,

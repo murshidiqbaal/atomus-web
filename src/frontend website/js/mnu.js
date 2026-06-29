@@ -60,3 +60,47 @@ window.addEventListener("resize", () => {
     }
   }
 });
+
+// Long press logo to navigate to admin login page
+const brandLogos = document.querySelectorAll('.brand');
+brandLogos.forEach(logo => {
+  let pressTimer;
+  let isLongPress = false;
+
+  const startPress = (e) => {
+    if (e.type === 'mousedown' && e.button !== 0) return;
+    
+    isLongPress = false;
+    pressTimer = setTimeout(() => {
+      isLongPress = true;
+      window.location.href = '/login';
+    }, 1000); // 1 second duration
+  };
+
+  const cancelPress = (e) => {
+    if (pressTimer) {
+      clearTimeout(pressTimer);
+      pressTimer = null;
+    }
+  };
+
+  logo.addEventListener('click', (e) => {
+    if (isLongPress) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
+  });
+
+  logo.addEventListener('mousedown', startPress);
+  logo.addEventListener('touchstart', startPress, { passive: true });
+  logo.addEventListener('mouseup', cancelPress);
+  logo.addEventListener('mouseleave', cancelPress);
+  logo.addEventListener('touchend', cancelPress);
+  logo.addEventListener('touchcancel', cancelPress);
+  logo.addEventListener('contextmenu', (e) => {
+    if (isLongPress) {
+      e.preventDefault();
+    }
+  });
+});
+

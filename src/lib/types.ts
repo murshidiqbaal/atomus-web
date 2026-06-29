@@ -195,3 +195,14 @@ export interface AuthCredentials {
   email: string;
   password?: string;
 }
+
+export interface AppDownload {
+  platform: 'android' | 'ios';
+  download_url: string;
+  version: string;
+  min_os: string;
+  file_size: string | null;
+  is_active: boolean;
+  drive_file_id: string | null;
+  updated_at: string;
+}

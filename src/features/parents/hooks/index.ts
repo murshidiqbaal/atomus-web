@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { parentService, CreateParentResult } from "../services/parent_service";
+import { activityService } from "../services/activity_service";
 import { Parent } from "../types";
 import { ParentFormValues } from "../schemas";
 
@@ -118,5 +119,29 @@ export function useUnlinkStudent() {
 export function useResetParentPassword() {
   return useMutation({
     mutationFn: (email: string) => parentService.resetPassword(email),
+  });
+}
+
+export function useParentActivityLogs(params: {
+  search?: string;
+  date?: string;
+  campusId?: string;
+  courseId?: string;
+  activeToday?: boolean;
+  page: number;
+  limit: number;
+}) {
+  return useQuery({
+    queryKey: ["parent-activity-logs", params],
+    queryFn: () => activityService.getLogs(params),
+    staleTime: 10_000,
+  });
+}
+
+export function useParentActivityMetrics() {
+  return useQuery({
+    queryKey: ["parent-activity-metrics"],
+    queryFn: () => activityService.getMetrics(),
+    staleTime: 30_000,
   });
 }

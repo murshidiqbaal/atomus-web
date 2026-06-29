@@ -11,7 +11,6 @@ import {
   Clock,
   CreditCard,
   GraduationCap,
-  Layers,
   Loader2,
   Megaphone,
   Plus,
@@ -23,16 +22,31 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import React, { useEffect, useState } from "react";
-import {
-  Area,
-  AreaChart,
-  Bar,
-  BarChart,
-  CartesianGrid,
-  ResponsiveContainer,
-  Tooltip,
-  XAxis, YAxis
-} from "recharts";
+import dynamic from "next/dynamic";
+
+const PerformanceChart = dynamic(
+  () => import("@/features/dashboard/components/DashboardCharts").then((mod) => mod.PerformanceChart),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="h-full w-full bg-slate-50 animate-pulse rounded-xl flex items-center justify-center text-xs text-slate-400 font-medium">
+        Loading chart...
+      </div>
+    )
+  }
+);
+
+const FeeCollectionChart = dynamic(
+  () => import("@/features/dashboard/components/DashboardCharts").then((mod) => mod.FeeCollectionChart),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="h-full w-full bg-slate-50 animate-pulse rounded-xl flex items-center justify-center text-xs text-slate-400 font-medium">
+        Loading chart...
+      </div>
+    )
+  }
+);
 
 const attendanceTrend = [
   { month: "Nov", avg: 88 }, { month: "Dec", avg: 84 }, { month: "Jan", avg: 91 },
@@ -636,7 +650,6 @@ export default function DashboardOverview() {
     { label: "Total Parents", value: stats.totalParents.toLocaleString(), icon: UserCircle, color: "text-purple-600", bg: "bg-purple-50", href: "/parents", change: "+12" },
     { label: "Teachers", value: stats.totalTeachers, icon: GraduationCap, color: "text-indigo-600", bg: "bg-indigo-50", href: "/teachers", change: "+3" },
     { label: "Active Courses", value: stats.activeCourses, icon: BookOpen, color: "text-emerald-600", bg: "bg-emerald-50", href: "/courses", change: "+2" },
-    { label: "Active Batches", value: stats.activeBatches, icon: Layers, color: "text-orange-600", bg: "bg-orange-50", href: "/batches", change: "+8" },
     { label: "Pending Fees", value: `₹${stats.pendingFees.toLocaleString()}`, icon: CreditCard, color: "text-rose-600", bg: "bg-rose-50", href: "/fees", change: "-5%" },
     { label: "Attendance Avg", value: `${stats.attendanceAvg}%`, icon: CalendarCheck, color: "text-cyan-600", bg: "bg-cyan-50", href: "/attendance", change: "+2.3%" },
     { label: "This Month", value: `₹${stats.thisMonthCollected.toLocaleString()}`, icon: TrendingUp, color: "text-amber-600", bg: "bg-amber-50", href: "/fees", change: "+18%" },
@@ -661,7 +674,7 @@ export default function DashboardOverview() {
       </header>
 
       {/* KPI Grid */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-4">
+      <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-4">
         {kpiCards.map((card, i) => (
           <Link key={i} href={card.href} className="bg-white p-5 rounded-2xl shadow-sm border border-slate-200 hover:shadow-md hover:-translate-y-0.5 transition-all group cursor-pointer col-span-1">
             <div className={`w-10 h-10 ${card.bg} rounded-xl flex items-center justify-center mb-3 group-hover:scale-110 transition-transform`}>
@@ -939,50 +952,7 @@ export default function DashboardOverview() {
             </div>
           ) : (
             <div className="h-[180px]">
-              <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={filteredPerfData}>
-                  <defs>
-                    <linearGradient id="perfGrad" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="#D4AF37" stopOpacity={0.2} />
-                      <stop offset="95%" stopColor="#D4AF37" stopOpacity={0} />
-                    </linearGradient>
-                  </defs>
-                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                  <XAxis
-                    dataKey="name"
-                    axisLine={false}
-                    tickLine={false}
-                    tick={{ fill: '#94a3b8', fontSize: 10, fontWeight: 700 }}
-                    dy={8}
-                  />
-                  <YAxis
-                    domain={[0, 100]}
-                    axisLine={false}
-                    tickLine={false}
-                    tick={{ fill: '#94a3b8', fontSize: 11 }}
-                    tickFormatter={(v) => `${v}%`}
-                  />
-                  <Tooltip
-                    contentStyle={{
-                      borderRadius: 12,
-                      border: 'none',
-                      boxShadow: '0 10px 25px -5px rgba(0,0,0,0.1)',
-                      fontSize: 12
-                    }}
-                    formatter={(v) => [`${v}%`, 'Average Score']}
-                  />
-                  <Area
-                    type="monotone"
-                    dataKey="avg"
-                    stroke="#D4AF37"
-                    strokeWidth={3}
-                    fillOpacity={1}
-                    fill="url(#perfGrad)"
-                    dot={{ fill: '#D4AF37', strokeWidth: 2, r: 4 }}
-                    activeDot={{ r: 6 }}
-                  />
-                </AreaChart>
-              </ResponsiveContainer>
+              <PerformanceChart data={filteredPerfData} />
             </div>
           )}
 
@@ -1038,19 +1008,7 @@ export default function DashboardOverview() {
             </div>
           ) : (
             <div className="h-[220px]">
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={feeCollectionData} barGap={4} barCategoryGap={20}>
-                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                  <XAxis dataKey="month" axisLine={false} tickLine={false} tick={{ fill: '#94a3b8', fontSize: 11, fontWeight: 700 }} dy={8} />
-                  <YAxis axisLine={false} tickLine={false} tick={{ fill: '#94a3b8', fontSize: 11 }} tickFormatter={v => `₹${(v / 1000).toFixed(0)}k`} />
-                  <Tooltip
-                    contentStyle={{ borderRadius: 12, border: 'none', boxShadow: '0 10px 25px -5px rgba(0,0,0,0.1)', fontSize: 12 }}
-                    formatter={(v: any) => [`₹${Number(v).toLocaleString()}`, '']}
-                  />
-                  <Bar dataKey="collected" name="Collected" fill="#0B3C5D" radius={[6, 6, 0, 0]} />
-                  <Bar dataKey="pending" name="Pending" fill="#D4AF37" radius={[6, 6, 0, 0]} />
-                </BarChart>
-              </ResponsiveContainer>
+              <FeeCollectionChart data={feeCollectionData} />
             </div>
           )}
           <div className="flex gap-4 mt-3 justify-end">

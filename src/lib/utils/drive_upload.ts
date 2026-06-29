@@ -5,7 +5,8 @@ export type DriveUploadEndpoint =
   | "/api/upload/poster"
   | "/api/upload/certificate"
   | "/api/upload/announcement"
-  | "/api/upload/payment-qr";
+  | "/api/upload/payment-qr"
+  | "/api/upload/app-binary";
 
 export interface DriveUploadResult {
   fileId: string;

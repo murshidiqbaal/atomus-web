@@ -18,6 +18,23 @@ import { Campus } from "@/lib/types";
 import DriveFileUpload from "@/components/shared/DriveFileUpload";
 import { cleanupDriveFile } from "@/lib/utils/drive_upload";
 
+/** Resolves the best display URL for a campus QR code. */
+function resolveQrImageSrc(campus: Campus): string | null {
+  const driveId = campus.paymentQrDriveId;
+  // Valid Drive IDs are 10-60 alphanumeric chars with hyphens/underscores
+  const isValidDriveId = driveId && /^[A-Za-z0-9_\-]{10,60}$/.test(driveId);
+  if (isValidDriveId) {
+    return `/api/media?id=${driveId}`;
+  }
+  // Fall back to the raw URL (could be a local /uploads/... path)
+  return campus.paymentQrUrl ?? null;
+}
+
+/** Returns true when a campus has a QR code configured (Drive or local). */
+function hasQrConfigured(campus: Campus): boolean {
+  return !!resolveQrImageSrc(campus);
+}
+
 export default function PaymentQrPage() {
   const [campuses, setCampuses] = useState<Campus[]>([]);
   const [loading, setLoading] = useState(true);
@@ -113,7 +130,7 @@ export default function PaymentQrPage() {
             TOTAL CAMPUSES: {campuses.length}
           </span>
           <span className="bg-indigo-50 border border-indigo-100 text-indigo-700 px-3 py-1.5 rounded-xl">
-            QR CONFIGURED: {campuses.filter((c) => c.paymentQrUrl).length}
+            QR CONFIGURED: {campuses.filter((c) => hasQrConfigured(c)).length}
           </span>
         </div>
       </div>
@@ -176,18 +193,18 @@ export default function PaymentQrPage() {
 
               {/* QR Preview & Upload Section */}
               <div className="p-6 flex-1 flex flex-col justify-between bg-slate-50/40 gap-4">
-                {campus.paymentQrUrl ? (
+                {hasQrConfigured(campus) ? (
                   <div className="space-y-4">
                     <div className="relative group aspect-square max-w-[200px] mx-auto rounded-2xl border border-slate-200 bg-white p-3 shadow-inner overflow-hidden flex items-center justify-center">
                       <img
-                        src={campus.paymentQrUrl}
+                        src={resolveQrImageSrc(campus)!}
                         alt={`${campus.name} QR`}
                         className="w-full h-full object-contain cursor-zoom-in transition-transform duration-300 group-hover:scale-105"
-                        onClick={() => setSelectedQr(campus.paymentQrUrl ?? null)}
+                        onClick={() => setSelectedQr(resolveQrImageSrc(campus))}
                       />
                       <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-3">
                         <button
-                          onClick={() => setSelectedQr(campus.paymentQrUrl ?? null)}
+                          onClick={() => setSelectedQr(resolveQrImageSrc(campus))}
                           className="bg-white/95 text-slate-800 p-2 rounded-xl text-xs font-bold hover:bg-white flex items-center gap-1 transition-transform scale-90 group-hover:scale-100 duration-200 shadow-sm"
                         >
                           View Full
@@ -198,15 +215,15 @@ export default function PaymentQrPage() {
                     <div className="bg-slate-50 border border-slate-100 rounded-2xl p-3.5 flex items-center justify-between gap-3 shadow-inner">
                       <div className="overflow-hidden">
                         <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wide">
-                          Stored in Google Drive
+                          {campus.paymentQrDriveId && /^[A-Za-z0-9_\-]{10,60}$/.test(campus.paymentQrDriveId) ? "Stored in Google Drive" : "Stored locally"}
                         </p>
                         <a
-                          href={campus.paymentQrUrl}
+                          href={resolveQrImageSrc(campus)!}
                           target="_blank"
                           rel="noopener noreferrer"
                           className="text-xs font-bold text-indigo-600 hover:text-indigo-700 hover:underline flex items-center gap-1 mt-0.5 truncate"
                         >
-                          Google Drive Link
+                          {campus.paymentQrDriveId && /^[A-Za-z0-9_\-]{10,60}$/.test(campus.paymentQrDriveId) ? "Google Drive Link" : "View File"}
                           <ExternalLink size={12} />
                         </a>
                       </div>

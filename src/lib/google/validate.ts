@@ -1,4 +1,4 @@
-export type ValidationKind = "image" | "image-large" | "certificate";
+export type ValidationKind = "image" | "image-large" | "certificate" | "app-binary";
 
 const IMAGE_TYPES = new Set([
   "image/jpeg",
@@ -12,10 +12,22 @@ const CERT_TYPES = new Set([
   "application/pdf",
 ]);
 
+// APK: standard Android package
+// IPA: iOS app archive (commonly served as octet-stream or zip)
+const APP_BINARY_TYPES = new Set([
+  "application/vnd.android.package-archive", // .apk
+  "application/octet-stream",                 // generic binary (many upload tools use this)
+  "application/zip",                          // .ipa is a zip
+  "application/x-zip-compressed",
+  "application/x-zip",
+  "application/x-ios-app",
+]);
+
 const LIMITS: Record<ValidationKind, { types: Set<string>; maxBytes: number; label: string }> = {
-  "image":        { types: IMAGE_TYPES, maxBytes: 5  * 1024 * 1024, label: "5 MB" },
-  "image-large":  { types: IMAGE_TYPES, maxBytes: 10 * 1024 * 1024, label: "10 MB" },
-  "certificate":  { types: CERT_TYPES,  maxBytes: 10 * 1024 * 1024, label: "10 MB" },
+  "image":        { types: IMAGE_TYPES,      maxBytes:   5 * 1024 * 1024, label: "5 MB" },
+  "image-large":  { types: IMAGE_TYPES,      maxBytes:  10 * 1024 * 1024, label: "10 MB" },
+  "certificate":  { types: CERT_TYPES,       maxBytes:  10 * 1024 * 1024, label: "10 MB" },
+  "app-binary":   { types: APP_BINARY_TYPES, maxBytes: 150 * 1024 * 1024, label: "150 MB" },
 };
 
 export type ValidationOk = { ok: true; mimeType: string; size: number; fileName: string };

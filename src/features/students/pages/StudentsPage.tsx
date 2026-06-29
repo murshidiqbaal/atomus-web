@@ -1,11 +1,12 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { Plus, Search, Users, RotateCcw, Filter, ChevronRight, Download, GraduationCap, Building2, BookOpen, CheckCircle2 } from "lucide-react";
+import { Plus, Search, Users, RotateCcw, Filter, ChevronRight, Download, GraduationCap, Building2, BookOpen, CheckCircle2, Upload } from "lucide-react";
 import { useStudents, useCourses, useAllBatches, useCampuses, useCoursesByCampus } from "../hooks";
 import { StudentWithRelations, StudentFilters } from "../types";
 import StudentRow from "../components/StudentRow";
 import StudentModal from "../components/StudentModal";
+import BulkImportPanel from "../components/BulkImportPanel";
 
 const PAGE_SIZE = 15;
 
@@ -158,6 +159,7 @@ export default function StudentsPage() {
   const [page, setPage]         = useState(1);
   const [modalOpen, setModalOpen] = useState(false);
   const [editing, setEditing]     = useState<StudentWithRelations | null>(null);
+  const [showBulkImport, setShowBulkImport] = useState(false);
 
   // When a campus is picked, fetch only its linked courses (via campus_courses).
   const { data: campusCourses = [] } = useCoursesByCampus(filters.campus_id);
@@ -265,6 +267,14 @@ export default function StudentsPage() {
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   const paginated  = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
+  if (showBulkImport) {
+    return (
+      <div className="p-4 sm:p-8 space-y-10 max-w-[1600px] mx-auto animate-in fade-in slide-in-from-bottom-4 duration-700">
+        <BulkImportPanel onBack={() => setShowBulkImport(false)} />
+      </div>
+    );
+  }
+
   function openAdd() { setEditing(null); setModalOpen(true); }
   function openEdit(s: StudentWithRelations) { setEditing(s); setModalOpen(true); }
   function closeModal() { setModalOpen(false); setEditing(null); }
@@ -297,6 +307,13 @@ export default function StudentsPage() {
           <button className="hidden sm:flex items-center gap-2 bg-white border border-slate-200 text-slate-600 px-5 py-3 rounded-2xl text-sm font-black hover:bg-slate-50 transition-all active:scale-95 shadow-sm">
             <Download size={18} />
             Data Export
+          </button>
+          <button
+            onClick={() => setShowBulkImport(true)}
+            className="hidden sm:flex items-center gap-2 bg-white border border-slate-200 text-slate-600 px-5 py-3 rounded-2xl text-sm font-black hover:bg-slate-50 transition-all active:scale-95 shadow-sm"
+          >
+            <Upload size={18} className="text-[#0B3C5D]" />
+            Bulk Student Import
           </button>
           <button
             onClick={openAdd}

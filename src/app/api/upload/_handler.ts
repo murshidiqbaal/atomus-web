@@ -64,7 +64,7 @@ export function createUploadHandler(opts: UploadHandlerOptions) {
         await fs.writeFile(filePath, buffer);
 
         return NextResponse.json({
-          fileId: `local-${opts.folderKey}-${fileName}`,
+          fileId: "",
           imageUrl: `/uploads/${opts.folderKey}/${fileName}`,
           fileName,
         }, { status: 200 });

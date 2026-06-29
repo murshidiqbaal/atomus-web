@@ -27,13 +27,15 @@ export async function GET(request: NextRequest) {
       "Cache-Control": "public, max-age=31536000, immutable",
     };
     const download = searchParams.get("download");
+    const customFilename = searchParams.get("filename");
     if (download === "true") {
       let ext = "jpg";
       if (contentType.includes("png")) ext = "png";
       else if (contentType.includes("gif")) ext = "gif";
       else if (contentType.includes("webp")) ext = "webp";
       else if (contentType.includes("pdf")) ext = "pdf";
-      headers["Content-Disposition"] = `attachment; filename="student_profile.${ext}"`;
+      const dlName = customFilename ?? `student_profile.${ext}`;
+      headers["Content-Disposition"] = `attachment; filename="${dlName}"`;
     }
     return new Response(response.body, { headers });
   };
@@ -64,6 +66,7 @@ export async function GET(request: NextRequest) {
 
     // 3. Stream the file directly to the client as first-party network image response
     const download = searchParams.get("download");
+    const customFilename = searchParams.get("filename");
     const headers: Record<string, string> = {
       "Content-Type": mimeType,
       "Cache-Control": "public, max-age=31536000, immutable",
@@ -76,8 +79,11 @@ export async function GET(request: NextRequest) {
       else if (mimeType.includes("gif")) ext = "gif";
       else if (mimeType.includes("webp")) ext = "webp";
       else if (mimeType.includes("pdf")) ext = "pdf";
+      else if (mimeType.includes("zip") || mimeType.includes("octet-stream") || mimeType.includes("ios-app")) ext = "zip";
+      else if (mimeType.includes("android")) ext = "apk";
 
-      headers["Content-Disposition"] = `attachment; filename="student_profile.${ext}"`;
+      const dlName = customFilename ?? `student_profile.${ext}`;
+      headers["Content-Disposition"] = `attachment; filename="${dlName}"`;
     }
 
     return new Response(res.data as any, {

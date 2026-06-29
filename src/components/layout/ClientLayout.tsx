@@ -10,7 +10,7 @@ import {
   LayoutDashboard, Users, UserCircle, GraduationCap, BookOpen,
   BookMarked, CalendarCheck, FileSpreadsheet, CreditCard, Megaphone,
   BarChart3, Settings, Menu, X, Bell, Search, ChevronDown,
-  LogOut, Calculator, Award, Timer, QrCode, Shield
+  LogOut, Calculator, Award, Timer, QrCode, Shield, Activity
 } from 'lucide-react';
 
 type NavItem = { href: string; label: string; icon: any; roles?: Exclude<AppRole, null>[] };
@@ -19,6 +19,7 @@ const navItems: readonly NavItem[] = [
   { href: '/admin', label: 'Dashboard', icon: LayoutDashboard, roles: ['admin'] },
   { href: '/students', label: 'Students', icon: Users, roles: ['admin', 'staff'] },
   { href: '/parents', label: 'Parents', icon: UserCircle, roles: ['admin', 'staff'] },
+  { href: '/parents/activity-logs', label: 'Parent Activity Logs', icon: Activity, roles: ['admin', 'staff'] },
   { href: '/teachers', label: 'Teachers', icon: GraduationCap, roles: ['admin', 'staff'] },
   { href: '/courses', label: 'Courses', icon: BookOpen, roles: ['admin', 'staff'] },
   { href: '/subjects', label: 'Subjects', icon: BookMarked, roles: ['admin', 'staff'] },

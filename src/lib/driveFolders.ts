@@ -5,7 +5,8 @@ export type DriveFolderKey =
   | "posters"
   | "certificates"
   | "announcements"
-  | "payment_qrs";
+  | "payment_qrs"
+  | "app_downloads";
 
 const DEFAULTS: Record<DriveFolderKey, string> = {
   teachers:      "1TRnGXnjCY7c4OKtVWJSwXLcvIKzKJ1TU",
@@ -15,6 +16,7 @@ const DEFAULTS: Record<DriveFolderKey, string> = {
   certificates:  "15z4pIXHZAfrmcEhmMoOkgJYyx-wmH9UZ",
   announcements: "1aQhpKOk2qAU8BGISmgVWwDTcgW40G42j",
   payment_qrs:   "13L4iFGTvIa5TdGa8b4eqCaMNn5ORlNYF", // Default for payments QR codes
+  app_downloads: "app_downloads_folder", // Replace with your Drive folder ID for app binaries
 };
 
 export const DRIVE_FOLDERS: Record<DriveFolderKey, string> = {
@@ -25,5 +27,6 @@ export const DRIVE_FOLDERS: Record<DriveFolderKey, string> = {
   certificates:  process.env.GOOGLE_DRIVE_FOLDER_CERTIFICATES  ?? process.env.GOOGLE_DRIVE_CERTIFICATES_FOLDER  ?? DEFAULTS.certificates,
   announcements: process.env.GOOGLE_DRIVE_FOLDER_ANNOUNCEMENTS ?? process.env.GOOGLE_DRIVE_ANNOUNCEMENTS_FOLDER ?? DEFAULTS.announcements,
   payment_qrs:   process.env.GOOGLE_DRIVE_FOLDER_PAYMENT_QRS   ?? process.env.GOOGLE_DRIVE_PAYMENT_QRS_FOLDER   ?? DEFAULTS.payment_qrs,
+  app_downloads: process.env.GOOGLE_DRIVE_FOLDER_APP_DOWNLOADS ?? DEFAULTS.app_downloads,
 };
 

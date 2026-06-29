@@ -419,19 +419,19 @@
               download the direct installation file (.APK).
             </p>
             <a href="https://github.com/murshidiqbaal/atomus-web/releases/download/Atomus-Android/atomus.apk" download
-              class="dl-btn">
+              id="android-download-link" class="dl-btn">
               <i class="fa-solid fa-download"></i> Direct Download (.APK)
             </a>
-            <div class="dl-meta">
-              v1.2.4 • Requires Android 7.0+
+            <div class="dl-meta" id="android-download-meta">
+              v1.0.0 • Requires Android 11.0+
             </div>
           </div>
         </div>
 
         <!-- iOS Download Card -->
         <div class="col-md-6 col-lg-5" data-aos="fade-up" data-aos-delay="200" data-aos-duration="1500">
-          <div class="dl-card ios">
-            <div class="coming-soon-overlay">
+          <div class="dl-card ios" id="ios-card">
+            <div class="coming-soon-overlay" id="ios-coming-soon-overlay">
               <span class="coming-soon-badge">
                 <i class="fa-solid fa-clock"></i> Coming Soon
               </span>
@@ -444,11 +444,11 @@
               Download the secure iOS application directly to your Apple device. Click below to download the direct
               installation file (.IPA).
             </p>
-            <a href="downloads/atomus-parent.ipa" download class="dl-btn" style="background: #1F2937;">
+            <a href="#" id="ios-download-link" download class="dl-btn" style="background: #1F2937;">
               <i class="fa-solid fa-download"></i> Direct Download (.IPA)
             </a>
-            <div class="dl-meta">
-              v1.2.0 • Requires iOS 14.0+
+            <div class="dl-meta" id="ios-download-meta">
+              v1.0.0 • Requires iOS 14.0+
             </div>
           </div>
         </div>
@@ -599,6 +599,75 @@
       }
     });
 
+  </script>
+
+  <!-- Dynamic App Download Configuration -->
+  <script>
+    (function () {
+      // Resolve the API origin so this works in dev (localhost) and production
+      var apiOrigin = window.location.origin;
+
+      fetch(apiOrigin + '/api/downloads')
+        .then(function (res) { return res.json(); })
+        .then(function (data) {
+
+          /* ── Android ─────────────────────────────────── */
+          var android = data.android;
+          if (android) {
+            var aLink = document.getElementById('android-download-link');
+            var aMeta = document.getElementById('android-download-meta');
+
+            if (aLink && android.download_url) {
+              aLink.href = android.download_url;
+            }
+            if (aMeta) {
+              var aVersion = android.version ? 'v' + android.version : '';
+              var aOs = android.min_os ? 'Requires ' + android.min_os : '';
+              var aSize = android.file_size ? android.file_size : '';
+              var aParts = [aVersion, aOs, aSize].filter(Boolean);
+              aMeta.textContent = aParts.join(' • ');
+            }
+          }
+
+          /* ── iOS ─────────────────────────────────────── */
+          var ios = data.ios;
+          if (ios) {
+            var iCard = document.getElementById('ios-card');
+            var iOverlay = document.getElementById('ios-coming-soon-overlay');
+            var iLink = document.getElementById('ios-download-link');
+            var iMeta = document.getElementById('ios-download-meta');
+
+            // Show/hide coming-soon overlay based on is_active
+            if (iOverlay) {
+              iOverlay.style.display = ios.is_active ? 'none' : '';
+            }
+
+            if (iLink) {
+              if (ios.is_active && ios.download_url) {
+                iLink.href = ios.download_url;
+                iLink.removeAttribute('disabled');
+              } else {
+                // Not yet active — keep button but make it a no-op
+                iLink.href = '#';
+                iLink.onclick = function (e) { e.preventDefault(); };
+              }
+            }
+
+            if (iMeta) {
+              var iVersion = ios.version ? 'v' + ios.version : '';
+              var iOs = ios.min_os ? 'Requires ' + ios.min_os : '';
+              var iSize = ios.file_size ? ios.file_size : '';
+              var iParts = [iVersion, iOs, iSize].filter(Boolean);
+              iMeta.textContent = iParts.join(' • ');
+            }
+          }
+
+        })
+        .catch(function (err) {
+          // Silently fail — static fallback values already in the HTML
+          console.warn('[Atomus] Could not load dynamic download config:', err);
+        });
+    })();
   </script>
 
 

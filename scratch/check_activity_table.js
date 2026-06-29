@@ -5,18 +5,14 @@ const supabaseServiceKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXB
 
 const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey);
 
-async function run() {
-  try {
-    const { data: campuses, error } = await supabaseAdmin
-      .from('campuses')
-      .select('*');
-
-    if (error) throw error;
-
-    console.log('Campuses:', campuses);
-  } catch (error) {
-    console.error('Error:', error);
+async function check() {
+  console.log("Checking for parent_app_activity_logs table...");
+  const { data, error } = await supabaseAdmin.from('parent_app_activity_logs').select('*').limit(1);
+  if (error) {
+    console.log(`❌ Table check failed: ${error.message} (code: ${error.code})`);
+  } else {
+    console.log(`✅ Table parent_app_activity_logs exists!`);
   }
 }
 
-run();
+check();

@@ -1,13 +1,31 @@
 "use client";
 
-import React, { useState } from "react";
-import {
-  Settings, Shield, Bell, Palette, Database, Key,
-  Save, Eye, EyeOff, CheckCircle2, RefreshCw, Globe,
-  Plus, Trash2, MapPin, ToggleLeft, ToggleRight, Edit2
-} from "lucide-react";
+import { appDownloadsRepository } from "@/lib/repositories/app_downloads_repository";
 import { campusRepository } from "@/lib/repositories/campus_repository";
-import { Campus } from "@/lib/types";
+import { AppDownload, Campus } from "@/lib/types";
+import {
+  AlertCircle,
+  Bell,
+  CheckCheck,
+  CheckCircle2,
+  Database,
+  Edit2,
+  Eye, EyeOff,
+  Globe,
+  Link2,
+  MapPin,
+  Palette,
+  Plus,
+  RefreshCw,
+  Save,
+  Settings, Shield,
+  Smartphone,
+  ToggleLeft, ToggleRight,
+  Trash2,
+  Upload,
+  XCircle
+} from "lucide-react";
+import React, { useCallback, useState } from "react";
 
 const TABS = [
   { id: "general", label: "General", icon: Settings },
@@ -15,6 +33,7 @@ const TABS = [
   { id: "notifications", label: "Notifications", icon: Bell },
   { id: "appearance", label: "Appearance", icon: Palette },
   { id: "campuses", label: "Campuses", icon: Globe },
+  { id: "downloads", label: "Mobile Apps", icon: Smartphone },
   { id: "database", label: "Database", icon: Database },
 ];
 
@@ -42,11 +61,10 @@ export default function SettingsPage() {
               <button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id)}
-                className={`w-full flex items-center gap-3 px-4 py-3.5 text-sm font-bold transition-all border-b border-slate-100 last:border-0 ${
-                  activeTab === tab.id
+                className={`w-full flex items-center gap-3 px-4 py-3.5 text-sm font-bold transition-all border-b border-slate-100 last:border-0 ${activeTab === tab.id
                     ? "bg-[#0B3C5D] text-white"
                     : "text-slate-600 hover:bg-slate-50"
-                }`}
+                  }`}
               >
                 <tab.icon size={16} />
                 {tab.label}
@@ -62,6 +80,7 @@ export default function SettingsPage() {
           {activeTab === "notifications" && <NotificationSettings onSave={handleSave} />}
           {activeTab === "appearance" && <AppearanceSettings onSave={handleSave} />}
           {activeTab === "campuses" && <CampusesSettings />}
+          {activeTab === "downloads" && <DownloadsSettings />}
           {activeTab === "database" && <DatabaseSettings />}
         </div>
       </div>
@@ -332,11 +351,11 @@ function CampusesSettings() {
   const [campuses, setCampuses] = React.useState<Campus[]>([]);
   const [loading, setLoading] = React.useState(true);
   const [error, setError] = React.useState("");
-  
+
   // Form state for new campus
   const [name, setName] = React.useState("");
   const [location, setLocation] = React.useState("");
-  
+
   // Edit state
   const [editingId, setEditingId] = React.useState<string | null>(null);
   const [editName, setEditName] = React.useState("");
@@ -475,7 +494,7 @@ function CampusesSettings() {
           <h3 className="font-bold text-[#0B3C5D] text-base">Registered Campuses</h3>
           <p className="text-xs text-slate-400 mt-0.5">Manage existing branches and branches status</p>
         </div>
-        
+
         <div className="p-6">
           {loading ? (
             <div className="flex items-center justify-center py-12">
@@ -490,9 +509,8 @@ function CampusesSettings() {
               {campuses.map((campus) => (
                 <div
                   key={campus.id}
-                  className={`border rounded-2xl p-4 transition-all flex flex-col justify-between ${
-                    campus.isActive ? "border-slate-200 bg-slate-50/30" : "border-slate-100 bg-slate-50/10 opacity-70"
-                  }`}
+                  className={`border rounded-2xl p-4 transition-all flex flex-col justify-between ${campus.isActive ? "border-slate-200 bg-slate-50/30" : "border-slate-100 bg-slate-50/10 opacity-70"
+                    }`}
                 >
                   {editingId === campus.id ? (
                     <div className="space-y-3 flex-1">
@@ -529,14 +547,13 @@ function CampusesSettings() {
                       <div className="flex items-start justify-between gap-2">
                         <h4 className="font-black text-slate-800 text-sm">{campus.name}</h4>
                         <span
-                          className={`text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded-lg ${
-                            campus.isActive ? "bg-emerald-100 text-emerald-800" : "bg-slate-200 text-slate-600"
-                          }`}
+                          className={`text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded-lg ${campus.isActive ? "bg-emerald-100 text-emerald-800" : "bg-slate-200 text-slate-600"
+                            }`}
                         >
                           {campus.isActive ? "Active" : "Inactive"}
                         </span>
                       </div>
-                      
+
                       {campus.location && (
                         <div className="flex items-center gap-1 text-slate-400 text-xs mt-1">
                           <MapPin size={12} className="shrink-0" />
@@ -555,7 +572,7 @@ function CampusesSettings() {
                       >
                         {campus.isActive ? <ToggleRight size={20} className="text-emerald-500" /> : <ToggleLeft size={20} />}
                       </button>
-                      
+
                       {editingId !== campus.id && (
                         <button
                           onClick={() => startEdit(campus)}
@@ -581,6 +598,346 @@ function CampusesSettings() {
           )}
         </div>
       </div>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Mobile App Downloads Settings
+// ─────────────────────────────────────────────────────────────────────────────
+
+type AppPlatform = "android" | "ios";
+
+interface PlatformState {
+  record: AppDownload | null;
+  loading: boolean;
+  saving: boolean;
+  uploading: boolean;
+  error: string;
+  success: string;
+  // editable fields
+  url: string;
+  version: string;
+  minOs: string;
+  fileSize: string;
+  isActive: boolean;
+}
+
+const PLATFORM_META: Record<AppPlatform, { label: string; ext: string; icon: string; color: string; bg: string; accept: string }> = {
+  android: {
+    label: "Android Parent App",
+    ext: ".apk",
+    icon: "🤖",
+    color: "text-emerald-700",
+    bg: "bg-emerald-50 border-emerald-200",
+    accept: ".apk,application/vnd.android.package-archive,application/octet-stream",
+  },
+  ios: {
+    label: "iOS Parent App",
+    ext: ".ipa",
+    icon: "",
+    color: "text-slate-700",
+    bg: "bg-slate-50 border-slate-200",
+    accept: ".ipa,application/zip,application/octet-stream",
+  },
+};
+
+function initState(): PlatformState {
+  return { record: null, loading: true, saving: false, uploading: false, error: "", success: "", url: "", version: "", minOs: "", fileSize: "", isActive: false };
+}
+
+function DownloadsSettings() {
+  const [states, setStates] = React.useState<Record<AppPlatform, PlatformState>>({
+    android: initState(),
+    ios: initState(),
+  });
+
+  const patchState = useCallback((platform: AppPlatform, patch: Partial<PlatformState>) => {
+    setStates(prev => ({ ...prev, [platform]: { ...prev[platform], ...patch } }));
+  }, []);
+
+  React.useEffect(() => {
+    async function load() {
+      try {
+        const rows = await appDownloadsRepository.getAll();
+        for (const row of rows) {
+          const p = row.platform as AppPlatform;
+          setStates(prev => ({
+            ...prev,
+            [p]: {
+              ...prev[p],
+              record: row,
+              loading: false,
+              url: row.download_url,
+              version: row.version,
+              minOs: row.min_os,
+              fileSize: row.file_size ?? "",
+              isActive: row.is_active,
+            },
+          }));
+        }
+        // Mark any platform not returned by DB as not loading
+        setStates(prev => {
+          const next = { ...prev };
+          for (const p of ["android", "ios"] as AppPlatform[]) {
+            if (next[p].loading) next[p] = { ...next[p], loading: false };
+          }
+          return next;
+        });
+      } catch (err: any) {
+        setStates(prev => {
+          const next = { ...prev };
+          for (const p of ["android", "ios"] as AppPlatform[]) {
+            next[p] = { ...next[p], loading: false, error: err.message };
+          }
+          return next;
+        });
+      }
+    }
+    load();
+  }, []);
+
+  const handleUpload = useCallback(async (platform: AppPlatform, file: File) => {
+    patchState(platform, { uploading: true, error: "", success: "" });
+    try {
+      // Send the file as raw octet-stream so we bypass any multipart body-size
+      // limit that Next.js might impose when parsing form-data. The server
+      // route accepts both multipart and octet-stream.
+      const res = await fetch("/api/upload/app-binary", {
+        method: "POST",
+        headers: {
+          "Content-Type": file.type || "application/octet-stream",
+          "X-File-Name": file.name,
+        },
+        body: file, // raw File object — browser streams it directly
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "Upload failed");
+      // data.imageUrl is a proxy URL; build the direct download URL with filename hint
+      const downloadUrl = `${data.imageUrl}&download=true&filename=${encodeURIComponent(file.name)}`;
+      patchState(platform, {
+        uploading: false,
+        url: downloadUrl,
+        success: `✓ ${file.name} uploaded successfully. Save to apply.`,
+      });
+    } catch (err: any) {
+      patchState(platform, { uploading: false, error: err.message ?? "Upload failed" });
+    }
+  }, [patchState]);
+
+  const handleSave = useCallback(async (platform: AppPlatform) => {
+    const s = states[platform];
+    if (!s.url.trim()) {
+      patchState(platform, { error: "Download URL cannot be empty." });
+      return;
+    }
+    patchState(platform, { saving: true, error: "", success: "" });
+    try {
+      await appDownloadsRepository.updateDownload(platform, {
+        download_url: s.url.trim(),
+        version: s.version.trim() || "1.0.0",
+        min_os: s.minOs.trim() || "7.0+",
+        file_size: s.fileSize.trim() || null,
+        is_active: s.isActive,
+      });
+      patchState(platform, { saving: false, success: "Settings saved successfully!" });
+      setTimeout(() => patchState(platform, { success: "" }), 4000);
+    } catch (err: any) {
+      patchState(platform, { saving: false, error: err.message ?? "Save failed" });
+    }
+  }, [states, patchState]);
+
+  return (
+    <div className="space-y-8">
+      {/* Header info banner */}
+      <div className="bg-[#0B3C5D]/5 border border-[#0B3C5D]/15 rounded-2xl p-5 flex gap-3">
+        <AlertCircle size={20} className="text-[#0B3C5D] shrink-0 mt-0.5" />
+        <div className="text-sm text-[#0B3C5D]/80 leading-relaxed">
+          <strong className="font-bold text-[#0B3C5D]">How it works:</strong> Upload a new APK or IPA file using the
+          upload button, or paste a direct download URL manually. Toggle the platform active/inactive to control
+          whether the "Coming Soon" overlay is shown on the public downloads page. Changes take effect immediately
+          after saving — no HTML editing required.
+        </div>
+      </div>
+
+      {(["android", "ios"] as AppPlatform[]).map(platform => {
+        const s = states[platform];
+        const meta = PLATFORM_META[platform];
+        return (
+          <div key={platform} className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+            {/* Card header */}
+            <div className={`px-6 py-4 border-b border-slate-100 flex items-center justify-between gap-4`}>
+              <div className="flex items-center gap-3">
+                <span className="text-3xl">{meta.icon}</span>
+                <div>
+                  <h3 className="font-bold text-[#0B3C5D] text-base">{meta.label}</h3>
+                  <p className="text-xs text-slate-400 mt-0.5">
+                    {platform === "android" ? "APK — Android 7.0+" : "IPA — iOS 14.0+"}
+                  </p>
+                </div>
+              </div>
+
+              {/* Active toggle */}
+              <div className="flex items-center gap-3 shrink-0">
+                <span className="text-xs font-bold text-slate-500">
+                  {s.isActive ? "Active" : "Coming Soon"}
+                </span>
+                <button
+                  id={`toggle-${platform}-active`}
+                  disabled={s.loading || s.saving}
+                  onClick={() => patchState(platform, { isActive: !s.isActive, success: "", error: "" })}
+                  title={s.isActive ? "Click to mark as Coming Soon" : "Click to make Active"}
+                  className="transition-all"
+                >
+                  {s.isActive
+                    ? <ToggleRight size={32} className="text-emerald-500 hover:text-emerald-600 transition-colors" />
+                    : <ToggleLeft size={32} className="text-slate-400 hover:text-slate-600 transition-colors" />
+                  }
+                </button>
+                {s.isActive
+                  ? <span className="text-[10px] font-black uppercase tracking-wider px-2.5 py-1 rounded-lg bg-emerald-100 text-emerald-800">Available</span>
+                  : <span className="text-[10px] font-black uppercase tracking-wider px-2.5 py-1 rounded-lg bg-amber-100 text-amber-700">Coming Soon</span>
+                }
+              </div>
+            </div>
+
+            {/* Body */}
+            <div className="p-6 space-y-5">
+              {s.loading ? (
+                <div className="flex items-center justify-center py-10">
+                  <RefreshCw className="animate-spin text-slate-400" size={22} />
+                </div>
+              ) : (
+                <>
+                  {/* Download URL */}
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-bold text-slate-500 uppercase tracking-wider flex items-center gap-1.5">
+                      <Link2 size={12} /> Download URL
+                    </label>
+                    <input
+                      id={`${platform}-download-url`}
+                      type="url"
+                      value={s.url}
+                      onChange={e => patchState(platform, { url: e.target.value, success: "", error: "" })}
+                      placeholder="https://... or paste a Drive/GitHub release URL"
+                      className="w-full border border-slate-200 rounded-xl px-4 py-2.5 text-sm outline-none focus:border-[#0B3C5D] focus:ring-2 focus:ring-[#0B3C5D]/10 font-mono text-slate-700 placeholder:font-sans placeholder:text-slate-400"
+                    />
+                  </div>
+
+                  {/* File upload widget */}
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-bold text-slate-500 uppercase tracking-wider flex items-center gap-1.5">
+                      <Upload size={12} /> Upload New {meta.ext.toUpperCase()} File
+                    </label>
+                    <label
+                      id={`upload-label-${platform}`}
+                      className={`
+                        flex items-center gap-4 cursor-pointer border-2 border-dashed rounded-xl p-4 transition-all
+                        ${s.uploading ? "opacity-60 cursor-not-allowed" : "hover:border-[#0B3C5D]/40 hover:bg-[#0B3C5D]/3"}
+                        border-slate-200 bg-slate-50/50
+                      `}
+                    >
+                      <div className="w-10 h-10 rounded-xl bg-white border border-slate-200 shadow-sm flex items-center justify-center shrink-0">
+                        {s.uploading
+                          ? <RefreshCw size={18} className="animate-spin text-[#0B3C5D]" />
+                          : <Upload size={18} className="text-slate-400" />
+                        }
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-semibold text-slate-700">
+                          {s.uploading ? "Uploading… please wait" : `Click to select ${meta.ext} file`}
+                        </p>
+                        <p className="text-xs text-slate-400 mt-0.5">
+                          {s.uploading ? "Large files may take a moment." : `Accepts ${meta.ext} — max 150 MB`}
+                        </p>
+                      </div>
+                      <input
+                        id={`file-input-${platform}`}
+                        type="file"
+                        accept={meta.accept}
+                        disabled={s.uploading || s.saving}
+                        className="sr-only"
+                        onChange={e => {
+                          const file = e.target.files?.[0];
+                          if (file) handleUpload(platform, file);
+                          e.target.value = "";
+                        }}
+                      />
+                    </label>
+                  </div>
+
+                  {/* Version + Min OS + File size row */}
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                    <div className="space-y-1.5">
+                      <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Version</label>
+                      <input
+                        id={`${platform}-version`}
+                        type="text"
+                        placeholder="e.g. 1.2.4"
+                        value={s.version}
+                        onChange={e => patchState(platform, { version: e.target.value })}
+                        className="w-full border border-slate-200 rounded-xl px-4 py-2.5 text-sm outline-none focus:border-[#0B3C5D] focus:ring-2 focus:ring-[#0B3C5D]/10"
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Min OS</label>
+                      <input
+                        id={`${platform}-min-os`}
+                        type="text"
+                        placeholder={platform === "android" ? "Android 7.0+" : "iOS 14.0+"}
+                        value={s.minOs}
+                        onChange={e => patchState(platform, { minOs: e.target.value })}
+                        className="w-full border border-slate-200 rounded-xl px-4 py-2.5 text-sm outline-none focus:border-[#0B3C5D] focus:ring-2 focus:ring-[#0B3C5D]/10"
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">File Size</label>
+                      <input
+                        id={`${platform}-file-size`}
+                        type="text"
+                        placeholder="e.g. 28.4 MB"
+                        value={s.fileSize}
+                        onChange={e => patchState(platform, { fileSize: e.target.value })}
+                        className="w-full border border-slate-200 rounded-xl px-4 py-2.5 text-sm outline-none focus:border-[#0B3C5D] focus:ring-2 focus:ring-[#0B3C5D]/10"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Feedback messages */}
+                  {s.error && (
+                    <div className="flex items-center gap-2 bg-rose-50 border border-rose-200 text-rose-700 px-4 py-3 rounded-xl text-sm font-medium">
+                      <XCircle size={16} className="shrink-0" />
+                      {s.error}
+                    </div>
+                  )}
+                  {s.success && (
+                    <div className="flex items-center gap-2 bg-emerald-50 border border-emerald-200 text-emerald-700 px-4 py-3 rounded-xl text-sm font-medium">
+                      <CheckCheck size={16} className="shrink-0" />
+                      {s.success}
+                    </div>
+                  )}
+
+                  {/* Save button */}
+                  <div className="flex justify-end pt-1">
+                    <button
+                      id={`save-${platform}-settings`}
+                      onClick={() => handleSave(platform)}
+                      disabled={s.saving || s.uploading || s.loading}
+                      className="flex items-center gap-2 bg-[#0B3C5D] text-white px-7 py-2.5 rounded-xl font-bold hover:bg-[#0B3C5D]/90 transition-all shadow-lg shadow-blue-200 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      {s.saving
+                        ? <RefreshCw size={16} className="animate-spin" />
+                        : <Save size={16} />
+                      }
+                      {s.saving ? "Saving…" : "Save Changes"}
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
+          </div>
+        );
+      })}
     </div>
   );
 }
