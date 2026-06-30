@@ -54,10 +54,10 @@ function buildAnalytics(rows: TeacherAttendanceDTO[]): TeacherAttendanceAnalytic
     }
 
     if (r.subject) {
-      const s = bySubject.get(r.subject.id) ?? { name: r.subject.name, sessions: 0, minutes: 0 };
+      const s = bySubject.get(r.subject.name) ?? { name: r.subject.name, sessions: 0, minutes: 0 };
       s.sessions++;
       s.minutes += mins;
-      bySubject.set(r.subject.id, s);
+      bySubject.set(r.subject.name, s);
     }
 
     if (r.teacher && r.attendance_status !== "Missed" && r.start_time) {
@@ -90,7 +90,7 @@ function buildAnalytics(rows: TeacherAttendanceDTO[]): TeacherAttendanceAnalytic
       }))
       .sort((a, b) => b.sessions - a.sessions),
     bySubject: Array.from(bySubject.entries())
-      .map(([id, v]) => ({ subject_id: id, subject_name: v.name, sessions: v.sessions, minutes: v.minutes }))
+      .map(([name, v]) => ({ subject_id: name, subject_name: name, sessions: v.sessions, minutes: v.minutes }))
       .sort((a, b) => b.sessions - a.sessions)
       .slice(0, 8),
     punctualityTop: Array.from(byTeacher.entries())

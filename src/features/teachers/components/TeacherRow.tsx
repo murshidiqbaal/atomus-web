@@ -28,11 +28,11 @@ function TeacherRow({ teacher, onEdit, onToggleStatus, onResetPassword, onDelete
   const [copied, setCopied] = useState(false);
 
   const subjects = useMemo(
-    () => (teacher.teacher_subjects ?? []).map((x) => x.subjects?.name).filter(Boolean) as string[],
+    () => Array.from(new Set((teacher.teacher_subjects ?? []).map((x) => x.subjects?.name).filter(Boolean) as string[])),
     [teacher.teacher_subjects]
   );
   const batches = useMemo(
-    () => (teacher.teacher_batches ?? []).map((x) => x.batches?.name).filter(Boolean) as string[],
+    () => Array.from(new Set((teacher.teacher_batches ?? []).map((x) => x.batches?.name).filter(Boolean) as string[])),
     [teacher.teacher_batches]
   );
 

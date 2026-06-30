@@ -454,13 +454,20 @@ export default function ReportsAnalytics() {
       count,
     })).sort((a, b) => b.count - a.count).slice(0, 10);
 
-    const subjectData = Object.entries(subjectStats).map(([subjId, s]) => {
+    const subjectStatsByName: Record<string, { present: number; total: number }> = {};
+    Object.entries(subjectStats).forEach(([subjId, s]) => {
       const subjName = subjects.find(sub => sub.id === subjId)?.name || "Unknown Subject";
-      return {
-        name: subjName,
-        percentage: s.total > 0 ? Math.round((s.present / s.total) * 100) : 100,
-      };
-    }).sort((a, b) => b.percentage - a.percentage);
+      if (!subjectStatsByName[subjName]) {
+        subjectStatsByName[subjName] = { present: 0, total: 0 };
+      }
+      subjectStatsByName[subjName].present += s.present;
+      subjectStatsByName[subjName].total += s.total;
+    });
+
+    const subjectData = Object.entries(subjectStatsByName).map(([name, s]) => ({
+      name,
+      percentage: s.total > 0 ? Math.round((s.present / s.total) * 100) : 100,
+    })).sort((a, b) => b.percentage - a.percentage);
 
     const overrideDistribution = [
       { name: "Teacher Marked", value: teacherCount, color: "#10b981" },
