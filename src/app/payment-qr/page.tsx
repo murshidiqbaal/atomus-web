@@ -17,6 +17,7 @@ import { campusRepository } from "@/lib/repositories/campus_repository";
 import { Campus } from "@/lib/types";
 import DriveFileUpload from "@/components/shared/DriveFileUpload";
 import { cleanupDriveFile } from "@/lib/utils/drive_upload";
+import { SkeletonCard } from "@/components/shared/Skeleton";
 
 /** Resolves the best display URL for a campus QR code. */
 function resolveQrImageSrc(campus: Campus): string | null {
@@ -149,9 +150,10 @@ export default function PaymentQrPage() {
 
       {/* Grid List */}
       {loading ? (
-        <div className="flex flex-col items-center justify-center py-24 gap-3">
-          <Loader2 className="text-[#0B3C5D] animate-spin" size={40} />
-          <p className="text-sm text-slate-500 font-semibold">Loading campus configurations...</p>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 animate-pulse">
+          <SkeletonCard />
+          <SkeletonCard />
+          <SkeletonCard />
         </div>
       ) : filteredCampuses.length === 0 ? (
         <div className="text-center py-20 bg-white rounded-2xl border border-slate-200 shadow-sm">

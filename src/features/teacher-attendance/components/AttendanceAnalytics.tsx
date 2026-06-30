@@ -15,6 +15,7 @@ import type {
 import { useTeacherAttendanceAnalytics } from "../hooks";
 import { isLatePunchIn } from "../utils/format";
 import { Avatar, Card, EmptyState, StatCard } from "./ui";
+import { SkeletonGraph } from "@/components/shared/Skeleton";
 
 const TONE = ["#0B3C5D", "#D4AF37", "#10B981", "#8B5CF6", "#EC4899", "#F59E0B", "#06B6D4", "#EF4444"];
 
@@ -234,11 +235,7 @@ export function AttendanceAnalytics({
   };
 
   if (isLoading) {
-    return (
-      <Card className="py-16 flex items-center justify-center text-slate-400">
-        <Loader2 size={20} className="animate-spin" />
-      </Card>
-    );
+    return <SkeletonGraph height="h-72" />;
   }
 
   if (rows.length === 0) {

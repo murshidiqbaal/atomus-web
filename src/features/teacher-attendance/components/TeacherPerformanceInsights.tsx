@@ -10,6 +10,7 @@ import type {
 import { useTeacherAttendanceAnalytics } from "../hooks";
 import { isLatePunchIn } from "../utils/format";
 import { Avatar, Card, EmptyState } from "./ui";
+import { SkeletonTable } from "@/components/shared/Skeleton";
 
 function buildPerformance(rows: TeacherAttendanceDTO[]): TeacherPerformanceRow[] {
   const map = new Map<string, TeacherPerformanceRow & {
@@ -80,11 +81,7 @@ export function TeacherPerformanceInsights() {
   const perf = useMemo(() => buildPerformance(rows), [rows]);
 
   if (isLoading) {
-    return (
-      <Card className="py-16 flex items-center justify-center text-slate-400">
-        <Loader2 size={20} className="animate-spin" />
-      </Card>
-    );
+    return <SkeletonTable rows={4} cols={5} />;
   }
 
   if (perf.length === 0) {

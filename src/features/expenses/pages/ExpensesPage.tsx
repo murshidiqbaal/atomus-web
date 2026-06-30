@@ -7,6 +7,7 @@ import {
   PieChart as PieIcon, BarChart3, Calendar,
   Building2, Tag, IndianRupee, Sparkles, Activity
 } from "lucide-react";
+import { Skeleton } from "@/components/shared/Skeleton";
 import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip,
   ResponsiveContainer
@@ -305,8 +306,14 @@ export default function ExpensesPage() {
                   </div>
 
                   {loadingDashboard ? (
-                    <div className="h-72 flex items-center justify-center">
-                      <div className="w-8 h-8 border-3 border-[#0B3C5D]/20 border-t-[#0B3C5D] rounded-full animate-spin" />
+                    <div className="h-72 w-full animate-pulse flex items-end gap-3 pt-4">
+                      <Skeleton className="h-1/3 flex-1 rounded-t-xl" />
+                      <Skeleton className="h-2/3 flex-1 rounded-t-xl" />
+                      <Skeleton className="h-1/2 flex-1 rounded-t-xl" />
+                      <Skeleton className="h-4/5 flex-1 rounded-t-xl" />
+                      <Skeleton className="h-3/4 flex-1 rounded-t-xl" />
+                      <Skeleton className="h-2/5 flex-1 rounded-t-xl" />
+                      <Skeleton className="h-5/6 flex-1 rounded-t-xl" />
                     </div>
                   ) : monthTotal === 0 ? (
                     <div className="h-72 flex flex-col items-center justify-center text-center text-slate-400">
@@ -373,8 +380,14 @@ export default function ExpensesPage() {
                   </div>
 
                   {loadingDashboard ? (
-                    <div className="h-72 flex items-center justify-center">
-                      <div className="w-8 h-8 border-3 border-[#0B3C5D]/20 border-t-[#0B3C5D] rounded-full animate-spin" />
+                    <div className="h-72 w-full animate-pulse flex items-end gap-3 pt-4">
+                      <Skeleton className="h-2/5 flex-1 rounded-t-xl" />
+                      <Skeleton className="h-4/5 flex-1 rounded-t-xl" />
+                      <Skeleton className="h-1/3 flex-1 rounded-t-xl" />
+                      <Skeleton className="h-2/3 flex-1 rounded-t-xl" />
+                      <Skeleton className="h-1/2 flex-1 rounded-t-xl" />
+                      <Skeleton className="h-3/4 flex-1 rounded-t-xl" />
+                      <Skeleton className="h-5/6 flex-1 rounded-t-xl" />
                     </div>
                   ) : yearTotal === 0 ? (
                     <div className="h-72 flex flex-col items-center justify-center text-center text-slate-400">
@@ -438,8 +451,16 @@ export default function ExpensesPage() {
                 </div>
 
                 {loadingDashboard ? (
-                  <div className="py-10 flex items-center justify-center">
-                    <div className="w-6 h-6 border-2 border-[#0B3C5D]/20 border-t-[#0B3C5D] rounded-full animate-spin" />
+                  <div className="space-y-4 py-2 animate-pulse">
+                    {Array.from({ length: 3 }).map((_, idx) => (
+                      <div key={idx} className="space-y-2">
+                        <div className="flex justify-between">
+                          <Skeleton className="h-3 w-24" />
+                          <Skeleton className="h-3 w-16" />
+                        </div>
+                        <Skeleton className="h-2 w-full rounded-full" />
+                      </div>
+                    ))}
                   </div>
                 ) : categoryBreakdown.length === 0 ? (
                   <div className="py-20 text-center text-slate-400">
@@ -481,8 +502,16 @@ export default function ExpensesPage() {
                 </div>
 
                 {loadingDashboard ? (
-                  <div className="py-10 flex items-center justify-center">
-                    <div className="w-6 h-6 border-2 border-[#0B3C5D]/20 border-t-[#0B3C5D] rounded-full animate-spin" />
+                  <div className="space-y-4 py-2 animate-pulse">
+                    {Array.from({ length: 3 }).map((_, idx) => (
+                      <div key={idx} className="space-y-2">
+                        <div className="flex justify-between">
+                          <Skeleton className="h-3 w-24" />
+                          <Skeleton className="h-3 w-16" />
+                        </div>
+                        <Skeleton className="h-2 w-full rounded-full" />
+                      </div>
+                    ))}
                   </div>
                 ) : campusBreakdown.length === 0 ? (
                   <div className="py-20 text-center text-slate-400">

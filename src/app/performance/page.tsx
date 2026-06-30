@@ -8,6 +8,7 @@ import {
   GraduationCap, Download, Printer, PieChart as PieIcon, BarChart3, AlertCircle,
   HelpCircle, Calendar, ThumbsUp, ArrowDown, Activity, Sparkles
 } from "lucide-react";
+import { Skeleton, SkeletonGraph } from "@/components/shared/Skeleton";
 import {
   ResponsiveContainer, AreaChart, Area, BarChart, Bar,
   XAxis, YAxis, CartesianGrid, Tooltip, Legend, RadarChart,
@@ -706,10 +707,45 @@ export default function AcademicPerformancePage() {
 
       {/* TABS CONTAINER CONTENT */}
       {isLoading ? (
-        <div className="bg-white rounded-[2.5rem] border border-slate-200 p-24 text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-[#0B3C5D] mx-auto mb-6" />
-          <p className="text-slate-900 font-black text-lg">Fetching Academic Performance Stats...</p>
-          <p className="text-slate-400 text-xs mt-1">Aggregating weighted attendance and exam ratios from Supabase.</p>
+        <div className="space-y-10 animate-pulse">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div className="bg-white rounded-[2.5rem] border border-slate-200 p-6 space-y-4 shadow-sm">
+              <Skeleton className="h-4 w-1/3" />
+              <Skeleton className="h-8 w-24" />
+              <Skeleton className="h-3 w-1/2" />
+            </div>
+            <div className="bg-white rounded-[2.5rem] border border-slate-200 p-6 space-y-4 shadow-sm">
+              <Skeleton className="h-4 w-1/3" />
+              <Skeleton className="h-8 w-24" />
+              <Skeleton className="h-3 w-1/2" />
+            </div>
+            <div className="bg-white rounded-[2.5rem] border border-slate-200 p-6 space-y-4 shadow-sm">
+              <Skeleton className="h-4 w-1/3" />
+              <Skeleton className="h-8 w-24" />
+              <Skeleton className="h-3 w-1/2" />
+            </div>
+          </div>
+          <div className="grid grid-cols-1 xl:grid-cols-3 gap-8">
+            <div className="xl:col-span-2">
+              <SkeletonGraph height="h-80" />
+            </div>
+            <div className="xl:col-span-1">
+              <div className="bg-white rounded-[2.5rem] border border-slate-200 p-6 shadow-sm space-y-6">
+                <Skeleton className="h-5 w-1/2" />
+                <div className="space-y-4">
+                  {Array.from({ length: 4 }).map((_, idx) => (
+                    <div key={idx} className="flex gap-4 items-center">
+                      <Skeleton className="w-10 h-10 rounded-full" />
+                      <div className="space-y-1.5 flex-1">
+                        <Skeleton className="h-4 w-2/3" />
+                        <Skeleton className="h-3 w-1/3" />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
       ) : (
         <div className="space-y-10">

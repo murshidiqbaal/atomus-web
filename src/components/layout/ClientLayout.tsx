@@ -12,6 +12,7 @@ import {
   BarChart3, Settings, Menu, X, Bell, Search, ChevronDown,
   LogOut, Calculator, Award, Timer, QrCode, Shield, Activity
 } from 'lucide-react';
+import { SkeletonPage } from '@/components/shared/Skeleton';
 
 type NavItem = { href: string; label: string; icon: any; roles?: Exclude<AppRole, null>[] };
 
@@ -19,7 +20,6 @@ const navItems: readonly NavItem[] = [
   { href: '/admin', label: 'Dashboard', icon: LayoutDashboard, roles: ['admin'] },
   { href: '/students', label: 'Students', icon: Users, roles: ['admin', 'staff'] },
   { href: '/parents', label: 'Parents', icon: UserCircle, roles: ['admin', 'staff'] },
-  { href: '/parents/activity-logs', label: 'Parent Activity Logs', icon: Activity, roles: ['admin', 'staff'] },
   { href: '/teachers', label: 'Teachers', icon: GraduationCap, roles: ['admin', 'staff'] },
   { href: '/courses', label: 'Courses', icon: BookOpen, roles: ['admin', 'staff'] },
   { href: '/subjects', label: 'Subjects', icon: BookMarked, roles: ['admin', 'staff'] },
@@ -34,6 +34,7 @@ const navItems: readonly NavItem[] = [
   { href: '/reports', label: 'Reports', icon: BarChart3, roles: ['admin'] },
   { href: '/performance', label: 'Performance', icon: Award, roles: ['admin'] },
   { href: '/settings', label: 'Settings', icon: Settings, roles: ['admin'] },
+  { href: '/parents/activity-logs', label: 'Parent Activity Logs', icon: Activity, roles: ['admin', 'staff'] },
   { href: '/teacher-dashboard', label: 'My Classes', icon: LayoutDashboard, roles: ['teacher'] },
   { href: '/parent-dashboard', label: 'My Children', icon: LayoutDashboard, roles: ['parent'] },
 ];
@@ -299,11 +300,7 @@ function ClientLayoutContent({ children }: { children: React.ReactNode }) {
   }, [pathname, role, permissions, closeSidebar]);
 
   if (loading || permsLoading) {
-    return (
-      <div className="h-screen w-screen flex items-center justify-center bg-[#0B3C5D]">
-        <div className="w-12 h-12 border-4 border-white/20 border-t-white rounded-full animate-spin" />
-      </div>
-    );
+    return <SkeletonPage />;
   }
 
   if (isPublicPage) return <>{children}</>;

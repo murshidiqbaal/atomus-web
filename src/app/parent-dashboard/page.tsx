@@ -4,6 +4,7 @@ import React, { useEffect, useState } from "react";
 import { UserCircle, Users, Phone } from "lucide-react";
 import { useAuth } from "@/providers/AuthProvider";
 import { supabase } from "@/lib/supabase";
+import { Skeleton } from "@/components/shared/Skeleton";
 
 interface ParentRow {
   id: string;
@@ -54,8 +55,43 @@ export default function ParentDashboardPage() {
 
   if (loading || fetching) {
     return (
-      <div className="flex items-center justify-center h-full p-12">
-        <div className="w-10 h-10 border-4 border-[#0B3C5D]/20 border-t-[#0B3C5D] rounded-full animate-spin" />
+      <div className="p-6 lg:p-10 max-w-6xl mx-auto space-y-6 animate-pulse">
+        <header className="flex items-center gap-4">
+          <Skeleton className="w-14 h-14 rounded-2xl" />
+          <div className="space-y-2">
+            <Skeleton className="h-6 w-48" />
+            <Skeleton className="h-4 w-32" />
+          </div>
+        </header>
+
+        <section className="bg-white rounded-2xl border border-slate-200 p-6 space-y-4">
+          <Skeleton className="h-4 w-24" />
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="space-y-1.5">
+              <Skeleton className="h-3 w-16" />
+              <Skeleton className="h-4 w-36" />
+            </div>
+            <div className="space-y-1.5">
+              <Skeleton className="h-3 w-16" />
+              <Skeleton className="h-4 w-36" />
+            </div>
+          </div>
+        </section>
+
+        <section className="bg-white rounded-2xl border border-slate-200 p-6 space-y-4">
+          <Skeleton className="h-4 w-24" />
+          <div className="divide-y divide-slate-100">
+            {Array.from({ length: 2 }).map((_, i) => (
+              <div key={i} className="py-3 flex items-center justify-between">
+                <div className="space-y-1.5 flex-1">
+                  <Skeleton className="h-4 w-32" />
+                  <Skeleton className="h-3 w-24" />
+                </div>
+                <Skeleton className="h-5 w-12" />
+              </div>
+            ))}
+          </div>
+        </section>
       </div>
     );
   }
