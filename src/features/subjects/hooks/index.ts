@@ -20,9 +20,9 @@ export function useCourses() {
     queryFn: async () => {
       const { data } = await supabase
         .from("courses")
-        .select("id, name")
+        .select("id, name, class_level")
         .order("name");
-      return (data ?? []) as { id: string; name: string }[];
+      return (data ?? []) as { id: string; name: string; class_level?: string | null }[];
     },
     staleTime: 60_000,
   });

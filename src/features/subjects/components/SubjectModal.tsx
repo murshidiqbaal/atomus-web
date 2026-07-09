@@ -28,6 +28,8 @@ export default function SubjectModal({ subject, onClose }: Props) {
     register,
     handleSubmit,
     reset,
+    watch,
+    setValue,
     formState: { errors, isSubmitting },
   } = useForm<SubjectFormValues>({
     resolver: zodResolver(subjectSchema),
@@ -49,6 +51,30 @@ export default function SubjectModal({ subject, onClose }: Props) {
           is_active: true,
         },
   });
+
+  const selectedCourseId = watch("course_id");
+
+  useEffect(() => {
+    if (!isEdit && selectedCourseId && courses.length > 0) {
+      const selectedCourse = courses.find((c) => c.id === selectedCourseId);
+      if (selectedCourse) {
+        const combined = `${selectedCourse.name} ${selectedCourse.class_level || ""}`.toLowerCase();
+        let derived: "8" | "9" | "10" | "+1" | "+2" = "8";
+        if (combined.includes("10") || combined.includes("10th") || combined.includes("sslc")) {
+          derived = "10";
+        } else if (combined.includes("+1") || combined.includes("plus one") || combined.includes("11") || combined.includes("11th")) {
+          derived = "+1";
+        } else if (combined.includes("+2") || combined.includes("plus two") || combined.includes("12") || combined.includes("12th")) {
+          derived = "+2";
+        } else if (combined.includes("9") || combined.includes("9th")) {
+          derived = "9";
+        } else if (combined.includes("8") || combined.includes("8th")) {
+          derived = "8";
+        }
+        setValue("class_level", derived);
+      }
+    }
+  }, [selectedCourseId, courses, setValue, isEdit]);
 
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
@@ -167,45 +193,24 @@ export default function SubjectModal({ subject, onClose }: Props) {
             )}
           </div>
 
-          {/* Class Level + Subject Type */}
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="block text-xs font-bold text-slate-600 mb-1.5 uppercase tracking-wide">
-                Class Level
-              </label>
-              <select
-                {...register("class_level")}
-                className="w-full px-3 py-2.5 border border-slate-200 rounded-xl text-sm outline-none focus:border-[#0B3C5D] focus:ring-2 focus:ring-[#0B3C5D]/10 transition-all bg-white"
-              >
-                {CLASS_LEVELS.map((l) => (
-                  <option key={l} value={l}>
-                    Class {l}
-                  </option>
-                ))}
-              </select>
-              {errors.class_level && (
-                <p className="mt-1 text-xs text-rose-500">{errors.class_level.message}</p>
-              )}
-            </div>
-
-            <div>
-              <label className="block text-xs font-bold text-slate-600 mb-1.5 uppercase tracking-wide">
-                Subject Type
-              </label>
-              <select
-                {...register("subject_type")}
-                className="w-full px-3 py-2.5 border border-slate-200 rounded-xl text-sm outline-none focus:border-[#0B3C5D] focus:ring-2 focus:ring-[#0B3C5D]/10 transition-all bg-white"
-              >
-                {SUBJECT_TYPES.map((t) => (
-                  <option key={t} value={t}>
-                    {t}
-                  </option>
-                ))}
-              </select>
-              {errors.subject_type && (
-                <p className="mt-1 text-xs text-rose-500">{errors.subject_type.message}</p>
-              )}
-            </div>
+          {/* Subject Type */}
+          <div>
+            <label className="block text-xs font-bold text-slate-600 mb-1.5 uppercase tracking-wide">
+              Subject Type
+            </label>
+            <select
+              {...register("subject_type")}
+              className="w-full px-3 py-2.5 border border-slate-200 rounded-xl text-sm outline-none focus:border-[#0B3C5D] focus:ring-2 focus:ring-[#0B3C5D]/10 transition-all bg-white"
+            >
+              {SUBJECT_TYPES.map((t) => (
+                <option key={t} value={t}>
+                  {t}
+                </option>
+              ))}
+            </select>
+            {errors.subject_type && (
+              <p className="mt-1 text-xs text-rose-500">{errors.subject_type.message}</p>
+            )}
           </div>
 
           {/* Active toggle */}

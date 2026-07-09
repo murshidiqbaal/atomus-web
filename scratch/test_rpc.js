@@ -5,25 +5,18 @@ const supabaseServiceKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXB
 
 const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey);
 
-async function inspect(table) {
+async function run() {
   try {
-    const { data, error } = await supabaseAdmin
-      .from(table)
-      .select('*')
-      .limit(1);
+    const r1 = await supabaseAdmin.rpc('exec_sql', { sql_query: 'SELECT 1 as val;' });
+    console.log('exec_sql (sql_query):', r1);
+    
+    const r2 = await supabaseAdmin.rpc('exec_sql', { sql: 'SELECT 1 as val;' });
+    console.log('exec_sql (sql):', r2);
 
-    if (error) throw error;
-    console.log(`${table} columns:`, Object.keys(data[0] || {}));
-  } catch (error) {
-    console.error(`Error in ${table}:`, error.message);
+    const r3 = await supabaseAdmin.rpc('run_sql', { sql: 'SELECT 1 as val;' });
+    console.log('run_sql (sql):', r3);
+  } catch (err) {
+    console.error('Error:', err);
   }
 }
-
-async function run() {
-  await inspect('campuses');
-  await inspect('courses');
-  await inspect('batches');
-  await inspect('subjects');
-}
-
 run();

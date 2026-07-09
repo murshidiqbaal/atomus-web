@@ -14,7 +14,7 @@ import {
 
 export function PerformanceChart({ data }: { data: any[] }) {
   return (
-    <ResponsiveContainer width="100%" height="100%">
+    <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
       <AreaChart data={data}>
         <defs>
           <linearGradient id="perfGrad" x1="0" y1="0" x2="0" y2="1">
@@ -24,11 +24,16 @@ export function PerformanceChart({ data }: { data: any[] }) {
         </defs>
         <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
         <XAxis
-          dataKey="name"
+          dataKey="date"
           axisLine={false}
           tickLine={false}
           tick={{ fill: "#94a3b8", fontSize: 10, fontWeight: 700 }}
           dy={8}
+          tickFormatter={(dateStr) => {
+            if (!dateStr) return "";
+            const d = new Date(dateStr);
+            return d.toLocaleDateString("en-US", { day: "numeric", month: "short" });
+          }}
         />
         <YAxis
           domain={[0, 100]}
@@ -38,13 +43,23 @@ export function PerformanceChart({ data }: { data: any[] }) {
           tickFormatter={(v) => `${v}%`}
         />
         <Tooltip
-          contentStyle={{
-            borderRadius: 12,
-            border: "none",
-            boxShadow: "0 10px 25px -5px rgba(0,0,0,0.1)",
-            fontSize: 12,
+          content={({ active, payload }) => {
+            if (active && payload && payload.length) {
+              const data = payload[0].payload;
+              return (
+                <div className="bg-white p-3 rounded-xl border border-slate-100 shadow-xl space-y-1">
+                  <p className="text-[10px] font-black text-[#D4AF37] uppercase">
+                    {data.date ? new Date(data.date).toLocaleDateString("en-IN", { month: "short", day: "numeric", year: "numeric" }) : "N/A"}
+                  </p>
+                  <p className="text-xs font-bold text-[#0B3C5D]">{data.name}</p>
+                  <p className="text-xs font-black text-[#0B3C5D]">
+                    Average: <span className="text-emerald-600 font-bold">{data.avg}%</span>
+                  </p>
+                </div>
+              );
+            }
+            return null;
           }}
-          formatter={(v) => [`${v}%`, "Average Score"]}
         />
         <Area
           type="monotone"
@@ -63,7 +78,7 @@ export function PerformanceChart({ data }: { data: any[] }) {
 
 export function FeeCollectionChart({ data }: { data: any[] }) {
   return (
-    <ResponsiveContainer width="100%" height="100%">
+    <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
       <BarChart data={data} barGap={4} barCategoryGap={20}>
         <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
         <XAxis dataKey="month" axisLine={false} tickLine={false} tick={{ fill: "#94a3b8", fontSize: 11, fontWeight: 700 }} dy={8} />

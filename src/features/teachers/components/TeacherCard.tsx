@@ -20,14 +20,22 @@ interface Props {
   onEdit: (t: Teacher) => void;
   onToggleStatus: (t: Teacher) => void;
   onDelete: (t: Teacher) => void;
+  campusNameMap?: Map<string, string>;
 }
 
-function TeacherCard({ teacher, onEdit, onToggleStatus, onDelete }: Props) {
+function TeacherCard({ teacher, onEdit, onToggleStatus, onDelete, campusNameMap }: Props) {
   const counts = useMemo(() => ({
     courses: teacher.teacher_courses?.length ?? 0,
     subjects: teacher.teacher_subjects?.length ?? 0,
     batches: teacher.teacher_batches?.length ?? 0,
   }), [teacher]);
+
+  const campusNames = useMemo(() => {
+    if (teacher.assigned_campuses && teacher.assigned_campuses.length > 0 && campusNameMap) {
+      return teacher.assigned_campuses.map((cid) => campusNameMap.get(cid)).filter(Boolean).join(", ");
+    }
+    return teacher.campuses?.name || "No campus";
+  }, [teacher.assigned_campuses, teacher.campuses, campusNameMap]);
 
   return (
     <div className="bg-white rounded-2xl border border-slate-200 p-4 space-y-3">
@@ -50,8 +58,8 @@ function TeacherCard({ teacher, onEdit, onToggleStatus, onDelete }: Props) {
 
       <div className="space-y-1 text-xs text-slate-500">
         <div className="flex items-center gap-2">
-          <Building2 size={12} />
-          <span className="truncate">{teacher.campuses?.name ?? "No campus"}</span>
+          <Building2 size={12} className="shrink-0" />
+          <span className="truncate" title={campusNames}>{campusNames}</span>
         </div>
         <div className="flex items-center gap-2"><Mail size={12} /><span className="truncate">{teacher.email}</span></div>
         <div className="flex items-center gap-2"><Phone size={12} /><span className="font-mono">{teacher.phone_number ?? "—"}</span></div>

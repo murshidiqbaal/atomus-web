@@ -65,7 +65,7 @@ export default function TeacherModal({ teacher, onClose }: Props) {
           email: teacher.email,
           phone_number: teacher.phone_number ?? "",
           qualification: teacher.qualification ?? "",
-          campus_id: teacher.campus_id ?? "",
+          campus_ids: teacher.assigned_campuses || (teacher.campus_id ? [teacher.campus_id] : []),
           gender: (teacher.gender ?? "") as any,
           address: teacher.address ?? "",
           experience_years: teacher.experience_years ?? 0,
@@ -77,7 +77,7 @@ export default function TeacherModal({ teacher, onClose }: Props) {
         }
       : {
           full_name: "", email: "", phone_number: "", qualification: "",
-          campus_id: "",
+          campus_ids: [],
           gender: "" as any, address: "", experience_years: 0, subject_specialization: "",
           account_status: "Active",
           course_ids: [], subject_ids: [], batch_ids: [],
@@ -85,23 +85,25 @@ export default function TeacherModal({ teacher, onClose }: Props) {
         },
   });
 
-  const selectedCampusId = watch("campus_id");
-  const selectedCourseIds = watch("course_ids");
+  const selectedCampusIds = watch("campus_ids") || [];
+  const selectedCourseIds = watch("course_ids") || [];
 
-  const { data: courses = [] } = useTeacherCoursesByCampus(selectedCampusId);
-  const { data: batches = [] } = useTeacherBatchesByCampus(selectedCampusId);
+  const { data: courses = [] } = useTeacherCoursesByCampus(selectedCampusIds);
+  const { data: batches = [] } = useTeacherBatchesByCampus(selectedCampusIds);
 
   // When the user switches campus, drop course/subject/batch picks
   // since they're not valid for the new campus.
-  const prevCampusRef = useRef(selectedCampusId);
+  const prevCampusesRef = useRef(selectedCampusIds);
   useEffect(() => {
-    if (prevCampusRef.current && prevCampusRef.current !== selectedCampusId) {
+    const prevStr = JSON.stringify(prevCampusesRef.current);
+    const currStr = JSON.stringify(selectedCampusIds);
+    if (prevStr !== "[]" && prevStr !== currStr) {
       setValue("course_ids", []);
       setValue("subject_ids", []);
       setValue("batch_ids", []);
     }
-    prevCampusRef.current = selectedCampusId;
-  }, [selectedCampusId, setValue]);
+    prevCampusesRef.current = selectedCampusIds;
+  }, [selectedCampusIds, setValue]);
 
   const subjectOptions = useMemo(() => {
     const filtered = selectedCourseIds.length
@@ -114,7 +116,7 @@ export default function TeacherModal({ teacher, onClose }: Props) {
     const filtered = selectedCourseIds.length
       ? batches.filter((b) => selectedCourseIds.includes(b.course_id))
       : batches;
-    return filtered.map((b) => ({ id: b.id, name: b.name }));
+    return filtered.map((b: any) => ({ id: b.id, name: b.name, hint: b.courses?.name ?? undefined }));
   }, [batches, selectedCourseIds]);
 
   const courseOptions = useMemo(() => courses.map((c) => ({ id: c.id, name: c.name })), [courses]);
@@ -297,16 +299,21 @@ export default function TeacherModal({ teacher, onClose }: Props) {
                   {errors.qualification && <p className={errorCls}>{errors.qualification.message}</p>}
                 </div>
                 <div className="col-span-2">
-                  <label className={labelCls}><Building2 size={12} className="inline mr-1" /> Campus *</label>
-                  <select {...register("campus_id")} className={inputCls}>
-                    <option value="">Select campus…</option>
-                    {campuses.map((c) => (
-                      <option key={c.id} value={c.id}>{c.name}</option>
-                    ))}
-                  </select>
-                  {errors.campus_id && <p className={errorCls}>{errors.campus_id.message}</p>}
+                  <Controller
+                    name="campus_ids"
+                    control={control}
+                    render={({ field }) => (
+                      <MultiSelect
+                        label="Campuses"
+                        options={campuses.map((c) => ({ id: c.id, name: c.name }))}
+                        value={field.value || []}
+                        onChange={field.onChange}
+                      />
+                    )}
+                  />
+                  {errors.campus_ids && <p className={errorCls}>{errors.campus_ids.message}</p>}
                   <p className="mt-1 text-[11px] text-slate-400">
-                    Courses and batches below are filtered by the selected campus.
+                    Courses and batches below are filtered by the selected campuses.
                   </p>
                 </div>
                 <div>
@@ -343,7 +350,7 @@ export default function TeacherModal({ teacher, onClose }: Props) {
 
             <div className="space-y-4">
               <SectionHeader title="Assignments" />
-              {!selectedCampusId ? (
+              {selectedCampusIds.length === 0 ? (
                 <div className="flex items-start gap-2 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2.5">
                   <AlertCircle size={14} className="text-amber-600 shrink-0 mt-0.5" />
                   <p className="text-xs text-amber-800 font-medium">
@@ -360,9 +367,9 @@ export default function TeacherModal({ teacher, onClose }: Props) {
                     options={courseOptions}
                     value={field.value ?? []}
                     onChange={field.onChange}
-                    placeholder={selectedCampusId ? "Select courses..." : "Pick a campus first"}
+                    placeholder={selectedCampusIds.length > 0 ? "Select courses..." : "Pick a campus first"}
                     error={fieldState.error?.message}
-                    emptyHint={selectedCampusId ? "No courses linked to this campus" : "Pick a campus first"}
+                    emptyHint={selectedCampusIds.length > 0 ? "No courses linked to this campus" : "Pick a campus first"}
                   />
                 )}
               />
@@ -379,7 +386,7 @@ export default function TeacherModal({ teacher, onClose }: Props) {
                       placeholder="Select subjects..."
                       error={fieldState.error?.message}
                       emptyHint={
-                        !selectedCampusId
+                        selectedCampusIds.length === 0
                           ? "Pick a campus first"
                           : selectedCourseIds.length
                             ? "No subjects in selected courses"
@@ -400,7 +407,7 @@ export default function TeacherModal({ teacher, onClose }: Props) {
                       placeholder="Select batches..."
                       error={fieldState.error?.message}
                       emptyHint={
-                        !selectedCampusId
+                        selectedCampusIds.length === 0
                           ? "Pick a campus first"
                           : selectedCourseIds.length
                             ? "No batches in selected courses"
@@ -410,7 +417,7 @@ export default function TeacherModal({ teacher, onClose }: Props) {
                   )}
                 />
               </div>
-              {selectedCampusId && selectedCourseIds.length === 0 && (
+              {selectedCampusIds.length > 0 && selectedCourseIds.length === 0 && (
                 <p className="text-[11px] text-slate-400 flex items-center gap-1">
                   <AlertCircle size={11} /> Tip: select courses to narrow subjects and batches.
                 </p>

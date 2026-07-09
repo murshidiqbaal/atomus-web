@@ -1,5 +1,6 @@
 import { supabase } from "../supabase";
 import { Student } from "../types";
+import { generateParentPassword } from "@/lib/utils/password_utils";
 
 export class SupabaseStudentRepository {
   async getStudents(): Promise<Student[]> {
@@ -51,9 +52,10 @@ export class SupabaseStudentRepository {
     studentData: any,
     parentData: any
   ): Promise<{ student: any; parent: any }> {
+    const parentPassword = parentData.password || generateParentPassword(studentData.fullName, parentData.phone);
     const { data: authData, error: authError } = await supabase.auth.signUp({
       email: parentData.email,
-      password: parentData.password || "Temporary#123",
+      password: parentPassword,
       options: { data: { full_name: parentData.fullName, role: "parent" } },
     });
 
@@ -68,7 +70,7 @@ export class SupabaseStudentRepository {
         email: parentData.email,
         phone_number: parentData.phone,
         username: parentData.email,
-        password_hash: parentData.password || "Temporary#123",
+        password_hash: parentPassword,
         account_status: "Active",
       }])
       .select()

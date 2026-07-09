@@ -1,5 +1,6 @@
 import { supabase } from "../supabase";
 import { Parent, Student } from "../types";
+import { generateParentPassword } from "@/lib/utils/password_utils";
 
 export interface IParentRepository {
   getParents(): Promise<Parent[]>;
@@ -43,7 +44,7 @@ export class SupabaseParentRepository implements IParentRepository {
         email: parentData.email,
         phone_number: parentData.phone,
         username: parentData.email,
-        password_hash: parentData.password || 'Temporary#123',
+        password_hash: parentData.password || generateParentPassword(parentData.name || "Parent", parentData.phone),
         account_status: 'Active'
       }])
       .select()

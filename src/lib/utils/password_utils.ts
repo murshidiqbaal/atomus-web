@@ -7,8 +7,7 @@ export function generateParentPassword(studentName: string, phoneNumber: string)
   const digits = phoneNumber.replace(/\D/g, '');
   const last5 = digits.slice(-5).padStart(5, '0');
   const namePart = studentName.trim().replace(/\s+/g, '');
-  const first3Raw = namePart.slice(0, 3);
-  const first3 = first3Raw.charAt(0).toUpperCase() + first3Raw.slice(1).toLowerCase();
+  const first3 = namePart.slice(0, 3);
   return `${first3}${last5}`;
 }
 

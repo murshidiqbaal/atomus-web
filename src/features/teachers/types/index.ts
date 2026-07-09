@@ -18,6 +18,7 @@ export interface Teacher {
   account_status: AccountStatus;
   subject_specialization: string | null;
   campus_id: string | null;
+  assigned_campuses?: string[] | null;
   password_hash?: string | null;
   created_at: string;
 

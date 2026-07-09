@@ -17,13 +17,14 @@ interface Props {
   onToggleStatus: (t: Teacher) => void;
   onResetPassword: (t: Teacher) => void;
   onDelete: (t: Teacher) => void;
+  campusNameMap?: Map<string, string>;
 }
 
 function initials(name: string) {
   return name.split(/\s+/).map((w) => w[0]).filter(Boolean).slice(0, 2).join("").toUpperCase();
 }
 
-function TeacherRow({ teacher, onEdit, onToggleStatus, onResetPassword, onDelete }: Props) {
+function TeacherRow({ teacher, onEdit, onToggleStatus, onResetPassword, onDelete, campusNameMap }: Props) {
   const [showPwd, setShowPwd] = useState(false);
   const [copied, setCopied] = useState(false);
 
@@ -35,6 +36,13 @@ function TeacherRow({ teacher, onEdit, onToggleStatus, onResetPassword, onDelete
     () => Array.from(new Set((teacher.teacher_batches ?? []).map((x) => x.batches?.name).filter(Boolean) as string[])),
     [teacher.teacher_batches]
   );
+
+  const campusNames = useMemo(() => {
+    if (teacher.assigned_campuses && teacher.assigned_campuses.length > 0 && campusNameMap) {
+      return teacher.assigned_campuses.map((cid) => campusNameMap.get(cid)).filter(Boolean).join(", ");
+    }
+    return teacher.campuses?.name || "—";
+  }, [teacher.assigned_campuses, teacher.campuses, campusNameMap]);
 
   // Password handling is now managed via Supabase Auth
 
@@ -57,9 +65,9 @@ function TeacherRow({ teacher, onEdit, onToggleStatus, onResetPassword, onDelete
       </td>
 
       <td className="px-4 py-3 hidden md:table-cell">
-        {teacher.campuses?.name ? (
-          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-[#0B3C5D]/10 text-[#0B3C5D] text-[10px] font-bold border border-[#0B3C5D]/20">
-            <Building2 size={10} /> {teacher.campuses.name}
+        {campusNames !== "—" ? (
+          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-[#0B3C5D]/10 text-[#0B3C5D] text-[10px] font-bold border border-[#0B3C5D]/20" title={campusNames}>
+            <Building2 size={10} className="shrink-0" /> <span className="max-w-[120px] truncate">{campusNames}</span>
           </span>
         ) : (
           <span className="text-xs text-slate-400 italic">—</span>
@@ -73,7 +81,7 @@ function TeacherRow({ teacher, onEdit, onToggleStatus, onResetPassword, onDelete
         </p>
         {teacher.password_hash ? (
           <p className="text-[10px] text-[#D4AF37] uppercase tracking-wide font-bold mt-0.5">
-            Password: <span className="font-mono select-all bg-amber-50 px-1 rounded border border-amber-200/50">{teacher.password_hash}</span>
+            Password: <span className="font-mono select-all bg-amber-50 px-1 rounded border border-amber-200/50 normal-case">{teacher.password_hash}</span>
           </p>
         ) : (
           <p className="text-[10px] text-slate-400 uppercase tracking-wide font-bold mt-0.5">

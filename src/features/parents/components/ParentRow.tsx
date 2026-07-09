@@ -87,7 +87,7 @@ function ParentRow({ parent, onEdit, onResetPassword, onDelete, onToggleStatus }
         </p>
         {parent.password_hash && (
           <p className="text-[10px] text-[#D4AF37] uppercase tracking-wide font-bold mt-0.5">
-            Password: <span className="font-mono select-all bg-amber-50 px-1 rounded border border-amber-200/50">{parent.password_hash}</span>
+            Password: <span className="font-mono select-all bg-amber-50 px-1 rounded border border-amber-200/50 normal-case">{parent.password_hash}</span>
           </p>
         )}
       </td>

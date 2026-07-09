@@ -1,6 +1,7 @@
 import { getServerAuth } from "@/lib/auth/server_auth";
 import { getAdminClient, hasServiceRole } from "@/lib/supabase-admin";
 import { normalizePhone, phoneToEmail } from "@/lib/utils/phone_utils";
+import { generateParentPassword } from "@/lib/utils/password_utils";
 import { NextRequest, NextResponse } from "next/server";
 
 export const runtime = "nodejs";
@@ -24,12 +25,7 @@ interface StudentImportRow {
   batch_id: string;
 }
 
-function generateBulkParentPassword(phone: string): string {
-  const digits = phone.replace(/\D/g, "");
-  const first4 = digits.substring(0, 4);
-  const last4 = digits.substring(digits.length - 4);
-  return `${first4}${last4}`;
-}
+
 
 function parseImportDate(dateStr?: string | null): string | null {
   if (!dateStr) return null;
@@ -132,7 +128,7 @@ export async function POST(request: NextRequest) {
         generatedPassword = existingParent.password_hash || "";
       } else {
         // 2. Parent doesn't exist, create auth account
-        generatedPassword = generateBulkParentPassword(normalizedParentPhone);
+        generatedPassword = generateParentPassword(row.student_name, normalizedParentPhone);
 
         const { data: authData, error: authError } = await admin.auth.admin.createUser({
           email: parentEmail,

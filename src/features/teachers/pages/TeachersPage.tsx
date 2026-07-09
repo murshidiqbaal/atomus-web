@@ -3,8 +3,9 @@
 import { useMemo, useState } from "react";
 import {
   Plus, Search, GraduationCap, RotateCcw, CheckCircle2, AlertCircle, X,
-  Users, Building2, Sparkles,
+  Users, Building2, Sparkles, Upload,
 } from "lucide-react";
+import { useQueryClient } from "@tanstack/react-query";
 import { Teacher } from "../types";
 import {
   useTeachers, useTeacherCampuses, useTeacherCourses, useTeacherCoursesByCampus,
@@ -14,6 +15,7 @@ import {
 import TeacherRow from "../components/TeacherRow";
 import TeacherCard from "../components/TeacherCard";
 import TeacherModal from "../components/TeacherModal";
+import BulkImportModal from "../components/BulkImportModal";
 
 const PAGE_SIZE = 12;
 
@@ -57,15 +59,19 @@ export default function TeachersPage() {
   const toggleStatus  = useToggleTeacherStatus();
   const deleteTeacher = useDeleteTeacher();
   const resetPassword = useResetTeacherPassword();
+  const queryClient = useQueryClient();
 
   const [filters, setFilters] = useState<Filters>({
     search: "", status: "all", campus_id: "", course_id: "", subject_id: "", batch_id: "",
   });
   const [page, setPage] = useState(1);
+  const [importOpen, setImportOpen] = useState(false);
 
   // When a campus is picked, narrow courses & batches to that campus.
-  const { data: campusCourses = [] } = useTeacherCoursesByCampus(filters.campus_id);
-  const { data: campusBatches = [] } = useTeacherBatchesByCampus(filters.campus_id);
+  const { data: campusCourses = [] } = useTeacherCoursesByCampus(filters.campus_id ? [filters.campus_id] : []);
+  const { data: campusBatches = [] } = useTeacherBatchesByCampus(filters.campus_id ? [filters.campus_id] : []);
+
+  const campusNameMap = useMemo(() => new Map(campuses.map((c) => [c.id, c.name])), [campuses]);
 
   const [modalOpen, setModalOpen] = useState(false);
   const [editing, setEditing] = useState<Teacher | null>(null);
@@ -228,13 +234,22 @@ export default function TeachersPage() {
             <p className="text-xs text-slate-400">{teachers.length} teacher account{teachers.length === 1 ? "" : "s"}</p>
           </div>
         </div>
-        <button
-          onClick={openAdd}
-          className="flex items-center gap-2 bg-[#0B3C5D] text-white px-4 py-2.5 rounded-xl text-sm font-bold hover:bg-[#0B3C5D]/90 transition-colors shadow-md shadow-blue-900/20"
-        >
-          <Plus size={16} />
-          Add Teacher
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => setImportOpen(true)}
+            className="flex items-center gap-2 bg-white border border-slate-200 text-[#0B3C5D] px-4 py-2.5 rounded-xl text-sm font-bold hover:bg-slate-50 transition-colors shadow-sm cursor-pointer"
+          >
+            <Upload size={16} />
+            Import
+          </button>
+          <button
+            onClick={openAdd}
+            className="flex items-center gap-2 bg-[#0B3C5D] text-white px-4 py-2.5 rounded-xl text-sm font-bold hover:bg-[#0B3C5D]/90 transition-colors shadow-md shadow-blue-900/20"
+          >
+            <Plus size={16} />
+            Add Teacher
+          </button>
+        </div>
       </div>
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
@@ -382,6 +397,7 @@ export default function TeachersPage() {
                     <TeacherRow
                       key={t.id}
                       teacher={t}
+                      campusNameMap={campusNameMap}
                       onEdit={openEdit}
                       onToggleStatus={handleToggle}
                       onResetPassword={handleReset}
@@ -419,7 +435,14 @@ export default function TeachersPage() {
         {isLoading
           ? Array.from({ length: 3 }).map((_, i) => <div key={i} className="h-44 bg-slate-100 rounded-2xl animate-pulse" />)
           : paginated.map((t) => (
-              <TeacherCard key={t.id} teacher={t} onEdit={openEdit} onToggleStatus={handleToggle} onDelete={handleDelete} />
+              <TeacherCard
+                key={t.id}
+                teacher={t}
+                campusNameMap={campusNameMap}
+                onEdit={openEdit}
+                onToggleStatus={handleToggle}
+                onDelete={handleDelete}
+              />
             ))}
         {!isLoading && filtered.length === 0 && (
           <div className="bg-white rounded-2xl border border-slate-200 py-12 text-center">
@@ -437,7 +460,17 @@ export default function TeachersPage() {
       </div>
 
       {modalOpen && (
-        <TeacherModal teacher={editing} onClose={() => { setModalOpen(false); setEditing(null); }} />
+        <TeacherModal
+          teacher={editing}
+          onClose={() => { setModalOpen(false); setEditing(null); }}
+        />
+      )}
+
+      {importOpen && (
+        <BulkImportModal
+          onClose={() => setImportOpen(false)}
+          onRefreshList={() => queryClient.invalidateQueries({ queryKey: ["teachers"] })}
+        />
       )}
     </div>
   );
