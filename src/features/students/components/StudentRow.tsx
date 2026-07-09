@@ -2,7 +2,7 @@
 
 import React from "react";
 import Link from "next/link";
-import { Eye, Pencil, ExternalLink } from "lucide-react";
+import { Eye, Pencil, ExternalLink, Trash2 } from "lucide-react";
 import { StudentWithRelations } from "../types";
 import { useToggleStudent, useUpdateStudentStatus } from "../hooks";
 
@@ -22,9 +22,10 @@ const STATUS_COLOR: Record<string, string> = {
 interface Props {
   student: StudentWithRelations;
   onEdit: (s: StudentWithRelations) => void;
+  onDelete: (s: StudentWithRelations) => void;
 }
 
-const StudentRow = React.memo(function StudentRow({ student, onEdit }: Props) {
+const StudentRow = React.memo(function StudentRow({ student, onEdit, onDelete }: Props) {
   const toggle = useToggleStudent();
   const updateStatus = useUpdateStudentStatus();
   const isActive = student.academic_status === "Active";
@@ -180,6 +181,13 @@ const StudentRow = React.memo(function StudentRow({ student, onEdit }: Props) {
             title="Quick Edit"
           >
             <Pencil size={18} />
+          </button>
+          <button
+            onClick={() => onDelete(student)}
+            className="p-2.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition-all"
+            title="Delete Student"
+          >
+            <Trash2 size={18} />
           </button>
         </div>
       </td>

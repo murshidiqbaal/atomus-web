@@ -419,7 +419,7 @@ export default function TeachersPage() {
         {isLoading
           ? Array.from({ length: 3 }).map((_, i) => <div key={i} className="h-44 bg-slate-100 rounded-2xl animate-pulse" />)
           : paginated.map((t) => (
-              <TeacherCard key={t.id} teacher={t} onEdit={openEdit} onToggleStatus={handleToggle} />
+              <TeacherCard key={t.id} teacher={t} onEdit={openEdit} onToggleStatus={handleToggle} onDelete={handleDelete} />
             ))}
         {!isLoading && filtered.length === 0 && (
           <div className="bg-white rounded-2xl border border-slate-200 py-12 text-center">

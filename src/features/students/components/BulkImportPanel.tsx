@@ -310,13 +310,9 @@ export default function BulkImportPanel({ onBack }: { onBack: () => void }) {
       const existingAdmissions = new Set(
         (dbStudents || []).map(s => s.admission_number ? String(s.admission_number).trim().toLowerCase() : "").filter(Boolean)
       );
-      const existingStudentPhones = new Set(
-        (dbStudents || []).map(s => s.phone_number ? String(s.phone_number).replace(/\D/g, "") : "").filter(Boolean)
-      );
 
       // Unique sets to check CSV internal duplicate constraints
       const csvAdmissions = new Set<string>();
-      const csvStudentPhones = new Set<string>();
 
       const errors: ValidationIssue[] = [];
       const valid: ImportRow[] = [];
@@ -396,17 +392,6 @@ export default function BulkImportPanel({ onBack }: { onBack: () => void }) {
           }
         }
 
-        if (sPhone) {
-          const normSPhone = normalizePhone(sPhone);
-          if (csvStudentPhones.has(normSPhone)) {
-            addError(`Duplicate Student Phone '${sPhone}' within the CSV`);
-          } else {
-            csvStudentPhones.add(normSPhone);
-          }
-          if (existingStudentPhones.has(normSPhone)) {
-            addError(`Student Phone '${sPhone}' already exists in the database`);
-          }
-        }
 
         // D. Format checks
         if (parentPhone && !isValidPhone(parentPhone)) {

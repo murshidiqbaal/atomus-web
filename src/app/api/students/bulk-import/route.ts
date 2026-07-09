@@ -1,7 +1,7 @@
-import { NextRequest, NextResponse } from "next/server";
 import { getServerAuth } from "@/lib/auth/server_auth";
 import { getAdminClient, hasServiceRole } from "@/lib/supabase-admin";
 import { normalizePhone, phoneToEmail } from "@/lib/utils/phone_utils";
+import { NextRequest, NextResponse } from "next/server";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -29,6 +29,50 @@ function generateBulkParentPassword(phone: string): string {
   const first4 = digits.substring(0, 4);
   const last4 = digits.substring(digits.length - 4);
   return `${first4}${last4}`;
+}
+
+function parseImportDate(dateStr?: string | null): string | null {
+  if (!dateStr) return null;
+  const clean = dateStr.trim().replace(/\s+/g, "");
+  if (!clean) return null;
+
+  // Check if it's already in YYYY-MM-DD format
+  const ymdRegex = /^(\d{4})[-/](\d{1,2})[-/](\d{1,2})$/;
+  const matchYmd = clean.match(ymdRegex);
+  if (matchYmd) {
+    const [_, y, m, d] = matchYmd;
+    return `${y}-${m.padStart(2, '0')}-${d.padStart(2, '0')}`;
+  }
+
+  // Check if it's in DD-MM-YYYY or MM-DD-YYYY or DD/MM/YYYY format
+  const dmyRegex = /^(\d{1,2})[-/](\d{1,2})[-/](\d{4})$/;
+  const matchDmy = clean.match(dmyRegex);
+  if (matchDmy) {
+    const [_, p1, p2, y] = matchDmy;
+    const val1 = parseInt(p1, 10);
+    const val2 = parseInt(p2, 10);
+
+    let day = val1;
+    let month = val2;
+    if (val2 > 12) {
+      day = val2;
+      month = val1;
+    }
+
+    return `${y}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+  }
+
+  // Fallback: try JS Date parsing
+  try {
+    const parsed = new Date(clean);
+    if (!isNaN(parsed.getTime())) {
+      return parsed.toISOString().split("T")[0];
+    }
+  } catch (e) {
+    // Ignore and return null
+  }
+
+  return null;
 }
 
 export async function POST(request: NextRequest) {
@@ -64,17 +108,17 @@ export async function POST(request: NextRequest) {
   const results = [];
 
   for (const row of rows) {
-    let parentId: string | null = null;
-    let parentExisted = false;
-    let generatedPassword = "";
-    let parentEmail = row.parent_email?.trim() || "";
-
-    const normalizedParentPhone = normalizePhone(row.parent_phone);
-    if (!parentEmail) {
-      parentEmail = phoneToEmail(normalizedParentPhone);
-    }
-
     try {
+      let parentId: string | null = null;
+      let parentExisted = false;
+      let generatedPassword = "";
+      let parentEmail = row.parent_email?.trim() || "";
+
+      const normalizedParentPhone = normalizePhone(row.parent_phone);
+      if (!parentEmail) {
+        parentEmail = phoneToEmail(normalizedParentPhone);
+      }
+
       // 1. Check parent by phone number
       const { data: existingParent } = await admin
         .from("parents")
@@ -111,7 +155,18 @@ export async function POST(request: NextRequest) {
             );
             if (match?.id) {
               parentId = match.id;
-              parentExisted = true;
+              
+              // Double check if database row exists for this parent
+              const { data: profile } = await admin
+                .from("parents")
+                .select("id")
+                .eq("id", parentId)
+                .maybeSingle();
+              if (profile) {
+                parentExisted = true;
+              } else {
+                parentExisted = false;
+              }
             } else {
               throw authError;
             }
@@ -126,28 +181,33 @@ export async function POST(request: NextRequest) {
           throw new Error("Failed to obtain parent Auth ID");
         }
 
-        // 3. Insert parent profile
-        const { error: parentInsertError } = await admin
-          .from("parents")
-          .insert({
-            id: parentId,
-            full_name: row.parent_name,
-            email: parentEmail,
-            phone_number: normalizedParentPhone,
-            username: normalizedParentPhone,
-            password_hash: generatedPassword,
-            account_status: "Active",
-          });
+        // 3. Insert parent profile (only if it doesn't exist in database)
+        if (!parentExisted) {
+          const { error: parentInsertError } = await admin
+            .from("parents")
+            .insert({
+              id: parentId,
+              full_name: row.parent_name,
+              email: parentEmail,
+              phone_number: normalizedParentPhone,
+              username: normalizedParentPhone,
+              password_hash: generatedPassword,
+              account_status: "Active",
+            });
 
-        if (parentInsertError) {
-          // Rollback newly created Auth user
-          await admin.auth.admin.deleteUser(parentId);
-          throw parentInsertError;
+          if (parentInsertError) {
+            // Rollback newly created Auth user
+            await admin.auth.admin.deleteUser(parentId);
+            throw parentInsertError;
+          }
         }
       }
 
       // 4. Insert student record
       const normalizedStudentPhone = row.student_phone ? normalizePhone(row.student_phone) : null;
+      const parsedDob = parseImportDate(row.dob);
+      const parsedJoiningDate = parseImportDate(row.joining_date) || new Date().toISOString().split("T")[0];
+
       const { data: studentData, error: studentInsertError } = await admin
         .from("students")
         .insert({
@@ -155,8 +215,8 @@ export async function POST(request: NextRequest) {
           admission_number: row.admission_no,
           roll_number: row.roll_no,
           gender: row.gender,
-          dob: row.dob || null,
-          joining_date: row.joining_date || new Date().toISOString().split("T")[0],
+          dob: parsedDob,
+          joining_date: parsedJoiningDate,
           phone_number: normalizedStudentPhone,
           email: row.student_email || null,
           address: row.address || null,

@@ -2,7 +2,7 @@
 
 import { memo, useMemo } from "react";
 import Link from "next/link";
-import { Mail, Phone, GraduationCap, BookOpen, Layers, Pencil, Power, Building2 } from "lucide-react";
+import { Mail, Phone, GraduationCap, BookOpen, Layers, Pencil, Power, Building2, Trash2 } from "lucide-react";
 import { Teacher } from "../types";
 
 const STATUS_BADGE: Record<string, string> = {
@@ -19,9 +19,10 @@ interface Props {
   teacher: Teacher;
   onEdit: (t: Teacher) => void;
   onToggleStatus: (t: Teacher) => void;
+  onDelete: (t: Teacher) => void;
 }
 
-function TeacherCard({ teacher, onEdit, onToggleStatus }: Props) {
+function TeacherCard({ teacher, onEdit, onToggleStatus, onDelete }: Props) {
   const counts = useMemo(() => ({
     courses: teacher.teacher_courses?.length ?? 0,
     subjects: teacher.teacher_subjects?.length ?? 0,
@@ -100,6 +101,9 @@ function TeacherCard({ teacher, onEdit, onToggleStatus }: Props) {
           </button>
           <button onClick={() => onEdit(teacher)} className="p-1.5 text-slate-400 hover:text-[#0B3C5D]" title="Edit">
             <Pencil size={14} />
+          </button>
+          <button onClick={() => onDelete(teacher)} className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded transition-colors" title="Delete">
+            <Trash2 size={14} />
           </button>
         </div>
       </div>

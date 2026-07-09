@@ -1,9 +1,9 @@
 import { supabase } from "@/lib/supabase";
-import { generateParentPassword } from "@/lib/utils/password_utils";
-import { uploadToDrive, cleanupDriveFile } from "@/lib/utils/drive_upload";
+import { cleanupDriveFile, uploadToDrive } from "@/lib/utils/drive_upload";
 import { convertToWebP } from "@/lib/utils/image_utils";
-import { Parent, LinkedStudent } from "../types";
+import { generateParentPassword } from "@/lib/utils/password_utils";
 import { ParentFormValues } from "../schemas";
+import { LinkedStudent, Parent } from "../types";
 
 async function uploadParentPhoto(file: File): Promise<{ url: string; fileId: string } | null> {
   try {

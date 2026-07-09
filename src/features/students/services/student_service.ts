@@ -231,6 +231,11 @@ export const studentService = {
     return data as StudentWithRelations;
   },
 
+  async remove(id: string): Promise<void> {
+    const { error } = await supabase.from("students").delete().eq("id", id);
+    if (error) throw error;
+  },
+
   async checkRollDuplicate(roll_number: string, excludeId?: string): Promise<boolean> {
     let q = supabase
       .from("students")

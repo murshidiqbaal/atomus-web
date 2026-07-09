@@ -173,6 +173,18 @@ export function useUpdateStudent() {
   });
 }
 
+export function useDeleteStudent() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => studentService.remove(id),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: [QK] });
+      qc.invalidateQueries({ queryKey: ["students-unlinked"] });
+      qc.invalidateQueries({ queryKey: ["parents"] });
+    },
+  });
+}
+
 export function useToggleStudent() {
   const qc = useQueryClient();
   return useMutation({

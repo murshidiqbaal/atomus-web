@@ -5,9 +5,10 @@ import Link from "next/link";
 import { 
   ChevronLeft, Building2, BookOpen, Users, Calendar, Phone, Mail, MapPin, 
   CheckCircle2, Clock, Award, FileText, Settings, Download, Share2, 
-  ArrowUpRight, AlertCircle, TrendingUp, Info, UserCircle, ChevronDown, ChevronUp
+  ArrowUpRight, AlertCircle, TrendingUp, Info, UserCircle, ChevronDown, ChevronUp,
+  Trash2, X
 } from "lucide-react";
-import { useStudent, useStudentAttendance, useStudentMarks, useSubjectsByCourse } from "../hooks";
+import { useStudent, useStudentAttendance, useStudentMarks, useSubjectsByCourse, useDeleteStudent } from "../hooks";
 import StudentModal from "../components/StudentModal";
 import { AcademicStatus } from "../types";
 import { StudentFeeProfile } from "@/features/fees/components/StudentFeeProfile";
@@ -67,6 +68,24 @@ export default function StudentDetailPage({ id }: Props) {
   const { data: attendance = [] }     = useStudentAttendance(id, !!student);
   const { data: rawMarks = [] }       = useStudentMarks(id, !!student);
   const { data: subjects = [] }        = useSubjectsByCourse(student?.course_id ?? "", !!student);
+  const deleteStudent = useDeleteStudent();
+  const [toast, setToast] = useState<{ type: "success" | "error"; message: string } | null>(null);
+
+  function notify(type: "success" | "error", message: string) {
+    setToast({ type, message });
+    setTimeout(() => setToast(null), 4000);
+  }
+
+  async function handleDelete() {
+    if (!student) return;
+    if (!confirm(`Delete ${student.full_name}? This will remove all their records.`)) return;
+    try {
+      await deleteStudent.mutateAsync(student.id);
+      window.location.href = "/students";
+    } catch (e: any) {
+      notify("error", e?.message ?? "Delete failed");
+    }
+  }
   
   // Deduplicate marks: if there are subject-specific marks for an exam, ignore the overall (null subject_id) mark
   const marks = (() => {
@@ -154,6 +173,19 @@ export default function StudentDetailPage({ id }: Props) {
 
   return (
     <div className="p-4 sm:p-8 space-y-8 max-w-[1400px] mx-auto animate-in fade-in slide-in-from-bottom-4 duration-700">
+      {toast && (
+        <div className={`fixed top-8 right-8 z-[100] max-w-sm px-6 py-4 rounded-[2rem] shadow-2xl border flex items-start gap-3 animate-in slide-in-from-right-8 duration-300 ${
+          toast.type === "success" ? "bg-emerald-50 border-emerald-100 text-emerald-800" : "bg-rose-50 border-rose-200 text-rose-800"
+        }`}>
+          <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 ${toast.type === "success" ? "bg-emerald-500/10" : "bg-rose-500/10"}`}>
+            {toast.type === "success" ? <CheckCircle2 size={18} /> : <AlertCircle size={18} />}
+          </div>
+          <div className="flex-1">
+            <p className="text-sm font-black leading-snug">{toast.message}</p>
+          </div>
+          <button onClick={() => setToast(null)} className="opacity-40 hover:opacity-100 transition-opacity"><X size={16} /></button>
+        </div>
+      )}
       {/* Header / Breadcrumb */}
       <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
         <div className="flex items-center gap-4">
@@ -187,6 +219,14 @@ export default function StudentDetailPage({ id }: Props) {
           >
             <Settings size={18} />
             Edit Profile
+          </button>
+          <button 
+            onClick={handleDelete}
+            className="flex-1 sm:flex-none flex items-center justify-center gap-2 bg-rose-50 border border-rose-200 text-rose-600 px-6 py-3 rounded-2xl text-sm font-black hover:bg-rose-100 transition-all active:scale-95"
+            title="Delete Scholar Profile"
+          >
+            <Trash2 size={18} />
+            Delete Scholar
           </button>
         </div>
       </div>

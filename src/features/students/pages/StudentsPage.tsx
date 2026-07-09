@@ -1,8 +1,8 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { Plus, Search, Users, RotateCcw, Filter, ChevronRight, Download, GraduationCap, Building2, BookOpen, CheckCircle2, Upload } from "lucide-react";
-import { useStudents, useCourses, useAllBatches, useCampuses, useCoursesByCampus } from "../hooks";
+import { Plus, Search, Users, RotateCcw, Filter, ChevronRight, Download, GraduationCap, Building2, BookOpen, CheckCircle2, Upload, Trash2, X, AlertCircle } from "lucide-react";
+import { useStudents, useCourses, useAllBatches, useCampuses, useCoursesByCampus, useDeleteStudent } from "../hooks";
 import { StudentWithRelations, StudentFilters } from "../types";
 import StudentRow from "../components/StudentRow";
 import StudentModal from "../components/StudentModal";
@@ -63,7 +63,7 @@ function StatCard({
   );
 }
 
-function MobileCard({ student, onEdit }: { student: StudentWithRelations; onEdit: (s: StudentWithRelations) => void }) {
+function MobileCard({ student, onEdit, onDelete }: { student: StudentWithRelations; onEdit: (s: StudentWithRelations) => void; onDelete: (s: StudentWithRelations) => void }) {
   return (
     <div className="bg-white rounded-[2rem] border border-slate-200 p-6 space-y-4 shadow-sm active:scale-[0.98] transition-all">
       <div className="flex items-start gap-4">
@@ -119,6 +119,9 @@ function MobileCard({ student, onEdit }: { student: StudentWithRelations; onEdit
 
       <div className="flex items-center justify-between gap-3 pt-2">
         <button onClick={() => onEdit(student)} className="flex-1 px-4 py-3 text-xs font-black text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-xl transition-colors">Edit</button>
+        <button onClick={() => onDelete(student)} className="px-4 py-3 text-xs font-black text-rose-600 bg-rose-50 hover:bg-rose-100 rounded-xl transition-colors" title="Delete">
+          <Trash2 size={16} />
+        </button>
         <a href={`/students/${student.id}`} className="flex-1 px-4 py-3 text-xs font-black text-white bg-[#0B3C5D] rounded-xl flex items-center justify-center gap-2 shadow-lg shadow-[#0B3C5D]/20">
           Profile <ChevronRight size={14} />
         </a>
@@ -152,6 +155,24 @@ export default function StudentsPage() {
   const { data: campuses = [] }            = useCampuses();
   const { data: courses = [] }             = useCourses();
   const { data: allBatches = [] }          = useAllBatches();
+  const deleteStudent = useDeleteStudent();
+
+  const [toast, setToast] = useState<{ type: "success" | "error"; message: string } | null>(null);
+
+  function notify(type: "success" | "error", message: string) {
+    setToast({ type, message });
+    setTimeout(() => setToast(null), 4000);
+  }
+
+  async function handleDelete(s: StudentWithRelations) {
+    if (!confirm(`Delete ${s.full_name}? This will remove all their records.`)) return;
+    try {
+      await deleteStudent.mutateAsync(s.id);
+      notify("success", "Student removed successfully");
+    } catch (e: any) {
+      notify("error", e?.message ?? "Delete failed");
+    }
+  }
 
   const [filters, setFilters] = useState<StudentFilters>({
     search: "", campus_id: "", course_id: "", batch_id: "", gender: "", academic_status: "", status: "all",
@@ -281,6 +302,19 @@ export default function StudentsPage() {
 
   return (
     <div className="p-4 sm:p-8 space-y-10 max-w-[1600px] mx-auto animate-in fade-in slide-in-from-bottom-4 duration-700">
+      {toast && (
+        <div className={`fixed top-8 right-8 z-[100] max-w-sm px-6 py-4 rounded-[2rem] shadow-2xl border flex items-start gap-3 animate-in slide-in-from-right-8 duration-300 ${
+          toast.type === "success" ? "bg-emerald-50 border-emerald-100 text-emerald-800" : "bg-rose-50 border-rose-200 text-rose-800"
+        }`}>
+          <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 ${toast.type === "success" ? "bg-emerald-500/10" : "bg-rose-500/10"}`}>
+            {toast.type === "success" ? <CheckCircle2 size={18} /> : <AlertCircle size={18} />}
+          </div>
+          <div className="flex-1">
+            <p className="text-sm font-black leading-snug">{toast.message}</p>
+          </div>
+          <button onClick={() => setToast(null)} className="opacity-40 hover:opacity-100 transition-opacity"><X size={16} /></button>
+        </div>
+      )}
       {/* Premium Header */}
       <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
         <div className="flex items-center gap-5">
@@ -483,7 +517,7 @@ export default function StudentsPage() {
               </thead>
               <tbody className="divide-y divide-slate-50">
                 {paginated.map((s) => (
-                  <StudentRow key={s.id} student={s} onEdit={openEdit} />
+                  <StudentRow key={s.id} student={s} onEdit={openEdit} onDelete={handleDelete} />
                 ))}
               </tbody>
             </table>
@@ -496,7 +530,7 @@ export default function StudentsPage() {
             ? Array.from({ length: 4 }).map((_, i) => (
                 <div key={i} className="h-56 bg-white rounded-[2rem] animate-pulse border border-slate-100 shadow-sm" />
               ))
-            : paginated.map((s) => <MobileCard key={s.id} student={s} onEdit={openEdit} />)}
+            : paginated.map((s) => <MobileCard key={s.id} student={s} onEdit={openEdit} onDelete={handleDelete} />)}
           
           {!isLoading && filtered.length === 0 && (
             <div className="py-20 text-center">
