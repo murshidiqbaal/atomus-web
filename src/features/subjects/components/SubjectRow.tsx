@@ -12,14 +12,6 @@ const TYPE_CFG: Record<string, string> = {
   Language:   "bg-amber-100 text-amber-700",
 };
 
-const LEVEL_CFG: Record<string, string> = {
-  "8":  "bg-slate-100 text-slate-600",
-  "9":  "bg-slate-100 text-slate-600",
-  "10": "bg-slate-100 text-slate-600",
-  "+1": "bg-indigo-100 text-indigo-700",
-  "+2": "bg-indigo-100 text-indigo-700",
-};
-
 interface Props {
   subject: Subject;
   onEdit: (subject: Subject) => void;
@@ -51,11 +43,7 @@ const SubjectRow = React.memo(function SubjectRow({ subject, onEdit }: Props) {
       <td className="px-4 py-3 hidden md:table-cell">
         <span className="text-sm text-slate-600">{subject.courses?.name ?? "—"}</span>
       </td>
-      <td className="px-4 py-3 hidden sm:table-cell">
-        <span className={`text-xs font-bold px-2 py-1 rounded-lg ${LEVEL_CFG[subject.class_level] ?? "bg-slate-100 text-slate-600"}`}>
-          Class {subject.class_level}
-        </span>
-      </td>
+
       <td className="px-4 py-3 hidden lg:table-cell">
         <span className={`text-xs font-bold px-2 py-1 rounded-lg ${TYPE_CFG[subject.subject_type] ?? "bg-slate-100 text-slate-600"}`}>
           {subject.subject_type}

@@ -56,6 +56,8 @@ export function createUploadHandler(opts: UploadHandlerOptions) {
     const hasOAuth = !!process.env.GOOGLE_REFRESH_TOKEN;
     const hasServiceAccount = !!process.env.GOOGLE_SERVICE_ACCOUNT_JSON;
 
+    const origin = new URL(request.url).origin;
+
     if (!hasOAuth && !hasServiceAccount) {
       try {
         const uploadDir = path.join(process.cwd(), "public", "uploads", opts.folderKey);
@@ -65,7 +67,7 @@ export function createUploadHandler(opts: UploadHandlerOptions) {
 
         return NextResponse.json({
           fileId: "",
-          imageUrl: `/uploads/${opts.folderKey}/${fileName}`,
+          imageUrl: `${origin}/uploads/${opts.folderKey}/${fileName}`,
           fileName,
         }, { status: 200 });
       } catch (localErr: any) {
@@ -89,6 +91,11 @@ export function createUploadHandler(opts: UploadHandlerOptions) {
         fileName,
         folderId,
       });
+
+      // Prepend request origin to Google Drive served media URL if relative
+      if (result.imageUrl && result.imageUrl.startsWith("/")) {
+        result.imageUrl = `${origin}${result.imageUrl}`;
+      }
 
       return NextResponse.json(result, { status: 200 });
     } catch (err) {

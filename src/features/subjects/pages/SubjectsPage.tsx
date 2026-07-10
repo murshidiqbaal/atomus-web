@@ -9,7 +9,6 @@ import SubjectModal from "../components/SubjectModal";
 
 const PAGE_SIZE = 15;
 
-const CLASS_LEVELS = ["8", "9", "10", "+1", "+2"];
 const SUBJECT_TYPES = ["Core", "Theory", "Practical", "Language"];
 
 const TYPE_CFG: Record<string, string> = {
@@ -17,14 +16,6 @@ const TYPE_CFG: Record<string, string> = {
   Theory:     "bg-violet-100 text-violet-700",
   Practical:  "bg-teal-100 text-teal-700",
   Language:   "bg-amber-100 text-amber-700",
-};
-
-const LEVEL_CFG: Record<string, string> = {
-  "8":  "bg-slate-100 text-slate-600",
-  "9":  "bg-slate-100 text-slate-600",
-  "10": "bg-slate-100 text-slate-600",
-  "+1": "bg-indigo-100 text-indigo-700",
-  "+2": "bg-indigo-100 text-indigo-700",
 };
 
 function StatCard({ label, value, sub }: { label: string; value: number; sub?: string }) {
@@ -50,9 +41,6 @@ function MobileCard({ subject, onEdit }: MobileCardProps) {
           <div className="flex items-center gap-2 flex-wrap">
             <span className="font-mono text-xs font-bold text-[#0B3C5D] bg-[#0B3C5D]/8 px-2 py-0.5 rounded-lg">
               {subject.subject_code}
-            </span>
-            <span className={`text-xs font-bold px-2 py-0.5 rounded-lg ${LEVEL_CFG[subject.class_level] ?? "bg-slate-100 text-slate-600"}`}>
-              Class {subject.class_level}
             </span>
           </div>
           <p className="text-sm font-bold text-slate-800 mt-1.5">{subject.name}</p>
@@ -105,7 +93,6 @@ export default function SubjectsPage() {
   const hasActiveFilters =
     filters.search ||
     filters.course_id ||
-    filters.class_level ||
     filters.subject_type ||
     filters.status !== "all";
 
@@ -114,7 +101,6 @@ export default function SubjectsPage() {
     return subjects.filter((sub) => {
       if (s && !sub.name.toLowerCase().includes(s) && !sub.subject_code.toLowerCase().includes(s)) return false;
       if (filters.course_id && sub.course_id !== filters.course_id) return false;
-      if (filters.class_level && sub.class_level !== filters.class_level) return false;
       if (filters.subject_type && sub.subject_type !== filters.subject_type) return false;
       if (filters.status === "active" && !sub.is_active) return false;
       if (filters.status === "inactive" && sub.is_active) return false;
@@ -265,7 +251,6 @@ export default function SubjectsPage() {
                     <th className="px-4 py-3 text-xs font-bold text-slate-500 uppercase tracking-wide">Code</th>
                     <th className="px-4 py-3 text-xs font-bold text-slate-500 uppercase tracking-wide">Name</th>
                     <th className="px-4 py-3 text-xs font-bold text-slate-500 uppercase tracking-wide hidden md:table-cell">Course</th>
-                    <th className="px-4 py-3 text-xs font-bold text-slate-500 uppercase tracking-wide hidden sm:table-cell">Class</th>
                     <th className="px-4 py-3 text-xs font-bold text-slate-500 uppercase tracking-wide hidden lg:table-cell">Type</th>
                     <th className="px-4 py-3 text-xs font-bold text-slate-500 uppercase tracking-wide">Status</th>
                     <th className="px-4 py-3 text-xs font-bold text-slate-500 uppercase tracking-wide">Actions</th>
