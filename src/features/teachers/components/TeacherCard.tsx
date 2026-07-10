@@ -61,14 +61,14 @@ function TeacherCard({ teacher, onEdit, onToggleStatus, onDelete, campusNameMap 
           <Building2 size={12} className="shrink-0" />
           <span className="truncate" title={campusNames}>{campusNames}</span>
         </div>
-        <div className="flex items-center gap-2"><Mail size={12} /><span className="truncate">{teacher.email}</span></div>
+        <div className="flex items-center gap-2"><Mail size={12} /><span className="truncate">{teacher.email.toLowerCase()}</span></div>
         <div className="flex items-center gap-2"><Phone size={12} /><span className="font-mono">{teacher.phone_number ?? "—"}</span></div>
       </div>
 
       <div className="space-y-1.5 bg-slate-50 p-2.5 rounded-xl border border-slate-100">
         <div className="text-[10px] text-slate-400 font-bold flex items-center justify-between">
           <span>LOGIN:</span>
-          <span className="font-mono text-slate-600 select-all">{teacher.email}</span>
+          <span className="font-mono text-slate-600 select-all">{teacher.email.toLowerCase()}</span>
         </div>
         {teacher.password_hash ? (
           <div className="text-[10px] text-slate-400 font-bold flex items-center justify-between pt-1.5 border-t border-slate-200/50">

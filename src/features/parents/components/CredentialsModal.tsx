@@ -13,7 +13,7 @@ interface Props {
 export default function CredentialsModal({ credentials, emailSent, onClose }: Props) {
   const [copied, setCopied] = useState<string | null>(null);
 
-  const loginId = credentials.phone.replace(/\D/g, "");
+  const loginEmail = credentials.email.toLowerCase();
 
   function copy(key: string, text: string) {
     navigator.clipboard.writeText(text);
@@ -23,8 +23,8 @@ export default function CredentialsModal({ credentials, emailSent, onClose }: Pr
 
   function copyAll() {
     const block = `Parent: ${credentials.parentName}
-Login ID (phone): ${loginId}
-Email: ${credentials.email}
+Login ID (email): ${loginEmail}
+Phone: ${credentials.phone}
 Password: ${credentials.password}`;
     copy("all", block);
   }
@@ -49,8 +49,8 @@ Password: ${credentials.password}`;
         </div>
 
         <div className="p-6 space-y-4">
-          <CredField icon={<Mail size={14} />} label="Email" value={credentials.email} copied={copied === "email"} onCopy={() => copy("email", credentials.email)} />
-          <CredField icon={<Phone size={14} />} label="Login ID (phone)" value={loginId} copied={copied === "phone"} onCopy={() => copy("phone", loginId)} mono />
+          <CredField icon={<Mail size={14} />} label="Login ID (email)" value={loginEmail} copied={copied === "email"} onCopy={() => copy("email", loginEmail)} mono highlight />
+          <CredField icon={<Phone size={14} />} label="Phone" value={credentials.phone} copied={copied === "phone"} onCopy={() => copy("phone", credentials.phone)} mono />
           <CredField icon={<KeyRound size={14} />} label="Password" value={credentials.password} copied={copied === "pwd"} onCopy={() => copy("pwd", credentials.password)} mono highlight />
 
           {!emailSent && (

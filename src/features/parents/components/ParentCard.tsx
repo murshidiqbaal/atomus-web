@@ -60,7 +60,7 @@ function ParentCard({ parent, onEdit, onResetPassword, onDelete, onToggleStatus 
         )}
         <div className="flex-1 min-w-0">
           <p className="text-sm font-bold text-slate-800 truncate">{parent.full_name}</p>
-          <p className="text-xs text-slate-400 truncate">{parent.email}</p>
+          <p className="text-xs text-slate-400 truncate">{parent.email.toLowerCase()}</p>
         </div>
         <span className={`shrink-0 text-[10px] font-bold px-2 py-0.5 rounded-lg ${STATUS_BADGE[parent.account_status] ?? "bg-slate-100 text-slate-500"}`}>
           {parent.account_status}
@@ -74,12 +74,18 @@ function ParentCard({ parent, onEdit, onResetPassword, onDelete, onToggleStatus 
         </span>
       </div>
 
-      {parent.password_hash && (
-        <div className="text-[10px] text-slate-400 font-bold bg-amber-50 px-2.5 py-1.5 rounded-xl border border-amber-200/50 flex items-center justify-between">
-          <span>PASSWORD:</span>
-          <span className="font-mono text-[#D4AF37] select-all">{parent.password_hash}</span>
+      <div className="bg-slate-50/50 rounded-xl p-2.5 space-y-1.5 border border-slate-100/80">
+        <div className="text-[10px] text-slate-400 font-bold flex items-center justify-between">
+          <span>LOGIN:</span>
+          <span className="font-mono text-slate-700 select-all normal-case font-semibold">{parent.email?.toLowerCase() || "—"}</span>
         </div>
-      )}
+        {parent.password_hash && (
+          <div className="text-[10px] text-slate-400 font-bold flex items-center justify-between">
+            <span>PASSWORD:</span>
+            <span className="font-mono text-[#D4AF37] select-all">{parent.password_hash}</span>
+          </div>
+        )}
+      </div>
 
       {courses.length > 0 && (
         <div className="flex flex-wrap gap-1">

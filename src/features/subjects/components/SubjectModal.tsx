@@ -36,9 +36,9 @@ export default function SubjectModal({ subject, onClose }: Props) {
     defaultValues: subject
       ? {
           name: subject.name,
-          subject_code: subject.subject_code,
+          subject_code: subject.subject_code || "",
           course_id: subject.course_id,
-          class_level: subject.class_level,
+          class_level: (subject.class_level || "10") as any,
           subject_type: subject.subject_type,
           is_active: subject.is_active,
         }
@@ -55,26 +55,29 @@ export default function SubjectModal({ subject, onClose }: Props) {
   const selectedCourseId = watch("course_id");
 
   useEffect(() => {
-    if (!isEdit && selectedCourseId && courses.length > 0) {
-      const selectedCourse = courses.find((c) => c.id === selectedCourseId);
-      if (selectedCourse) {
-        const combined = `${selectedCourse.name} ${selectedCourse.class_level || ""}`.toLowerCase();
-        let derived: "8" | "9" | "10" | "+1" | "+2" = "8";
-        if (combined.includes("10") || combined.includes("10th") || combined.includes("sslc")) {
-          derived = "10";
-        } else if (combined.includes("+1") || combined.includes("plus one") || combined.includes("11") || combined.includes("11th")) {
-          derived = "+1";
-        } else if (combined.includes("+2") || combined.includes("plus two") || combined.includes("12") || combined.includes("12th")) {
-          derived = "+2";
-        } else if (combined.includes("9") || combined.includes("9th")) {
-          derived = "9";
-        } else if (combined.includes("8") || combined.includes("8th")) {
-          derived = "8";
+    if (selectedCourseId && courses.length > 0) {
+      const shouldDerive = !isEdit || !subject?.class_level;
+      if (shouldDerive) {
+        const selectedCourse = courses.find((c) => c.id === selectedCourseId);
+        if (selectedCourse) {
+          const combined = `${selectedCourse.name} ${selectedCourse.class_level || ""}`.toLowerCase();
+          let derived: "8" | "9" | "10" | "+1" | "+2" = "8";
+          if (combined.includes("10") || combined.includes("10th") || combined.includes("sslc")) {
+            derived = "10";
+          } else if (combined.includes("+1") || combined.includes("plus one") || combined.includes("11") || combined.includes("11th")) {
+            derived = "+1";
+          } else if (combined.includes("+2") || combined.includes("plus two") || combined.includes("12") || combined.includes("12th")) {
+            derived = "+2";
+          } else if (combined.includes("9") || combined.includes("9th")) {
+            derived = "9";
+          } else if (combined.includes("8") || combined.includes("8th")) {
+            derived = "8";
+          }
+          setValue("class_level", derived, { shouldValidate: true });
         }
-        setValue("class_level", derived);
       }
     }
-  }, [selectedCourseId, courses, setValue, isEdit]);
+  }, [selectedCourseId, courses, setValue, isEdit, subject]);
 
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
@@ -190,6 +193,26 @@ export default function SubjectModal({ subject, onClose }: Props) {
             </select>
             {errors.course_id && (
               <p className="mt-1 text-xs text-rose-500">{errors.course_id.message}</p>
+            )}
+          </div>
+
+          {/* Class Level */}
+          <div>
+            <label className="block text-xs font-bold text-slate-600 mb-1.5 uppercase tracking-wide">
+              Class Level
+            </label>
+            <select
+              {...register("class_level")}
+              className="w-full px-3 py-2.5 border border-slate-200 rounded-xl text-sm outline-none focus:border-[#0B3C5D] focus:ring-2 focus:ring-[#0B3C5D]/10 transition-all bg-white"
+            >
+              {CLASS_LEVELS.map((cl) => (
+                <option key={cl} value={cl}>
+                  Class {cl}
+                </option>
+              ))}
+            </select>
+            {errors.class_level && (
+              <p className="mt-1 text-xs text-rose-500">{errors.class_level.message}</p>
             )}
           </div>
 

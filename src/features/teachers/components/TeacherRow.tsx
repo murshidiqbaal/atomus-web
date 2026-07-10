@@ -77,7 +77,7 @@ function TeacherRow({ teacher, onEdit, onToggleStatus, onResetPassword, onDelete
       <td className="px-4 py-3 hidden md:table-cell">
         <p className="text-sm text-slate-700 font-mono">{teacher.phone_number ?? "—"}</p>
         <p className="text-[10px] text-slate-400 uppercase tracking-wide font-bold mt-0.5">
-          Login: <span className="font-mono">{teacher.email || "—"}</span>
+          Login: <span className="font-mono select-all normal-case">{teacher.email?.toLowerCase() || "—"}</span>
         </p>
         {teacher.password_hash ? (
           <p className="text-[10px] text-[#D4AF37] uppercase tracking-wide font-bold mt-0.5">

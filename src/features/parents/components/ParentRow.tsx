@@ -75,7 +75,7 @@ function ParentRow({ parent, onEdit, onResetPassword, onDelete, onToggleStatus }
           )}
           <div className="min-w-0">
             <p className="text-sm font-bold text-slate-800 truncate">{parent.full_name}</p>
-            <p className="text-xs text-slate-400 truncate">{parent.email}</p>
+            <p className="text-xs text-slate-400 truncate">{parent.email.toLowerCase()}</p>
           </div>
         </div>
       </td>
@@ -83,7 +83,7 @@ function ParentRow({ parent, onEdit, onResetPassword, onDelete, onToggleStatus }
       <td className="px-4 py-3 hidden md:table-cell">
         <p className="text-sm text-slate-700 font-mono">{parent.phone_number ?? "—"}</p>
         <p className="text-[10px] text-slate-400 uppercase tracking-wide font-bold mt-0.5">
-          Login: <span className="font-mono">{parent.username || "—"}</span>
+          Login: <span className="font-mono select-all normal-case">{parent.email?.toLowerCase() || "—"}</span>
         </p>
         {parent.password_hash && (
           <p className="text-[10px] text-[#D4AF37] uppercase tracking-wide font-bold mt-0.5">

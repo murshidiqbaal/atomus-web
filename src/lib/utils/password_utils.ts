@@ -4,10 +4,11 @@
  * Example: student "Zainab Ahmed", phone "+923001234567" → "Zai34567"
  */
 export function generateParentPassword(studentName: string, phoneNumber: string): string {
-  const digits = phoneNumber.replace(/\D/g, '');
+  const digits = (phoneNumber || '').replace(/\D/g, '');
   const last5 = digits.slice(-5).padStart(5, '0');
-  const namePart = studentName.trim().replace(/\s+/g, '');
-  const first3 = namePart.slice(0, 3);
+  const namePart = (studentName || '').trim().replace(/[^a-zA-Z]/g, '');
+  const rawFirst3 = namePart.padEnd(3, 'x').slice(0, 3);
+  const first3 = rawFirst3.charAt(0).toUpperCase() + rawFirst3.slice(1).toLowerCase();
   return `${first3}${last5}`;
 }
 

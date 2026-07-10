@@ -22,7 +22,7 @@ export default function TeacherCredentialsModal({ credentials, onClose }: Props)
   function copyAll() {
     const block = `ATOMUS.edu — Teacher Login
 Name: ${credentials.fullName}
-Email: ${credentials.email}
+Email: ${credentials.email.toLowerCase()}
 Password: ${credentials.password}
 Login URL: ${loginUrl}`;
     copy("all", block);
@@ -48,7 +48,7 @@ Login URL: ${loginUrl}`;
         </div>
 
         <div className="p-6 space-y-3">
-          <Field icon={<Mail size={14} />} label="Email" value={credentials.email} copied={copied === "email"} onCopy={() => copy("email", credentials.email)} />
+          <Field icon={<Mail size={14} />} label="Email" value={credentials.email.toLowerCase()} copied={copied === "email"} onCopy={() => copy("email", credentials.email.toLowerCase())} />
           <Field icon={<KeyRound size={14} />} label="Password" value={credentials.password} copied={copied === "pwd"} onCopy={() => copy("pwd", credentials.password)} mono highlight />
           <Field icon={<ExternalLink size={14} />} label="Login URL" value={loginUrl} copied={copied === "url"} onCopy={() => copy("url", loginUrl)} />
 

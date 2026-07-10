@@ -145,7 +145,7 @@ export default function TeacherDetailPage({ id }: { id: string }) {
                 <Building2 size={12} className="text-[#0B3C5D]" />
                 <span className="font-bold text-[#0B3C5D]">{teacher.campuses?.name ?? "No campus"}</span>
               </span>
-              <span className="inline-flex items-center gap-1.5"><Mail size={12} /> {teacher.email}</span>
+              <span className="inline-flex items-center gap-1.5"><Mail size={12} /> {teacher.email.toLowerCase()}</span>
               <span className="inline-flex items-center gap-1.5"><Phone size={12} /> {teacher.phone_number ?? "—"}</span>
               <span className="inline-flex items-center gap-1.5"><Briefcase size={12} /> {teacher.experience_years ?? 0}y experience</span>
               <span className="inline-flex items-center gap-1.5"><CalendarDays size={12} /> Joined {new Date(teacher.created_at).toLocaleDateString()}</span>
@@ -216,10 +216,10 @@ export default function TeacherDetailPage({ id }: { id: string }) {
               <Mail size={13} className="text-slate-400 shrink-0" />
               <div className="flex-1 min-w-0">
                 <p className="text-[9px] font-bold text-slate-400 uppercase tracking-wide">Email</p>
-                <p className="text-sm font-semibold text-slate-700 truncate">{teacher.email}</p>
+                <p className="text-sm font-semibold text-slate-700 truncate">{teacher.email.toLowerCase()}</p>
               </div>
               <button
-                onClick={() => copyValue("email", teacher.email)}
+                onClick={() => copyValue("email", teacher.email.toLowerCase())}
                 className="p-1.5 text-slate-400 hover:text-[#0B3C5D] hover:bg-slate-50 rounded-lg transition-colors"
                 title="Copy email"
               >

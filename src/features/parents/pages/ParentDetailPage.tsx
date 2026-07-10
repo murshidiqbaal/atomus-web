@@ -328,7 +328,7 @@ export default function ParentDetailPage({ id }: { id: string }) {
                 </div>
                 <div>
                   <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest leading-none mb-1">Email Address</p>
-                  <p className="text-sm font-bold text-slate-700">{parent.email}</p>
+                  <p className="text-sm font-bold text-slate-700">{parent.email.toLowerCase()}</p>
                 </div>
               </div>
               <div className="flex items-center gap-3">
@@ -346,7 +346,7 @@ export default function ParentDetailPage({ id }: { id: string }) {
                 </div>
                 <div>
                   <p className="text-[10px] font-black text-[#D4AF37] uppercase tracking-widest leading-none mb-1">Login Identity</p>
-                  <p className="text-sm font-black text-slate-700 font-mono tracking-tight">{parent.username || "—"}</p>
+                  <p className="text-sm font-black text-slate-700 font-mono tracking-tight">{parent.email?.toLowerCase() || "—"}</p>
                 </div>
               </div>
               {parent.password_hash && (

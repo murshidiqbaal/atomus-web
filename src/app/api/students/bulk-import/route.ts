@@ -241,7 +241,7 @@ export async function POST(request: NextRequest) {
         student_name: row.student_name,
         parent_name: row.parent_name,
         parent_phone: normalizedParentPhone,
-        username: normalizedParentPhone,
+        username: parentEmail.toLowerCase(),
         password: generatedPassword,
         parent_created: !parentExisted,
         student_created: true,

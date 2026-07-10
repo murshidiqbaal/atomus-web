@@ -6,15 +6,6 @@ import bcrypt from "bcryptjs";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-function generateTempPassword(): string {
-  const chars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$";
-  let pass = "";
-  for (let i = 0; i < 8; i++) {
-    pass += chars.charAt(Math.floor(Math.random() * chars.length));
-  }
-  return pass;
-}
-
 // POST endpoint: Parses uploaded file, validates records, resolves UUIDs, and returns preview
 export async function POST(request: Request) {
   try {
@@ -209,6 +200,11 @@ export async function POST(request: Request) {
         }
       }
 
+      // 9. Password Validation
+      if (!password) {
+        errors.push("Password is required");
+      }
+
       const isValid = errors.length === 0;
 
       previewRows.push({
@@ -256,7 +252,7 @@ export async function PUT(request: Request) {
 
     const importedRecords: any[] = [];
     const failedRecords: any[] = [];
-    const payloadToInsert: any[] = [];
+    const admin = supabaseAdmin.auth.admin;
 
     for (const row of rows) {
       if (!row.isValid) {
@@ -268,52 +264,99 @@ export async function PUT(request: Request) {
       }
 
       const data = row.normalizedData;
-      let cleartextPassword = data.password || "";
+      const cleartextPassword = data.password || "";
       if (!cleartextPassword) {
-        cleartextPassword = generateTempPassword();
+        failedRecords.push({
+          ...row.originalData,
+          import_error: "Password is required but missing",
+        });
+        continue;
       }
 
-      payloadToInsert.push({
-        full_name: data.full_name,
-        email: data.email,
-        phone_number: data.phone_number,
-        subject_specialization: data.subject_specialization,
-        qualification: data.qualification,
-        experience_years: data.experience_years,
-        gender: data.gender,
-        address: data.address,
-        campus_id: data.campus_id,
-        assigned_courses: data.assigned_courses,
-        assigned_batches: data.assigned_batches,
-        assigned_subjects: data.assigned_subjects,
-        account_status: data.account_status,
-        password_hash: cleartextPassword, // Store plain password for admin reference (actual auth is in auth.users)
-      });
+      try {
+        // 1. Create the Auth User
+        const metadata = {
+          full_name: data.full_name,
+          phone_number: data.phone_number || null,
+          role: "teacher"
+        };
+        const { data: authData, error: authError } = await admin.createUser({
+          email: data.email,
+          password: cleartextPassword,
+          email_confirm: true,
+          user_metadata: metadata,
+        });
 
-      importedRecords.push({
-        ...row.originalData,
-        password: cleartextPassword, // Output the plain password for imported log (crucial for admin reference!)
-        status: "Imported",
-      });
-    }
+        if (authError) {
+          throw new Error(`Auth Error: ${authError.message}`);
+        }
 
-    let insertedCount = 0;
-    if (payloadToInsert.length > 0) {
-      const { data: insertResult, error: insertErr } = await supabaseAdmin
-        .from("teachers")
-        .insert(payloadToInsert)
-        .select("id, email");
+        const userId = authData?.user?.id;
+        if (!userId) {
+          throw new Error("Failed to get Auth User ID");
+        }
 
-      if (insertErr) {
-        console.error("Batch insertion failed:", insertErr);
-        return NextResponse.json({ error: insertErr.message || "Database insertion failed" }, { status: 500 });
+        // 2. Insert teacher profile
+        const { error: dbError } = await supabaseAdmin
+          .from("teachers")
+          .insert({
+            auth_id: userId,
+            full_name: data.full_name,
+            email: data.email,
+            phone_number: data.phone_number || null,
+            subject_specialization: data.subject_specialization || null,
+            qualification: data.qualification || null,
+            experience_years: data.experience_years || null,
+            gender: data.gender || null,
+            address: data.address || null,
+            campus_id: data.campus_id || null,
+            assigned_courses: data.assigned_courses || [],
+            assigned_batches: data.assigned_batches || [],
+            assigned_subjects: data.assigned_subjects || [],
+            account_status: data.account_status,
+            password_hash: cleartextPassword,
+          });
+
+        if (dbError) {
+          // Rollback newly created Auth user
+          await admin.deleteUser(userId);
+          throw new Error(`Database Error: ${dbError.message}`);
+        }
+
+        // 3. Send teacher credentials email
+        try {
+          await supabaseAdmin.functions.invoke("send-parent-credentials", {
+            body: {
+              type: "teacher",
+              email: data.email,
+              phone: data.phone_number || "",
+              loginId: data.email,
+              password: cleartextPassword,
+              name: data.full_name
+            }
+          });
+        } catch (emailErr) {
+          console.warn("Failed to send credentials email:", emailErr);
+        }
+
+        importedRecords.push({
+          ...row.originalData,
+          password: cleartextPassword,
+          status: "Imported",
+        });
+
+      } catch (err: any) {
+        console.error(`Row import failed for ${data.email}:`, err.message);
+        failedRecords.push({
+          ...row.originalData,
+          import_error: err.message || "Unknown error during row transaction",
+        });
       }
-      insertedCount = insertResult?.length || payloadToInsert.length;
     }
 
     return NextResponse.json({
       success: true,
-      importedCount: insertedCount,
+      importedCount: importedRecords.length,
       skippedCount: failedRecords.length,
       importedRecords,
       failedRecords,
