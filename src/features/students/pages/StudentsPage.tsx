@@ -296,6 +296,72 @@ export default function StudentsPage() {
     );
   }
 
+  const handleExport = () => {
+    if (filtered.length === 0) {
+      notify("error", "No student records available to export");
+      return;
+    }
+
+    const headers = [
+      "Roll Number",
+      "Admission Number",
+      "Student Name",
+      "Gender",
+      "Date of Birth",
+      "Email",
+      "Phone Number",
+      "Address",
+      "Campus",
+      "Course",
+      "Batch",
+      "Joining Date",
+      "Academic Status",
+      "Attendance Percentage",
+      "Performance Status",
+      "Parent Name",
+      "Parent Phone",
+      "Parent Email"
+    ];
+
+    const rows = filtered.map(s => [
+      s.roll_number || "",
+      s.admission_number || "",
+      s.full_name || "",
+      s.gender || "",
+      s.dob || "",
+      s.email || "",
+      s.phone_number || "",
+      s.address || "",
+      s.campuses?.name || "",
+      s.courses?.name || "",
+      s.batches?.name || "",
+      s.joining_date || "",
+      s.academic_status || "",
+      s.attendance_percentage != null ? `${s.attendance_percentage}%` : "",
+      s.progress_status || "",
+      s.parents?.full_name || "",
+      s.parents?.phone_number || "",
+      s.parents?.email || ""
+    ]);
+
+    // Client-side CSV creation and download
+    const csvContent = [
+      headers.join(","),
+      ...rows.map(r => r.map(cell => `"${String(cell ?? "").replace(/"/g, '""')}"`).join(","))
+    ].join("\n");
+
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+    const link = document.createElement("a");
+    const url = URL.createObjectURL(blob);
+    link.setAttribute("href", url);
+    link.setAttribute("download", `students_export_${new Date().toISOString().split("T")[0]}.csv`);
+    link.style.visibility = "hidden";
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    notify("success", `Successfully exported ${filtered.length} student records`);
+  };
+
   function openAdd() { setEditing(null); setModalOpen(true); }
   function openEdit(s: StudentWithRelations) { setEditing(s); setModalOpen(true); }
   function closeModal() { setModalOpen(false); setEditing(null); }
@@ -338,7 +404,10 @@ export default function StudentsPage() {
           </div>
         </div>
         <div className="flex items-center gap-3">
-          <button className="hidden sm:flex items-center gap-2 bg-white border border-slate-200 text-slate-600 px-5 py-3 rounded-2xl text-sm font-black hover:bg-slate-50 transition-all active:scale-95 shadow-sm">
+          <button 
+            onClick={handleExport}
+            className="hidden sm:flex items-center gap-2 bg-white border border-slate-200 text-slate-600 px-5 py-3 rounded-2xl text-sm font-black hover:bg-slate-50 transition-all active:scale-95 shadow-sm"
+          >
             <Download size={18} />
             Data Export
           </button>
