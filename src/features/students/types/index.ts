@@ -12,7 +12,8 @@ export interface Student {
   profile_photo_drive_id?: string | null;
   campus_id: string;
   course_id: string;
-  batch_id: string;
+  batch_id?: string | null;
+  batch_ids?: string[] | null;
   joining_date?: string | null;
   academic_status?: AcademicStatus | null;
   phone_number?: string | null;

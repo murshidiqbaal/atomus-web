@@ -158,7 +158,7 @@ export const attendanceService = {
       q = q.eq("course_id", filters.course_id);
     }
     if (filters.batch_id) {
-      q = q.eq("batch_id", filters.batch_id);
+      q = q.or(`batch_id.eq.${filters.batch_id},batch_ids.cs.{${filters.batch_id}},batch_id.is.null`);
     }
 
     q = q

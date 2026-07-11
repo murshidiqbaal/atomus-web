@@ -202,7 +202,7 @@ export const academicPerformanceService = {
     const { data: students, error } = await supabase
       .from("students")
       .select("id")
-      .eq("batch_id", batchId);
+      .or(`batch_id.eq.${batchId},batch_ids.cs.{${batchId}},batch_id.is.null`);
 
     if (error || !students) {
       console.error(`Error fetching students for batch ${batchId}:`, error);
@@ -332,7 +332,7 @@ export const academicPerformanceService = {
       .in("subject_id", subjectIds);
     
     if (filters?.batch_id) {
-      marksQ = marksQ.eq("students.batch_id", filters.batch_id);
+      marksQ = marksQ.or(`batch_id.eq.${filters.batch_id},batch_ids.cs.{${filters.batch_id}},batch_id.is.null`, { foreignTable: "students" });
     } else if (filters?.course_id) {
       marksQ = marksQ.eq("students.course_id", filters.course_id);
     } else if (filters?.campus_id) {

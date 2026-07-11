@@ -19,13 +19,20 @@ async function createTeacherAPI(payload: any): Promise<{ user_id: string; existe
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload),
   });
-  const json = await res.json();
-  if (!res.ok) {
-    if (res.status === 409 && json.error.includes("already exists")) {
-       throw new Error(json.error);
-    }
-    throw new Error(json.error || "Failed to create teacher account");
+  
+  const contentType = res.headers.get("content-type");
+  if (!res.ok || !contentType || !contentType.includes("application/json")) {
+    let errMsg = `Failed to create teacher account (status ${res.status})`;
+    try {
+      if (contentType && contentType.includes("application/json")) {
+        const errData = await res.json();
+        errMsg = errData.error || errMsg;
+      }
+    } catch {}
+    throw new Error(errMsg);
   }
+
+  const json = await res.json();
   return { user_id: json.user_id, existed: false, teacher: json.teacher };
 }
 

@@ -7,7 +7,7 @@ export const studentSchema = z.object({
   dob:             z.string().optional(),
   campus_id:       z.string().min(1, "Select a campus"),
   course_id:       z.string().min(1, "Select a course"),
-  batch_id:        z.string().min(1, "Select a batch"),
+  batch_ids:       z.array(z.string()).min(1, "Select at least one batch or 'Any'"),
   joining_date:    z.string().min(1, "Required"),
   academic_status: z.enum(["Active", "Inactive", "Graduated", "Dropped"], { error: "Select status" }),
   phone_number:    z.string().optional(),

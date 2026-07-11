@@ -66,8 +66,21 @@ async function createOrConnectParent(
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ email, password, full_name: name || "Parent", phone_number: phone }),
   });
+
+  const contentType = res.headers.get("content-type");
+  if (!res.ok || !contentType || !contentType.includes("application/json")) {
+    let errMsg = `Failed to create parent auth account (status ${res.status})`;
+    try {
+      if (contentType && contentType.includes("application/json")) {
+        const errData = await res.json();
+        errMsg = errData.error || errMsg;
+      }
+    } catch {}
+    throw new Error(errMsg);
+  }
+
   const auth = await res.json();
-  if (!res.ok || !auth.user_id) throw new Error(auth.error || "Failed to create parent auth account");
+  if (!auth.user_id) throw new Error(auth.error || "Failed to create parent auth account");
 
   const { error: insertError } = await supabase
     .from("parents")
@@ -110,8 +123,20 @@ async function createOrConnectParent(
 }
 
 function buildStudentPayload(values: StudentFormValues, parent_id: string | null) {
-  const { parent_name, parent_email, parent_phone, email, ...rest } = values;
-  return { ...rest, email: email || null, parent_id };
+  const { parent_name, parent_email, parent_phone, email, batch_ids, dob, phone_number, ...rest } = values as any;
+  const isAny = !batch_ids || batch_ids.includes("any");
+  
+  const cleanPhone = phone_number ? String(phone_number).replace(/\D/g, "") : "";
+  
+  return {
+    ...rest,
+    phone_number: cleanPhone ? Number(cleanPhone) : null,
+    dob: dob || null,
+    email: email || null,
+    parent_id,
+    batch_id: isAny ? null : batch_ids[0],
+    batch_ids: isAny ? [] : batch_ids,
+  };
 }
 
 export type StudentMutationResult = StudentWithRelations & { _parentCredentials?: ParentLinkResult["credentials"] };

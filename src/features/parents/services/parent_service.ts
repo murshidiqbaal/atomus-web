@@ -42,8 +42,20 @@ async function createAuthUser(args: {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(args),
   });
+  
+  const contentType = res.headers.get("content-type");
+  if (!res.ok || !contentType || !contentType.includes("application/json")) {
+    let errMsg = `Failed to create auth account (status ${res.status})`;
+    try {
+      if (contentType && contentType.includes("application/json")) {
+        const errData = await res.json();
+        errMsg = errData.error || errMsg;
+      }
+    } catch {}
+    throw new Error(errMsg);
+  }
+
   const json = await res.json();
-  if (!res.ok) throw new Error(json.error || "Failed to create auth account");
   return { user_id: json.user_id ?? null, existed: !!json.existed };
 }
 

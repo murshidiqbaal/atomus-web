@@ -23,12 +23,24 @@ interface Props {
   student: StudentWithRelations;
   onEdit: (s: StudentWithRelations) => void;
   onDelete: (s: StudentWithRelations) => void;
+  allBatches?: { id: string; name: string }[];
 }
 
-const StudentRow = React.memo(function StudentRow({ student, onEdit, onDelete }: Props) {
+const StudentRow = React.memo(function StudentRow({ student, onEdit, onDelete, allBatches }: Props) {
   const toggle = useToggleStudent();
   const updateStatus = useUpdateStudentStatus();
   const isActive = student.academic_status === "Active";
+
+  const displayBatch = React.useMemo(() => {
+    if (!student.batch_ids || student.batch_ids.length === 0 || student.batch_ids.includes("any")) {
+      return student.batches?.name ?? "Any Batch";
+    }
+    // Match ID list to names
+    const names = student.batch_ids
+      .map(id => allBatches?.find(b => b.id === id)?.name)
+      .filter(Boolean);
+    return names.length > 0 ? names.join(", ") : (student.batches?.name ?? "Any Batch");
+  }, [student, allBatches]);
 
   return (
     <tr className="border-b border-slate-100 hover:bg-slate-50/60 transition-all group">
@@ -92,7 +104,7 @@ const StudentRow = React.memo(function StudentRow({ student, onEdit, onDelete }:
       <td className="px-6 py-4 hidden xl:table-cell">
         <div className="flex flex-col">
           <span className="text-xs font-black text-slate-700 tracking-tight">{student.courses?.name ?? "—"}</span>
-          <span className="text-[9px] text-slate-400 uppercase font-black tracking-widest mt-0.5">{student.batches?.name ?? "Batch"}</span>
+          <span className="text-[9px] text-slate-400 uppercase font-black tracking-widest mt-0.5">{displayBatch}</span>
         </div>
       </td>
 

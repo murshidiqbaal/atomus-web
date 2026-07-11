@@ -586,7 +586,7 @@ export default function StudentsPage() {
               </thead>
               <tbody className="divide-y divide-slate-50">
                 {paginated.map((s) => (
-                  <StudentRow key={s.id} student={s} onEdit={openEdit} onDelete={handleDelete} />
+                  <StudentRow key={s.id} student={s} onEdit={openEdit} onDelete={handleDelete} allBatches={allBatches} />
                 ))}
               </tbody>
             </table>

@@ -8,7 +8,7 @@ import {
   ArrowUpRight, AlertCircle, TrendingUp, Info, UserCircle, ChevronDown, ChevronUp,
   Trash2, X
 } from "lucide-react";
-import { useStudent, useStudentAttendance, useStudentMarks, useSubjectsByCourse, useDeleteStudent } from "../hooks";
+import { useStudent, useStudentAttendance, useStudentMarks, useSubjectsByCourse, useDeleteStudent, useAllBatches } from "../hooks";
 import StudentModal from "../components/StudentModal";
 import { AcademicStatus } from "../types";
 import { StudentFeeProfile } from "@/features/fees/components/StudentFeeProfile";
@@ -65,10 +65,22 @@ function SummaryCard({ label, value, sub, icon: Icon, trend }: { label: string; 
 
 export default function StudentDetailPage({ id }: Props) {
   const { data: student, isLoading } = useStudent(id);
+  const { data: allBatches = [] } = useAllBatches();
   const { data: attendance = [] }     = useStudentAttendance(id, !!student);
   const { data: rawMarks = [] }       = useStudentMarks(id, !!student);
   const { data: subjects = [] }        = useSubjectsByCourse(student?.course_id ?? "", !!student);
   const deleteStudent = useDeleteStudent();
+
+  const displayBatch = (() => {
+    if (!student) return "N/A";
+    if (!student.batch_ids || student.batch_ids.length === 0 || student.batch_ids.includes("any")) {
+      return student.batches?.name ?? "Any Batch";
+    }
+    const names = student.batch_ids
+      .map(id => allBatches.find(b => b.id === id)?.name)
+      .filter(Boolean);
+    return names.length > 0 ? names.join(", ") : (student.batches?.name ?? "Any Batch");
+  })();
   const [toast, setToast] = useState<{ type: "success" | "error"; message: string } | null>(null);
 
   function notify(type: "success" | "error", message: string) {
@@ -292,7 +304,7 @@ export default function StudentDetailPage({ id }: Props) {
                 <div className="p-2 bg-slate-50 rounded-lg text-slate-400"><Users size={14} /></div>
                 <div>
                   <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest leading-none">Class Batch</p>
-                  <p className="text-sm font-black text-slate-700">{student.batches?.name ?? "N/A"}</p>
+                  <p className="text-sm font-black text-slate-700">{displayBatch}</p>
                 </div>
               </div>
               <div className="flex items-center gap-2">

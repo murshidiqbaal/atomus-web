@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
-import { useForm } from "react-hook-form";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { X, Loader2, Camera, UserCircle, Search, ChevronDown, Building2, BookOpen, Users, GraduationCap } from "lucide-react";
 import { studentSchema, StudentFormValues } from "../schemas";
@@ -10,6 +10,7 @@ import { studentService } from "../services/student_service";
 import { useCampuses, useCoursesByCampus, useBatchesByCourseAndCampus, useCreateStudent, useUpdateStudent } from "../hooks";
 import CredentialsModal from "@/features/parents/components/CredentialsModal";
 import { ParentCredentials } from "@/features/parents/types";
+import MultiSelect from "@/features/teachers/components/MultiSelect";
 
 const GENDERS = ["Male", "Female", "Other"] as const;
 const STATUSES = ["Active", "Inactive", "Graduated", "Dropped"] as const;
@@ -143,6 +144,7 @@ export default function StudentModal({ student, onClose }: Props) {
     handleSubmit,
     watch,
     setValue,
+    control,
     formState: { errors, isSubmitting },
   } = useForm<StudentFormValues>({
     resolver: zodResolver(studentSchema),
@@ -154,7 +156,11 @@ export default function StudentModal({ student, onClose }: Props) {
         dob: student.dob ?? "",
         campus_id: student.campus_id,
         course_id: student.course_id,
-        batch_id: student.batch_id,
+        batch_ids: student.batch_ids && student.batch_ids.length > 0
+          ? student.batch_ids
+          : student.batch_id
+            ? [student.batch_id]
+            : ["any"],
         joining_date: student.joining_date ?? "",
         academic_status: student.academic_status ?? "Active",
         phone_number: student.phone_number ?? "",
@@ -166,7 +172,7 @@ export default function StudentModal({ student, onClose }: Props) {
       }
       : {
         full_name: "", roll_number: "", gender: "Male", dob: "",
-        campus_id: "", course_id: "", batch_id: "", joining_date: "",
+        campus_id: "", course_id: "", batch_ids: ["any"], joining_date: "",
         academic_status: "Active", phone_number: "", email: "",
         address: "", parent_name: "", parent_email: "", parent_phone: "",
       },
@@ -174,7 +180,7 @@ export default function StudentModal({ student, onClose }: Props) {
 
   const watchedCampus = watch("campus_id");
   const watchedCourse = watch("course_id");
-  const watchedBatch = watch("batch_id");
+  const watchedBatchIds = watch("batch_ids") || [];
 
   const prevCampus = useRef(student?.campus_id || "");
   const prevCourse = useRef(student?.course_id || "");
@@ -182,11 +188,16 @@ export default function StudentModal({ student, onClose }: Props) {
   const { data: courses = [] } = useCoursesByCampus(watchedCampus);
   const { data: batches = [] } = useBatchesByCourseAndCampus(watchedCourse, watchedCampus);
 
+  const batchOptions = useMemo(() => {
+    const list = batches.map(b => ({ id: b.id, name: b.name }));
+    return [{ id: "any", name: "Any Batch" }, ...list];
+  }, [batches]);
+
   // Dependent logic: Reset Course/Batch when Campus changes
   useEffect(() => {
     if (prevCampus.current && prevCampus.current !== watchedCampus) {
       setValue("course_id", "");
-      setValue("batch_id", "");
+      setValue("batch_ids", ["any"]);
     }
     prevCampus.current = watchedCampus;
   }, [watchedCampus, setValue]);
@@ -194,7 +205,7 @@ export default function StudentModal({ student, onClose }: Props) {
   // Dependent logic: Reset Batch when Course changes
   useEffect(() => {
     if (prevCourse.current && prevCourse.current !== watchedCourse) {
-      setValue("batch_id", "");
+      setValue("batch_ids", ["any"]);
     }
     prevCourse.current = watchedCourse;
   }, [watchedCourse, setValue]);
@@ -350,7 +361,7 @@ export default function StudentModal({ student, onClose }: Props) {
                   onChange={(id) => {
                     setValue("campus_id", id, { shouldValidate: true });
                     setValue("course_id", "", { shouldValidate: true });
-                    setValue("batch_id", "", { shouldValidate: true });
+                    setValue("batch_ids", ["any"], { shouldValidate: true });
                   }}
                   placeholder="Select primary campus..."
                   error={errors.campus_id?.message}
@@ -376,20 +387,37 @@ export default function StudentModal({ student, onClose }: Props) {
                   value={watchedCourse}
                   onChange={(id) => {
                     setValue("course_id", id, { shouldValidate: true });
-                    setValue("batch_id", "", { shouldValidate: true });
+                    setValue("batch_ids", ["any"], { shouldValidate: true });
                   }}
                   placeholder={!watchedCampus ? "Select campus first" : "Select program..."}
                   disabled={!watchedCampus}
                   error={errors.course_id?.message}
                 />
-                <SearchableSelect
-                  label="Class Batch *"
-                  options={batches}
-                  value={watchedBatch}
-                  onChange={(id) => setValue("batch_id", id, { shouldValidate: true })}
-                  placeholder={!watchedCourse ? "Select course first" : "Select batch..."}
-                  disabled={!watchedCourse}
-                  error={errors.batch_id?.message}
+                <Controller
+                  name="batch_ids"
+                  control={control}
+                  render={({ field, fieldState }) => (
+                    <MultiSelect
+                      label="Class Batch *"
+                      options={batchOptions}
+                      value={field.value || []}
+                      onChange={(nextVal) => {
+                        if (nextVal.includes("any") && !field.value.includes("any")) {
+                          field.onChange(["any"]);
+                        }
+                        else if (nextVal.includes("any") && nextVal.length > 1) {
+                          field.onChange(nextVal.filter(v => v !== "any"));
+                        }
+                        else {
+                          field.onChange(nextVal);
+                        }
+                      }}
+                      placeholder={!watchedCourse ? "Select course first" : "Select batch..."}
+                      disabled={!watchedCourse}
+                      error={fieldState.error?.message}
+                      emptyHint="No batches at this campus yet"
+                    />
+                  )}
                 />
                 <div>
                   <label className={labelCls}>Enrollment Date *</label>

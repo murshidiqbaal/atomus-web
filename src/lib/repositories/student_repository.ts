@@ -20,7 +20,7 @@ export class SupabaseStudentRepository {
       .order("full_name", { ascending: true });
 
     if (batchId) {
-      query = query.eq("batch_id", batchId);
+      query = query.or(`batch_id.eq.${batchId},batch_ids.cs.{${batchId}},batch_id.is.null`);
     }
 
     const { data, error } = await query;
