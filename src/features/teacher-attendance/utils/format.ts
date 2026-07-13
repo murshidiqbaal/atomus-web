@@ -32,19 +32,19 @@ export function toLocalDate(iso: string | null | undefined): Date | null {
     if (iso.length === 10 && !iso.includes("T") && !iso.includes(":")) {
       return new Date(iso.replace(/-/g, "/"));
     }
-    // Strip timezone offset (Z, +HH:MM, -HH:MM) to force local time parsing
-    const clean = iso.replace(/Z|([+-]\d\d:\d\d)$/, "");
-    return new Date(clean);
+    return new Date(iso);
   } catch {
     return null;
   }
 }
 
 export function formatTime(iso: string | null | undefined): string {
-  const d = toLocalDate(iso);
-  if (!d) return "—";
+  if (!iso) return "—";
   try {
+    const d = new Date(iso);
+    if (isNaN(d.getTime())) return "—";
     return d.toLocaleTimeString("en-IN", {
+      timeZone: "Asia/Kolkata",
       hour: "2-digit",
       minute: "2-digit",
       hour12: true,
@@ -55,10 +55,22 @@ export function formatTime(iso: string | null | undefined): string {
 }
 
 export function formatDate(iso: string | null | undefined): string {
-  const d = toLocalDate(iso);
-  if (!d) return "—";
+  if (!iso) return "—";
   try {
+    if (iso.length === 10 && !iso.includes("T") && !iso.includes(":")) {
+      const d = new Date(iso + "T00:00:00Z");
+      if (isNaN(d.getTime())) return "—";
+      return d.toLocaleDateString("en-IN", {
+        timeZone: "UTC",
+        day: "2-digit",
+        month: "short",
+        year: "numeric",
+      });
+    }
+    const d = new Date(iso);
+    if (isNaN(d.getTime())) return "—";
     return d.toLocaleDateString("en-IN", {
+      timeZone: "Asia/Kolkata",
       day: "2-digit",
       month: "short",
       year: "numeric",
@@ -70,12 +82,22 @@ export function formatDate(iso: string | null | undefined): string {
 
 /** "9:42 AM · 23 May" — compact for table cells. */
 export function formatDateTimeCompact(iso: string | null | undefined): string {
-  const d = toLocalDate(iso);
-  if (!d) return "—";
+  if (!iso) return "—";
   try {
-    return `${d.toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit", hour12: true })} · ${
-      d.toLocaleDateString("en-IN", { day: "2-digit", month: "short" })
-    }`;
+    const d = new Date(iso);
+    if (isNaN(d.getTime())) return "—";
+    const timeStr = d.toLocaleTimeString("en-IN", {
+      timeZone: "Asia/Kolkata",
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: true,
+    });
+    const dateStr = d.toLocaleDateString("en-IN", {
+      timeZone: "Asia/Kolkata",
+      day: "2-digit",
+      month: "short",
+    });
+    return `${timeStr} · ${dateStr}`;
   } catch {
     return "—";
   }
@@ -85,14 +107,35 @@ export function formatDateTimeCompact(iso: string | null | undefined): string {
 export const LATE_PUNCH_IN_HOUR = 9;
 export const LATE_PUNCH_IN_MINUTE = 30;
 
+export function getKolkataTimeParts(d: Date): { hour: number; minute: number } {
+  const formatter = new Intl.DateTimeFormat("en-US", {
+    timeZone: "Asia/Kolkata",
+    hour: "numeric",
+    minute: "numeric",
+    hour12: false,
+  });
+  const parts = formatter.formatToParts(d);
+  let hour = 0;
+  let minute = 0;
+  for (const part of parts) {
+    if (part.type === "hour") hour = parseInt(part.value, 10);
+    if (part.type === "minute") minute = parseInt(part.value, 10);
+  }
+  return { hour, minute };
+}
+
 export function isLatePunchIn(iso: string | null | undefined): boolean {
-  const d = toLocalDate(iso);
-  if (!d) return false;
-  const h = d.getHours();
-  const m = d.getMinutes();
-  if (h > LATE_PUNCH_IN_HOUR) return true;
-  if (h === LATE_PUNCH_IN_HOUR && m > LATE_PUNCH_IN_MINUTE) return true;
-  return false;
+  if (!iso) return false;
+  try {
+    const d = new Date(iso);
+    if (isNaN(d.getTime())) return false;
+    const { hour, minute } = getKolkataTimeParts(d);
+    if (hour > LATE_PUNCH_IN_HOUR) return true;
+    if (hour === LATE_PUNCH_IN_HOUR && minute > LATE_PUNCH_IN_MINUTE) return true;
+    return false;
+  } catch {
+    return false;
+  }
 }
 
 /** Sessions shorter than this are flagged in the alerts panel. */
@@ -129,11 +172,11 @@ export function gpsTone(s: GpsStatus): {
 }
 
 export function todayIso(): string {
-  return new Date().toISOString().slice(0, 10);
+  return new Date().toLocaleDateString("sv-SE", { timeZone: "Asia/Kolkata" });
 }
 
 export function isoDaysAgo(days: number): string {
   const d = new Date();
   d.setDate(d.getDate() - days);
-  return d.toISOString().slice(0, 10);
+  return d.toLocaleDateString("sv-SE", { timeZone: "Asia/Kolkata" });
 }
