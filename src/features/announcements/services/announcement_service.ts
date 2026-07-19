@@ -10,6 +10,15 @@ function mapAnnouncement(item: any): Announcement {
   };
 }
 
+function buildDbPayload(announcement: any) {
+  const { image_drive_id, storage_key, ...rest } = announcement;
+  return {
+    ...rest,
+    storage_key: storage_key ?? image_drive_id ?? null,
+    storage_provider: "supabase",
+  };
+}
+
 export const announcementService = {
   async getAnnouncements(): Promise<Announcement[]> {
     const { data, error } = await supabase
@@ -22,9 +31,10 @@ export const announcementService = {
   },
 
   async createAnnouncement(announcement: Omit<Announcement, 'id' | 'created_at'>): Promise<Announcement> {
+    const dbPayload = buildDbPayload(announcement);
     const { data, error } = await supabase
       .from('announcements')
-      .insert([announcement])
+      .insert([dbPayload])
       .select()
       .single();
 
@@ -33,9 +43,10 @@ export const announcementService = {
   },
 
   async updateAnnouncement(id: string, updates: Partial<Announcement>): Promise<Announcement> {
+    const dbPayload = buildDbPayload(updates);
     const { data, error } = await supabase
       .from('announcements')
-      .update(updates)
+      .update(dbPayload)
       .eq('id', id)
       .select()
       .single();
