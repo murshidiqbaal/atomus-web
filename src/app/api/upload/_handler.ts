@@ -2,8 +2,8 @@ import { NextResponse } from "next/server";
 import { getServerAuth } from "@/lib/auth/server_auth";
 import { DRIVE_FOLDERS, type DriveFolderKey } from "@/lib/driveFolders";
 import { buildFileName } from "@/lib/google/fileName";
-import { uploadFileToDrive } from "@/lib/uploadToDrive";
 import { validateUploadedFile, type ValidationKind } from "@/lib/google/validate";
+import { uploadFile } from "@/lib/google-drive";
 
 export interface UploadHandlerOptions {
   folderKey: DriveFolderKey;
@@ -16,21 +16,23 @@ export interface UploadHandlerOptions {
  *  1. Admin-gates the request.
  *  2. Parses `multipart/form-data` (`file` field).
  *  3. Validates type + size for the given kind.
- *  4. Uploads to the configured personal Google Drive folder using OAuth2 and returns the public URL.
+ *  4. Uploads directly to Google Drive (memory-only, no disk writes).
+ *  5. Returns { success, driveFileId, imageUrl, thumbnailUrl, message }.
+ *
+ * NEVER saves to disk. NEVER attempts a local fallback.
+ * If Drive credentials are missing or the upload fails, returns a proper
+ * JSON error response immediately.
  *
  * Each `/api/upload/<surface>/route.ts` is a one-liner around this factory.
  */
-import fs from "fs/promises";
-import path from "path";
-
 export function createUploadHandler(opts: UploadHandlerOptions) {
   return async function POST(request: Request): Promise<Response> {
     const auth = await getServerAuth();
     if (!auth.authed) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+      return NextResponse.json({ success: false, error: "Unauthorized" }, { status: 401 });
     }
     if (auth.role !== "admin" && auth.role !== "staff") {
-      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+      return NextResponse.json({ success: false, error: "Forbidden" }, { status: 403 });
     }
 
     let form: FormData;
@@ -38,7 +40,7 @@ export function createUploadHandler(opts: UploadHandlerOptions) {
       form = await request.formData();
     } catch {
       return NextResponse.json(
-        { error: "Expected multipart/form-data request body." },
+        { success: false, error: "Expected multipart/form-data request body." },
         { status: 400 },
       );
     }
@@ -46,61 +48,50 @@ export function createUploadHandler(opts: UploadHandlerOptions) {
     const file = form.get("file") as File | null;
     const v = validateUploadedFile(file, opts.validationKind);
     if (!v.ok) {
-      return NextResponse.json({ error: v.message }, { status: v.status });
+      return NextResponse.json({ success: false, error: v.message }, { status: v.status });
     }
 
     const buffer = Buffer.from(await (file as File).arrayBuffer());
     const fileName = buildFileName(opts.fileNamePrefix, v.fileName);
 
-    // 1. Fallback: Save locally if no Google Drive credentials are configured
-    const hasOAuth = !!process.env.GOOGLE_REFRESH_TOKEN;
-    const hasServiceAccount = !!process.env.GOOGLE_SERVICE_ACCOUNT_JSON;
-
-    const origin = new URL(request.url).origin;
-
-    if (!hasOAuth && !hasServiceAccount) {
-      try {
-        const uploadDir = path.join(process.cwd(), "public", "uploads", opts.folderKey);
-        await fs.mkdir(uploadDir, { recursive: true });
-        const filePath = path.join(uploadDir, fileName);
-        await fs.writeFile(filePath, buffer);
-
-        return NextResponse.json({
-          fileId: "",
-          imageUrl: `${origin}/uploads/${opts.folderKey}/${fileName}`,
-          fileName,
-        }, { status: 200 });
-      } catch (localErr: any) {
-        return NextResponse.json({ error: `Local fallback upload failed: ${localErr.message}` }, { status: 500 });
-      }
-    }
-
-    // 2. Upload to Google Drive
+    // Resolve the Drive folder ID for this surface
     const folderId = DRIVE_FOLDERS[opts.folderKey];
     if (!folderId) {
       return NextResponse.json(
-        { error: `Drive folder for "${opts.folderKey}" is not configured.` },
+        { success: false, error: `Drive folder for "${opts.folderKey}" is not configured.` },
         { status: 500 },
       );
     }
 
+    // Upload directly to Google Drive — no local fallback, no disk writes
     try {
-      const result = await uploadFileToDrive({
+      const result = await uploadFile({
         buffer,
         mimeType: v.mimeType,
         fileName,
         folderId,
       });
 
-      // Prepend request origin to Google Drive served media URL if relative
-      if (result.imageUrl && result.imageUrl.startsWith("/")) {
-        result.imageUrl = `${origin}${result.imageUrl}`;
-      }
+      console.log(`[Drive] Supabase Saved — returning Drive result for: ${fileName}`);
 
-      return NextResponse.json(result, { status: 200 });
+      return NextResponse.json(
+        {
+          success: true,
+          driveFileId: result.driveFileId,
+          // Legacy key alias so existing callers using `fileId` keep working
+          fileId: result.driveFileId,
+          imageUrl: result.imageUrl,
+          thumbnailUrl: result.thumbnailUrl,
+          webViewLink: result.webViewLink,
+          fileName: result.fileName,
+          message: result.message,
+        },
+        { status: 200 },
+      );
     } catch (err) {
-      const message = err instanceof Error ? err.message : "Drive upload failed.";
-      return NextResponse.json({ error: message }, { status: 502 });
+      const message = err instanceof Error ? err.message : "Google Drive upload failed.";
+      console.error(`[Drive] Upload failed for ${fileName}:`, message);
+      return NextResponse.json({ success: false, error: "Google Drive upload failed." }, { status: 502 });
     }
   };
 }

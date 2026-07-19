@@ -9,15 +9,28 @@ export type DriveUploadEndpoint =
   | "/api/upload/app-binary";
 
 export interface DriveUploadResult {
+  /** Drive file ID (canonical field name) */
+  driveFileId?: string;
+  /** Drive file ID (legacy alias — same value as driveFileId) */
   fileId: string;
+  /** Proxied image URL via /api/media?id=<fileId> */
   imageUrl: string;
+  /** Google Drive thumbnail URL */
+  thumbnailUrl?: string;
+  /** Google Drive web view link */
+  webViewLink?: string;
+  /** Sanitised filename as stored in Drive */
   fileName: string;
+  /** Whether the upload succeeded (present on new responses) */
+  success?: boolean;
+  /** Human-readable success message */
+  message?: string;
 }
 
 /**
  * POSTs a single file as `multipart/form-data` to one of the Drive upload
- * routes and returns `{ fileId, imageUrl, fileName }`. Throws an `Error`
- * with the server's message on non-2xx so callers can show a single toast.
+ * routes and returns the Drive file metadata. Throws an `Error` with the
+ * server's message on non-2xx so callers can show a single toast.
  */
 export async function uploadToDrive(
   file: File | Blob,
@@ -35,7 +48,14 @@ export async function uploadToDrive(
     const msg = (data as { error?: string }).error ?? `Upload failed (${res.status}).`;
     throw new Error(msg);
   }
-  return data as DriveUploadResult;
+
+  // Normalise: ensure legacy `fileId` field is always populated
+  const result = data as DriveUploadResult;
+  if (!result.fileId && result.driveFileId) {
+    result.fileId = result.driveFileId;
+  }
+
+  return result;
 }
 
 /**

@@ -1,5 +1,5 @@
 import { NextRequest } from "next/server";
-import { getDrive } from "@/lib/google";
+import { getDriveClient } from "@/lib/google-drive";
 
 export const runtime = "nodejs";
 
@@ -48,7 +48,7 @@ export async function GET(request: NextRequest) {
       return await fallbackFetch();
     }
 
-    const drive = getDrive();
+    const drive = getDriveClient();
 
     // 1. Get file metadata to check mimeType
     const meta = await drive.files.get({

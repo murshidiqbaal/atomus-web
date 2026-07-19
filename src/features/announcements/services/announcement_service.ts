@@ -35,7 +35,35 @@ export const announcementService = {
     return data;
   },
 
+  /**
+   * Deletes an announcement and its associated Google Drive image.
+   *
+   * Flow:
+   *   1. Fetch the announcement to get image_drive_id
+   *   2. Delete the Drive image (best-effort, via cleanup API)
+   *   3. Delete the database row
+   *
+   * Step 2 is fire-and-forget — a failed Drive delete will not block the DB delete.
+   */
   async deleteAnnouncement(id: string): Promise<void> {
+    // 1. Fetch to get the Drive file ID before deleting
+    const { data: existing } = await supabase
+      .from('announcements')
+      .select('image_drive_id')
+      .eq('id', id)
+      .single();
+
+    // 2. Best-effort: delete the Drive image (non-blocking)
+    const driveId = existing?.image_drive_id;
+    if (driveId) {
+      void fetch(`/api/upload/cleanup?id=${encodeURIComponent(driveId)}`, {
+        method: "DELETE",
+      }).catch(() => {
+        // Swallowed by design — Drive cleanup must never block announcement deletion
+      });
+    }
+
+    // 3. Delete the database row
     const { error } = await supabase
       .from('announcements')
       .delete()
