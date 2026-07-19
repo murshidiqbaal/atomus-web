@@ -23,6 +23,10 @@ export interface Parent {
   account_status: AccountStatus;
   profile_photo_url?: string | null;
   profile_photo_drive_id?: string | null;
+  image_url?: string | null;
+  storage_key?: string | null;
+  storage_provider?: string | null;
+  uploaded_at?: string | null;
   created_at: string;
   students?: LinkedStudent[];
 }

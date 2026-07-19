@@ -204,5 +204,7 @@ export interface AppDownload {
   file_size: string | null;
   is_active: boolean;
   drive_file_id: string | null;
+  storage_key?: string | null;
+  storage_provider?: string | null;
   updated_at: string;
 }

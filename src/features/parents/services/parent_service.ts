@@ -66,6 +66,17 @@ export interface CreateParentResult {
   existed: boolean;
 }
 
+export function mapParent(item: any): Parent {
+  if (!item) return item;
+  return {
+    ...item,
+    image_url: item.image_url ?? item.profile_photo_url,
+    storage_key: item.storage_key ?? item.profile_photo_drive_id,
+    profile_photo_url: item.image_url ?? item.profile_photo_url,
+    profile_photo_drive_id: item.storage_key ?? item.profile_photo_drive_id,
+  };
+}
+
 export const parentService = {
   async getAll(): Promise<Parent[]> {
     const { data, error } = await supabase
@@ -73,7 +84,7 @@ export const parentService = {
       .select(SELECT_WITH_STUDENTS)
       .order("created_at", { ascending: false });
     if (error) throw error;
-    return (data ?? []) as Parent[];
+    return (data ?? []).map(mapParent) as Parent[];
   },
 
   async getById(id: string): Promise<Parent> {
@@ -83,7 +94,7 @@ export const parentService = {
       .eq("id", id)
       .single();
     if (error) throw error;
-    return data as Parent;
+    return mapParent(data) as Parent;
   },
 
   async findByEmail(email: string): Promise<Parent | null> {
@@ -92,7 +103,7 @@ export const parentService = {
       .select(SELECT_WITH_STUDENTS)
       .eq("email", email)
       .maybeSingle();
-    return (data as Parent) ?? null;
+    return data ? mapParent(data) : null;
   },
 
   async getUnlinkedStudents(): Promise<LinkedStudent[]> {
@@ -173,8 +184,9 @@ export const parentService = {
         username: values.phone_number.replace(/\D/g, ""),
         password_hash: password,
         account_status: values.account_status,
-        profile_photo_url: upload?.url ?? null,
-        profile_photo_drive_id: upload?.fileId ?? null,
+        image_url: upload?.url ?? null,
+        storage_key: upload?.fileId ?? null,
+        storage_provider: "cloudflare_r2",
       }]);
 
     if (error) throw error;
@@ -198,18 +210,19 @@ export const parentService = {
     }
     if (values.account_status !== undefined) patch.account_status = values.account_status;
 
-    let previousDriveId: string | null = null;
+    let previousStorageKey: string | null = null;
     if (photoFile) {
       const { data: prev } = await supabase
         .from("parents")
-        .select("profile_photo_drive_id")
+        .select("storage_key")
         .eq("id", id)
         .maybeSingle();
-      previousDriveId = (prev as { profile_photo_drive_id?: string | null } | null)?.profile_photo_drive_id ?? null;
+      previousStorageKey = (prev as { storage_key?: string | null } | null)?.storage_key ?? null;
       const upload = await uploadParentPhoto(photoFile);
       if (upload) {
-        patch.profile_photo_url = upload.url;
-        patch.profile_photo_drive_id = upload.fileId;
+        patch.image_url = upload.url;
+        patch.storage_key = upload.fileId;
+        patch.storage_provider = "cloudflare_r2";
       }
     }
 
@@ -225,11 +238,11 @@ export const parentService = {
       await this.linkStudents(id, values.student_ids);
     }
 
-    if (previousDriveId && patch.profile_photo_drive_id && previousDriveId !== patch.profile_photo_drive_id) {
-      void cleanupDriveFile(previousDriveId);
+    if (previousStorageKey && patch.storage_key && previousStorageKey !== patch.storage_key) {
+      void cleanupDriveFile(previousStorageKey);
     }
 
-    return data as Parent;
+    return mapParent(data) as Parent;
   },
 
   async toggleStatus(id: string, account_status: Parent["account_status"]): Promise<Parent> {

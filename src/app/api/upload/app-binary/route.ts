@@ -1,19 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getServerAuth } from "@/lib/auth/server_auth";
-import { buildFileName } from "@/lib/google/fileName";
-import { uploadFileToDrive } from "@/lib/uploadToDrive";
-import { DRIVE_FOLDERS } from "@/lib/driveFolders";
-import fs from "fs/promises";
-import path from "path";
+import { fileStorageService } from "@/services/FileStorageService";
 
 export const runtime = "nodejs";
 
-// Next.js App Router Route Handlers on the nodejs runtime do NOT apply
-// the body-size limit that affects Server Actions — the request body is
-// streamed directly through Node.js http, so large files work fine as
-// long as we read them with the Web Streams API (request.arrayBuffer()
-// or request.formData()), which is what we do here.
-//
 // The limit we validate ourselves: 150 MB.
 const MAX_BYTES = 150 * 1024 * 1024;
 
@@ -66,8 +56,6 @@ export async function POST(request: NextRequest): Promise<Response> {
     originalFileName = file.name || "upload.apk";
 
     if (!ALLOWED_MIME_TYPES.has(mimeType)) {
-      // Many browsers/OSes send APK/IPA as octet-stream — allow unknown types
-      // by extension check as a secondary pass
       const ext = originalFileName.split(".").pop()?.toLowerCase() ?? "";
       if (ext !== "apk" && ext !== "ipa" && ext !== "zip") {
         return NextResponse.json(
@@ -77,7 +65,6 @@ export async function POST(request: NextRequest): Promise<Response> {
           { status: 415 },
         );
       }
-      // Force a known mime
       mimeType = ext === "apk" ? "application/vnd.android.package-archive" : "application/zip";
     }
 
@@ -122,53 +109,29 @@ export async function POST(request: NextRequest): Promise<Response> {
     );
   }
 
-  const fileName = buildFileName("app", originalFileName);
+  const ext = originalFileName.split(".").pop()?.toLowerCase() || "apk";
+  const timestamp = Date.now();
+  const fileName = `app_${timestamp}.${ext}`;
 
-  // ── Local fallback (no Google credentials) ─────────────────────────────────
-  const hasOAuth = !!process.env.GOOGLE_REFRESH_TOKEN;
-  const hasServiceAccount = !!process.env.GOOGLE_SERVICE_ACCOUNT_JSON;
+  // ── R2 Storage upload (delegated to centralized FileStorageService) ────────
+  try {
+    const result = await fileStorageService.uploadDocument(
+      buffer,
+      "document",
+      undefined,
+      ext,
+      mimeType
+    );
 
-  if (!hasOAuth && !hasServiceAccount) {
-    try {
-      const uploadDir = path.join(process.cwd(), "public", "uploads", "app_downloads");
-      await fs.mkdir(uploadDir, { recursive: true });
-      const filePath = path.join(uploadDir, fileName);
-      await fs.writeFile(filePath, buffer);
-
-      return NextResponse.json(
-        {
-          fileId:   `local-app_downloads-${fileName}`,
-          imageUrl: `/uploads/app_downloads/${fileName}`,
-          fileName,
-        },
-        { status: 200 },
-      );
-    } catch (localErr: any) {
-      return NextResponse.json(
-        { error: `Local fallback upload failed: ${localErr.message}` },
-        { status: 500 },
-      );
-    }
-  }
-
-  // ── Google Drive upload ────────────────────────────────────────────────────
-  const folderId = DRIVE_FOLDERS.app_downloads;
-  if (!folderId || folderId === "app_downloads_folder") {
     return NextResponse.json(
       {
-        error:
-          'Google Drive folder for app_downloads is not configured. ' +
-          'Set GOOGLE_DRIVE_FOLDER_APP_DOWNLOADS in your environment, or configure Google credentials to use local storage.',
+        fileId: result.storageKey,
+        imageUrl: result.imageUrl,
+        fileName,
       },
-      { status: 500 },
+      { status: 200 }
     );
-  }
-
-  try {
-    const result = await uploadFileToDrive({ buffer, mimeType, fileName, folderId });
-    return NextResponse.json(result, { status: 200 });
-  } catch (err) {
-    const message = err instanceof Error ? err.message : "Drive upload failed.";
-    return NextResponse.json({ error: message }, { status: 502 });
+  } catch (err: any) {
+    return NextResponse.json({ error: err.message }, { status: 502 });
   }
 }

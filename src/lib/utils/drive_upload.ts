@@ -9,39 +9,55 @@ export type DriveUploadEndpoint =
   | "/api/upload/app-binary";
 
 export interface DriveUploadResult {
-  /** Drive file ID (canonical field name) */
+  /** Storage key (mapped for backward compatibility) */
   driveFileId?: string;
-  /** Drive file ID (legacy alias — same value as driveFileId) */
+  /** Storage key (mapped for backward compatibility) */
   fileId: string;
-  /** Proxied image URL via /api/media?id=<fileId> */
+  /** Public URL of the uploaded image */
   imageUrl: string;
-  /** Google Drive thumbnail URL */
   thumbnailUrl?: string;
-  /** Google Drive web view link */
   webViewLink?: string;
-  /** Sanitised filename as stored in Drive */
   fileName: string;
-  /** Whether the upload succeeded (present on new responses) */
   success?: boolean;
-  /** Human-readable success message */
   message?: string;
 }
 
 /**
- * POSTs a single file as `multipart/form-data` to one of the Drive upload
- * routes and returns the Drive file metadata. Throws an `Error` with the
- * server's message on non-2xx so callers can show a single toast.
+ * Centralized upload helper that redirects legacy frontend upload endpoint calls
+ * to the new `/api/upload` partitioned storage API using `folderType`.
  */
 export async function uploadToDrive(
   file: File | Blob,
   endpoint: DriveUploadEndpoint,
 ): Promise<DriveUploadResult> {
   const form = new FormData();
-  // Blobs need a filename for FormData to be parsed correctly server-side.
   const fileName = file instanceof File ? file.name : "upload";
   form.append("file", file, fileName);
 
-  const res = await fetch(endpoint, { method: "POST", body: form });
+  // Map legacy endpoint to backend folderType parameter
+  let folderType = "document";
+  if (endpoint === "/api/upload/student-photo") {
+    folderType = "student";
+  } else if (endpoint === "/api/upload/teacher-photo") {
+    folderType = "teacher";
+  } else if (endpoint === "/api/upload/parent-photo") {
+    folderType = "parent";
+  } else if (endpoint === "/api/upload/announcement") {
+    folderType = "announcement";
+  } else if (endpoint === "/api/upload/poster") {
+    folderType = "gallery";
+  } else if (endpoint === "/api/upload/certificate") {
+    folderType = "certificate";
+  } else if (endpoint === "/api/upload/payment-qr") {
+    folderType = "document";
+  }
+
+  form.append("folderType", folderType);
+
+  // Route to the centralized /api/upload endpoint (except for app-binary which remains separate)
+  const targetUrl = endpoint === "/api/upload/app-binary" ? endpoint : "/api/upload";
+
+  const res = await fetch(targetUrl, { method: "POST", body: form });
   const data = await res.json().catch(() => ({}));
 
   if (!res.ok) {
@@ -49,18 +65,18 @@ export async function uploadToDrive(
     throw new Error(msg);
   }
 
-  // Normalise: ensure legacy `fileId` field is always populated
-  const result = data as DriveUploadResult;
-  if (!result.fileId && result.driveFileId) {
-    result.fileId = result.driveFileId;
-  }
-
-  return result;
+  const result = data as any;
+  return {
+    driveFileId: result.storageKey,
+    fileId: result.storageKey,
+    imageUrl: result.imageUrl || result.publicUrl,
+    fileName: result.storageKey || fileName,
+    success: result.success,
+  };
 }
 
 /**
- * Best-effort delete of a Drive file by its id. Never throws — orphan
- * cleanup is non-critical and we don't want it to block the calling flow.
+ * Best-effort delete of a storage file by its key/id.
  */
 export async function cleanupDriveFile(fileId: string | null | undefined): Promise<void> {
   if (!fileId) return;

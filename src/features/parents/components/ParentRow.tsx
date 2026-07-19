@@ -47,23 +47,18 @@ function ParentRow({ parent, onEdit, onResetPassword, onDelete, onToggleStatus }
     <tr className="border-b border-slate-100 hover:bg-slate-50/60 transition-colors">
       <td className="px-4 py-3">
         <div className="flex items-center gap-3">
-          {parent.profile_photo_url ? (
+          {parent.image_url ? (
             <button
               type="button"
               onClick={(e) => {
                 e.stopPropagation();
-                const fileId = parent.profile_photo_drive_id;
-                if (fileId) {
-                  window.open(`https://drive.google.com/file/d/${fileId}/view`, "_blank");
-                } else {
-                  window.open(parent.profile_photo_url!, "_blank");
-                }
+                window.open(parent.image_url!, "_blank");
               }}
               className="cursor-pointer focus:outline-none block shrink-0"
-              title="View image in Google Drive"
+              title="View full image"
             >
               <img
-                src={parent.profile_photo_url}
+                src={parent.image_url}
                 alt={parent.full_name}
                 className="w-9 h-9 rounded-xl object-cover border border-slate-200 hover:scale-105 transition-transform"
               />

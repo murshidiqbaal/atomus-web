@@ -124,8 +124,8 @@ export default function TeacherDetailPage({ id }: { id: string }) {
 
       <div className="bg-white rounded-2xl border border-slate-200 p-6">
         <div className="flex flex-col md:flex-row md:items-start gap-5">
-          {teacher.profile_photo_url ? (
-            <img src={teacher.profile_photo_url} alt={teacher.full_name} className="w-16 h-16 rounded-2xl object-cover border border-slate-200 shrink-0 shadow-md shadow-blue-900/15" />
+          {teacher.image_url ? (
+            <img src={teacher.image_url} alt={teacher.full_name} className="w-16 h-16 rounded-2xl object-cover border border-slate-200 shrink-0 shadow-md shadow-blue-900/15" />
           ) : (
             <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-[#0B3C5D] to-[#0B3C5D]/80 text-white text-xl font-black flex items-center justify-center shrink-0 shadow-md shadow-blue-900/15">
               {initials(teacher.full_name)}

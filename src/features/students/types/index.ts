@@ -10,6 +10,10 @@ export interface Student {
   dob?: string | null;
   profile_photo_url?: string | null;
   profile_photo_drive_id?: string | null;
+  image_url?: string | null;
+  storage_key?: string | null;
+  storage_provider?: string | null;
+  uploaded_at?: string | null;
   campus_id: string;
   course_id: string;
   batch_id?: string | null;

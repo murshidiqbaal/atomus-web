@@ -1,15 +1,13 @@
 import { NextResponse } from "next/server";
 import { getServerAuth } from "@/lib/auth/server_auth";
-import { deleteFile } from "@/lib/google-drive";
+import { fileStorageService } from "@/services/FileStorageService";
 
 export const runtime = "nodejs";
 
 /**
- * DELETE /api/upload/cleanup?id=<driveFileId>
+ * DELETE /api/upload/cleanup?id=<storageKey>
  *
- * Best-effort deletion of a Google Drive file by its ID.
- * All file IDs are treated as Drive file IDs — there is no local file fallback.
- * Never writes to or reads from the local file system.
+ * Deletes a file from either Cloudflare R2 or Supabase Storage.
  */
 export async function DELETE(request: Request): Promise<Response> {
   const auth = await getServerAuth();
@@ -19,9 +17,19 @@ export async function DELETE(request: Request): Promise<Response> {
   const { searchParams } = new URL(request.url);
   const id = searchParams.get("id");
   if (!id) {
-    return NextResponse.json({ error: "Missing ?id=<drive_file_id>" }, { status: 400 });
+    return NextResponse.json({ error: "Missing ?id=<storage_key>" }, { status: 400 });
   }
 
-  const ok = await deleteFile(id);
+  let ok = false;
+  if (!id.includes("/") && id.startsWith("announcement_")) {
+    // Supabase Storage deletion for announcements
+    ok = await fileStorageService.deleteAnnouncementImage(id);
+    console.log(`[Storage] Deleting from Supabase: ${id} - Success: ${ok}`);
+  } else {
+    // Cloudflare R2 deletion for others
+    ok = await fileStorageService.deleteFile(id);
+    console.log(`[Storage] Deleting from Cloudflare R2: ${id} - Success: ${ok}`);
+  }
+
   return NextResponse.json({ deleted: ok });
 }

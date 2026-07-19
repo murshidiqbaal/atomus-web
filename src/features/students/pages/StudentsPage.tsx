@@ -68,22 +68,17 @@ function MobileCard({ student, onEdit, onDelete }: { student: StudentWithRelatio
     <div className="bg-white rounded-[2rem] border border-slate-200 p-6 space-y-4 shadow-sm active:scale-[0.98] transition-all">
       <div className="flex items-start gap-4">
         <div className="relative">
-          {student.profile_photo_url ? (
+          {student.image_url ? (
             <button
               type="button"
               onClick={(e) => {
                 e.stopPropagation();
-                const fileId = student.profile_photo_drive_id;
-                if (fileId) {
-                  window.open(`https://drive.google.com/file/d/${fileId}/view`, "_blank");
-                } else {
-                  window.open(student.profile_photo_url!, "_blank");
-                }
+                window.open(student.image_url!, "_blank");
               }}
               className="cursor-pointer focus:outline-none block"
-              title="View image in Google Drive"
+              title="View full image"
             >
-              <img src={student.profile_photo_url} alt={student.full_name} className="w-14 h-14 rounded-2xl object-cover border-2 border-white shadow-md" />
+              <img src={student.image_url} alt={student.full_name} className="w-14 h-14 rounded-2xl object-cover border-2 border-white shadow-md" />
             </button>
           ) : (
             <div className="w-14 h-14 rounded-2xl bg-[#0B3C5D]/5 text-[#0B3C5D] flex items-center justify-center text-xl font-black border border-[#0B3C5D]/10">

@@ -139,6 +139,17 @@ function buildStudentPayload(values: StudentFormValues, parent_id: string | null
   };
 }
 
+function mapStudent(item: any): StudentWithRelations {
+  if (!item) return item;
+  return {
+    ...item,
+    image_url: item.image_url ?? item.profile_photo_url,
+    storage_key: item.storage_key ?? item.profile_photo_drive_id,
+    profile_photo_url: item.image_url ?? item.profile_photo_url,
+    profile_photo_drive_id: item.storage_key ?? item.profile_photo_drive_id,
+  };
+}
+
 export type StudentMutationResult = StudentWithRelations & { _parentCredentials?: ParentLinkResult["credentials"] };
 
 export const studentService = {
@@ -148,7 +159,7 @@ export const studentService = {
       .select(STUDENT_SELECT)
       .order("created_at", { ascending: false });
     if (error) throw error;
-    return (data ?? []) as StudentWithRelations[];
+    return (data ?? []).map(mapStudent) as StudentWithRelations[];
   },
 
   async getById(id: string): Promise<StudentWithRelations> {
@@ -158,7 +169,7 @@ export const studentService = {
       .eq("id", id)
       .single();
     if (error) throw error;
-    return data as StudentWithRelations;
+    return mapStudent(data) as StudentWithRelations;
   },
 
   async create(values: StudentFormValues, photoFile?: File): Promise<StudentMutationResult> {
@@ -176,19 +187,21 @@ export const studentService = {
       .single();
     if (error) throw error;
 
-    const student = data as StudentMutationResult;
+    let student = mapStudent(data) as StudentMutationResult;
     if (photoFile) {
       const upload = await this.uploadPhoto(photoFile);
       if (upload) {
         await supabase
           .from("students")
           .update({
-            profile_photo_url: upload.url,
-            profile_photo_drive_id: upload.fileId,
+            image_url: upload.url,
+            storage_key: upload.fileId,
+            storage_provider: "cloudflare_r2",
           })
           .eq("id", student.id);
-        student.profile_photo_url = upload.url;
-        student.profile_photo_drive_id = upload.fileId;
+        student.image_url = upload.url;
+        student.storage_key = upload.fileId;
+        student = mapStudent(student) as StudentMutationResult;
       }
     }
     student._parentCredentials = link.credentials;
@@ -211,22 +224,24 @@ export const studentService = {
       .single();
     if (error) throw error;
 
-    const student = data as StudentMutationResult;
+    let student = mapStudent(data) as StudentMutationResult;
     if (photoFile) {
-      const previousDriveId = student.profile_photo_drive_id ?? null;
+      const previousStorageKey = student.storage_key ?? null;
       const upload = await this.uploadPhoto(photoFile);
       if (upload) {
         await supabase
           .from("students")
           .update({
-            profile_photo_url: upload.url,
-            profile_photo_drive_id: upload.fileId,
+            image_url: upload.url,
+            storage_key: upload.fileId,
+            storage_provider: "cloudflare_r2",
           })
           .eq("id", id);
-        student.profile_photo_url = upload.url;
-        student.profile_photo_drive_id = upload.fileId;
-        if (previousDriveId && previousDriveId !== upload.fileId) {
-          void cleanupDriveFile(previousDriveId);
+        student.image_url = upload.url;
+        student.storage_key = upload.fileId;
+        student = mapStudent(student) as StudentMutationResult;
+        if (previousStorageKey && previousStorageKey !== upload.fileId) {
+          void cleanupDriveFile(previousStorageKey);
         }
       }
     }
@@ -242,7 +257,7 @@ export const studentService = {
       .select(STUDENT_SELECT)
       .single();
     if (error) throw error;
-    return data as StudentWithRelations;
+    return mapStudent(data) as StudentWithRelations;
   },
 
   async updateStatus(id: string, status: string): Promise<StudentWithRelations> {
@@ -253,7 +268,7 @@ export const studentService = {
       .select(STUDENT_SELECT)
       .single();
     if (error) throw error;
-    return data as StudentWithRelations;
+    return mapStudent(data) as StudentWithRelations;
   },
 
   async remove(id: string): Promise<void> {

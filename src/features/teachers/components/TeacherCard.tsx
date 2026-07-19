@@ -40,8 +40,8 @@ function TeacherCard({ teacher, onEdit, onToggleStatus, onDelete, campusNameMap 
   return (
     <div className="bg-white rounded-2xl border border-slate-200 p-4 space-y-3">
       <div className="flex items-start gap-3">
-        {teacher.profile_photo_url ? (
-          <img src={teacher.profile_photo_url} alt={teacher.full_name} className="w-11 h-11 rounded-xl object-cover border border-slate-200 shrink-0" />
+        {teacher.image_url ? (
+          <img src={teacher.image_url} alt={teacher.full_name} className="w-11 h-11 rounded-xl object-cover border border-slate-200 shrink-0" />
         ) : (
           <div className="w-11 h-11 rounded-xl bg-[#0B3C5D] text-white flex items-center justify-center font-black text-sm shrink-0">
             {initials(teacher.full_name)}

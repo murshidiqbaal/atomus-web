@@ -1,6 +1,15 @@
 import { supabase } from "@/lib/supabase";
 import { Announcement, AnnouncementStats } from "../types";
 
+function mapAnnouncement(item: any): Announcement {
+  if (!item) return item;
+  return {
+    ...item,
+    storage_key: item.storage_key ?? item.image_drive_id,
+    image_drive_id: item.storage_key ?? item.image_drive_id,
+  };
+}
+
 export const announcementService = {
   async getAnnouncements(): Promise<Announcement[]> {
     const { data, error } = await supabase
@@ -9,7 +18,7 @@ export const announcementService = {
       .order('created_at', { ascending: false });
 
     if (error) throw error;
-    return data || [];
+    return (data || []).map(mapAnnouncement);
   },
 
   async createAnnouncement(announcement: Omit<Announcement, 'id' | 'created_at'>): Promise<Announcement> {
@@ -20,7 +29,7 @@ export const announcementService = {
       .single();
 
     if (error) throw error;
-    return data;
+    return mapAnnouncement(data);
   },
 
   async updateAnnouncement(id: string, updates: Partial<Announcement>): Promise<Announcement> {
@@ -32,34 +41,27 @@ export const announcementService = {
       .single();
 
     if (error) throw error;
-    return data;
+    return mapAnnouncement(data);
   },
 
   /**
-   * Deletes an announcement and its associated Google Drive image.
-   *
-   * Flow:
-   *   1. Fetch the announcement to get image_drive_id
-   *   2. Delete the Drive image (best-effort, via cleanup API)
-   *   3. Delete the database row
-   *
-   * Step 2 is fire-and-forget — a failed Drive delete will not block the DB delete.
+   * Deletes an announcement and its associated image from Supabase Storage.
    */
   async deleteAnnouncement(id: string): Promise<void> {
-    // 1. Fetch to get the Drive file ID before deleting
+    // 1. Fetch the storage key before deleting the DB row
     const { data: existing } = await supabase
       .from('announcements')
-      .select('image_drive_id')
+      .select('storage_key')
       .eq('id', id)
       .single();
 
-    // 2. Best-effort: delete the Drive image (non-blocking)
-    const driveId = existing?.image_drive_id;
-    if (driveId) {
-      void fetch(`/api/upload/cleanup?id=${encodeURIComponent(driveId)}`, {
+    // 2. Best-effort: delete the announcement image from Supabase Storage (non-blocking)
+    const storageKey = existing?.storage_key;
+    if (storageKey) {
+      void fetch(`/api/upload/cleanup?id=${encodeURIComponent(storageKey)}`, {
         method: "DELETE",
       }).catch(() => {
-        // Swallowed by design — Drive cleanup must never block announcement deletion
+        // Swallowed by design
       });
     }
 

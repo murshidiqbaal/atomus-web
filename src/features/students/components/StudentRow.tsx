@@ -48,23 +48,18 @@ const StudentRow = React.memo(function StudentRow({ student, onEdit, onDelete, a
       <td className="px-6 py-4">
         <div className="flex items-center gap-4 min-w-0">
           <div className="relative shrink-0">
-            {student.profile_photo_url ? (
+            {student.image_url ? (
               <button
                 type="button"
                 onClick={(e) => {
                   e.stopPropagation();
-                  const fileId = student.profile_photo_drive_id;
-                  if (fileId) {
-                    window.open(`https://drive.google.com/file/d/${fileId}/view`, "_blank");
-                  } else {
-                    window.open(student.profile_photo_url!, "_blank");
-                  }
+                  window.open(student.image_url!, "_blank");
                 }}
                 className="cursor-pointer focus:outline-none block"
-                title="View image in Google Drive"
+                title="View full image"
               >
                 <img
-                  src={student.profile_photo_url}
+                  src={student.image_url}
                   alt={student.full_name}
                   className="w-12 h-12 rounded-[1rem] object-cover shadow-sm border border-slate-200 group-hover:scale-110 transition-transform duration-500"
                 />

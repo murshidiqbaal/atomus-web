@@ -77,6 +77,17 @@ export interface CreateTeacherResult {
   existed: boolean;
 }
 
+export function mapTeacher(item: any): Teacher {
+  if (!item) return item;
+  return {
+    ...item,
+    image_url: item.image_url ?? item.profile_photo_url,
+    storage_key: item.storage_key ?? item.profile_photo_drive_id,
+    profile_photo_url: item.image_url ?? item.profile_photo_url,
+    profile_photo_drive_id: item.storage_key ?? item.profile_photo_drive_id,
+  };
+}
+
 export const teacherService = {
   async getAll(): Promise<Teacher[]> {
     const { data, error } = await supabase
@@ -84,7 +95,7 @@ export const teacherService = {
       .select(SELECT)
       .order("created_at", { ascending: false });
     if (error) throw error;
-    return (data ?? []) as unknown as Teacher[];
+    return (data ?? []).map(mapTeacher) as unknown as Teacher[];
   },
 
   async getById(id: string): Promise<Teacher> {
@@ -94,7 +105,7 @@ export const teacherService = {
       .eq("id", id)
       .single();
     if (error) throw error;
-    return data as unknown as Teacher;
+    return mapTeacher(data) as unknown as Teacher;
   },
 
   async create(values: TeacherFormValues, photoFile?: File): Promise<CreateTeacherResult> {
@@ -114,8 +125,9 @@ export const teacherService = {
         await supabase
           .from("teachers")
           .update({
-            profile_photo_url: upload.url,
-            profile_photo_drive_id: upload.fileId,
+            image_url: upload.url,
+            storage_key: upload.fileId,
+            storage_provider: "cloudflare_r2",
           })
           .eq("id", teacherId);
       }
@@ -124,7 +136,7 @@ export const teacherService = {
     await syncAssignments(teacherId, values);
 
     const teacher = await this.getById(teacherId);
-    return { teacher, password, existed: auth.existed };
+    return { teacher: mapTeacher(teacher), password, existed: auth.existed };
   },
 
   async update(id: string, values: TeacherFormValues, photoFile?: File): Promise<Teacher> {
@@ -137,7 +149,7 @@ export const teacherService = {
     if (photoFile) {
       const { data: prev } = await supabase
         .from("teachers")
-        .select("profile_photo_drive_id")
+        .select("storage_key")
         .eq("id", id)
         .maybeSingle();
       const upload = await this.uploadPhoto(photoFile);
@@ -145,17 +157,19 @@ export const teacherService = {
         await supabase
           .from("teachers")
           .update({
-            profile_photo_url: upload.url,
-            profile_photo_drive_id: upload.fileId,
+            image_url: upload.url,
+            storage_key: upload.fileId,
+            storage_provider: "cloudflare_r2",
           })
           .eq("id", id);
-        const prevId = (prev as { profile_photo_drive_id?: string | null } | null)?.profile_photo_drive_id ?? null;
+        const prevId = (prev as { storage_key?: string | null } | null)?.storage_key ?? null;
         if (prevId && prevId !== upload.fileId) void cleanupDriveFile(prevId);
       }
     }
 
     await syncAssignments(id, values);
-    return this.getById(id);
+    const teacher = await this.getById(id);
+    return mapTeacher(teacher);
   },
 
   async toggleStatus(id: string, account_status: Teacher["account_status"]): Promise<Teacher> {

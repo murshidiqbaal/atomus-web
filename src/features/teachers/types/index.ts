@@ -13,6 +13,10 @@ export interface Teacher {
   gender: Gender | null;
   profile_photo_url: string | null;
   profile_photo_drive_id: string | null;
+  image_url?: string | null;
+  storage_key?: string | null;
+  storage_provider?: string | null;
+  uploaded_at?: string | null;
   address: string | null;
   experience_years: number | null;
   account_status: AccountStatus;

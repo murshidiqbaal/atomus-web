@@ -133,26 +133,9 @@ export default function StudentDetailPage({ id }: Props) {
   };
 
   const handleDownloadPhoto = () => {
-    if (!student?.profile_photo_url) return;
-
-    // 1. Try to extract Google Drive file ID
-    let fileId = student.profile_photo_drive_id || null;
-    if (!fileId) {
-      try {
-        const u = new URL(student.profile_photo_url, window.location.origin);
-        fileId = u.searchParams.get("id");
-      } catch {
-        fileId = null;
-      }
-    }
-
-    if (fileId) {
-      // Direct high-speed download from Google Drive
-      window.open(`https://drive.google.com/uc?export=download&id=${fileId}`, "_blank");
-    } else {
-      // Fallback to local media proxy download with attachment header
-      const separator = student.profile_photo_url.includes("?") ? "&" : "?";
-      window.open(`${student.profile_photo_url}${separator}download=true`, "_blank");
+    const url = student?.image_url || student?.profile_photo_url;
+    if (url) {
+      window.open(url, "_blank");
     }
   };
 
@@ -249,9 +232,9 @@ export default function StudentDetailPage({ id }: Props) {
         <div className="p-8 sm:p-12 flex flex-col md:flex-row items-center gap-10 relative z-10">
           <div className="relative group/avatar">
             <div className="w-40 h-40 rounded-[3rem] overflow-hidden border-8 border-white shadow-2xl transition-transform duration-700 group-hover/avatar:scale-105 relative">
-              {student.profile_photo_url ? (
+              {student.image_url ? (
                 <>
-                  <img src={student.profile_photo_url} alt={student.full_name} className="w-full h-full object-cover" />
+                  <img src={student.image_url} alt={student.full_name} className="w-full h-full object-cover" />
                   <button
                     onClick={handleDownloadPhoto}
                     title="Download Profile Picture"
@@ -267,7 +250,7 @@ export default function StudentDetailPage({ id }: Props) {
                 </div>
               )}
             </div>
-            {student.profile_photo_url && (
+            {student.image_url && (
               <button
                 onClick={handleDownloadPhoto}
                 title="Download Profile Picture"
