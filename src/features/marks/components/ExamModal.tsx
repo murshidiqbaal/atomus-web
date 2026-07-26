@@ -1,48 +1,57 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import { AlertCircle, CalendarClock, Loader2, Plus, X } from "lucide-react";
-import { useCourses, useCreateExam, useSubjects } from "../hooks";
+import { AlertCircle, CalendarClock, Loader2, Plus, Edit2, X } from "lucide-react";
+import { useCourses, useCreateExam, useUpdateExam, useSubjects } from "../hooks";
+import { Exam } from "../types";
 import { Label, fieldCls } from "./ui";
 
 type Props = {
   isOpen: boolean;
   onClose: () => void;
-  defaultCourse: string;
-  onCreated: (examId: string) => void;
+  defaultCourse?: string;
+  examToEdit?: Exam | null;
+  onCreated?: (examId: string) => void;
+  onUpdated?: (examId: string) => void;
   onToast: (type: "success" | "error", msg: string) => void;
 };
 
 export function ExamModal(props: Props) {
   if (!props.isOpen) return null;
-  // Re-mount fresh on every open via the parent toggling isOpen.
-  // Initial state inside the form is owned by useState defaults.
   return <ExamModalContent {...props} />;
 }
 
 function ExamModalContent({
   onClose,
-  defaultCourse,
+  defaultCourse = "",
+  examToEdit = null,
   onCreated,
+  onUpdated,
   onToast,
 }: Props) {
-  const [name, setName] = useState("");
-  const [courseId, setCourseId] = useState(defaultCourse);
-  const [subjectId, setSubjectId] = useState("");
+  const isEditing = !!examToEdit;
+
+  const [name, setName] = useState(examToEdit?.name ?? "");
+  const [courseId, setCourseId] = useState(examToEdit?.course_id ?? defaultCourse);
+  const [subjectId, setSubjectId] = useState(examToEdit?.subject_id ?? "");
   const [examDate, setExamDate] = useState(
-    new Date().toISOString().split("T")[0]
+    examToEdit?.exam_date || new Date().toISOString().split("T")[0]
   );
-  const [totalMarks, setTotalMarks] = useState(100);
-  const [isDaily, setIsDaily] = useState(false);
+  const [totalMarks, setTotalMarks] = useState(examToEdit?.total_marks ?? 100);
+  const [isDaily, setIsDaily] = useState(examToEdit?.is_daily ?? false);
   const [error, setError] = useState("");
 
   const { data: courses = [] } = useCourses();
   const { data: subjects = [] } = useSubjects(courseId);
+
   const create = useCreateExam();
+  const update = useUpdateExam();
 
   useEffect(() => {
-    setSubjectId("");
-  }, [courseId]);
+    if (!isEditing) {
+      setSubjectId("");
+    }
+  }, [courseId, isEditing]);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -52,30 +61,48 @@ function ExamModalContent({
     }
     setError("");
     try {
-      const exam = await create.mutateAsync({
-        name: name.trim(),
-        course_id: courseId,
-        batch_id: null,
-        exam_scope: "course",
-        exam_date: examDate,
-        total_marks: totalMarks,
-        is_daily: isDaily,
-        subject_id: subjectId || null,
-      });
-      onCreated(exam.id);
-      onToast(
-        "success",
-        isDaily
-          ? `Daily exam "${exam.name}" created — enter marks per day from the Marks tab.`
-          : `Exam "${exam.name}" created.`,
-      );
+      if (isEditing && examToEdit) {
+        await update.mutateAsync({
+          id: examToEdit.id,
+          payload: {
+            name: name.trim(),
+            course_id: courseId,
+            subject_id: subjectId || null,
+            exam_date: examDate,
+            total_marks: totalMarks,
+            is_daily: isDaily,
+          },
+        });
+        if (onUpdated) onUpdated(examToEdit.id);
+        onToast("success", `Exam "${name.trim()}" updated successfully.`);
+      } else {
+        const exam = await create.mutateAsync({
+          name: name.trim(),
+          course_id: courseId,
+          batch_id: null,
+          exam_scope: "course",
+          exam_date: examDate,
+          total_marks: totalMarks,
+          is_daily: isDaily,
+          subject_id: subjectId || null,
+        });
+        if (onCreated) onCreated(exam.id);
+        onToast(
+          "success",
+          isDaily
+            ? `Daily exam "${exam.name}" created — enter marks per day from the Marks tab.`
+            : `Exam "${exam.name}" created.`
+        );
+      }
       onClose();
     } catch (err) {
-      const msg = err instanceof Error ? err.message : "Failed to create exam.";
+      const msg = err instanceof Error ? err.message : `Failed to ${isEditing ? "update" : "create"} exam.`;
       setError(msg);
       onToast("error", msg);
     }
   }
+
+  const isPending = create.isPending || update.isPending;
 
   return (
     <div
@@ -85,9 +112,13 @@ function ExamModalContent({
       <div className="bg-white w-full max-w-md rounded-2xl shadow-2xl border border-slate-100 overflow-hidden">
         <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100">
           <div>
-            <h2 className="text-base font-bold text-[#0B3C5D]">Create Exam</h2>
+            <h2 className="text-base font-bold text-[#0B3C5D]">
+              {isEditing ? "Edit / Rename Exam" : "Create Exam"}
+            </h2>
             <p className="text-xs text-slate-400 mt-0.5">
-              Set course and marks to start entering scores.
+              {isEditing
+                ? "Update exam name, date, total marks, or subject details."
+                : "Set course and marks to start entering scores."}
             </p>
           </div>
           <button
@@ -200,7 +231,7 @@ function ExamModalContent({
                   )}
                 </div>
                 <p className="text-[11px] text-slate-500 mt-1 leading-snug">
-                  Enter marks for this exam on different dates without creating a new exam each day. Marks are stored per-day under the same exam record.
+                  Enter marks for this exam on different dates without creating a new exam each day.
                 </p>
               </div>
             </label>
@@ -216,17 +247,19 @@ function ExamModalContent({
             </button>
             <button
               type="submit"
-              disabled={create.isPending}
+              disabled={isPending}
               className="flex items-center gap-2 px-5 py-2 text-sm font-bold text-white bg-[#0B3C5D] rounded-lg
                          hover:bg-[#0B3C5D]/90 transition-all shadow-md shadow-blue-900/20 disabled:opacity-60
                          disabled:cursor-not-allowed active:scale-[0.98]"
             >
-              {create.isPending ? (
+              {isPending ? (
                 <Loader2 size={14} className="animate-spin" />
+              ) : isEditing ? (
+                <Edit2 size={14} />
               ) : (
                 <Plus size={14} />
               )}
-              Create Exam
+              {isEditing ? "Save Changes" : "Create Exam"}
             </button>
           </div>
         </form>

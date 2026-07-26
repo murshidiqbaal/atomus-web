@@ -96,6 +96,28 @@ export const marksService = {
     }
   },
 
+  async updateExam(id: string, payload: Partial<{
+    name: string;
+    course_id: string;
+    batch_id: string | null;
+    exam_scope: ExamScope;
+    exam_date: string;
+    total_marks: number;
+    is_daily?: boolean;
+    subject_id?: string | null;
+  }>): Promise<Exam> {
+    const res = await fetch(`/api/exams?id=${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+      credentials: "include",
+    });
+    const json = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(json.error || `Failed to update exam (HTTP ${res.status})`);
+    return json as Exam;
+  },
+
+
   // ── Exams directory (admin view across creators) ────────────────
   /**
    * Returns exams matching the filter set, each enriched with the

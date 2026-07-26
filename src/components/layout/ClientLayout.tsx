@@ -26,6 +26,7 @@ const navItems: readonly NavItem[] = [
   { href: '/attendance', label: 'Attendance', icon: CalendarCheck, roles: ['admin', 'staff'] },
   { href: '/teacher-attendance', label: 'Teacher Attendance', icon: Timer, roles: ['admin', 'staff'] },
   { href: '/marks', label: 'Marks', icon: FileSpreadsheet, roles: ['admin', 'staff'] },
+  { href: '/exams', label: 'Exams', icon: BookMarked, roles: ['admin', 'staff'] },
   { href: '/fees', label: 'Fees', icon: CreditCard, roles: ['admin'] },
   { href: '/payment-qr', label: 'Payment QR', icon: QrCode, roles: ['admin'] },
   { href: '/expenses', label: 'Expenses', icon: Calculator, roles: ['admin'] },
@@ -56,6 +57,7 @@ const ROUTE_TO_MODULE: Record<string, string> = {
   '/attendance': 'Attendance',
   '/teacher-attendance': 'Attendance',
   '/marks': 'Marks',
+  '/exams': 'Marks',
   '/fees': 'Fees',
   '/payment-qr': 'Fees',
   '/expenses': 'Expenses',
@@ -86,7 +88,9 @@ const ROLE_PATH_RULES: { prefix: string; allow: Exclude<AppRole, null>[] }[] = [
   { prefix: '/attendance', allow: ['admin', 'staff'] },
   { prefix: '/teacher-attendance', allow: ['admin', 'staff'] },
   { prefix: '/marks', allow: ['admin', 'staff'] },
+  { prefix: '/exams', allow: ['admin', 'staff'] },
   { prefix: '/fees', allow: ['admin', 'staff'] }, // allow staff to access fees (gated by RLS/Permissions)
+
   { prefix: '/payment-qr', allow: ['admin'] },
   { prefix: '/expenses', allow: ['admin', 'staff'] }, // allow staff to access expenses (gated)
   { prefix: '/announcements', allow: ['admin', 'staff'] },

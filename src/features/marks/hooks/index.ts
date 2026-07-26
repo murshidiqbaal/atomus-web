@@ -118,7 +118,23 @@ export function useCreateExam() {
   });
 }
 
+export function useUpdateExam() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, payload }: { id: string; payload: Parameters<typeof marksService.updateExam>[1] }) =>
+      marksService.updateExam(id, payload),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["marks", "exams"], exact: false });
+      qc.invalidateQueries({ queryKey: QK.examsAll });
+      qc.invalidateQueries({ queryKey: QK.dashboard });
+      qc.invalidateQueries({ queryKey: ["marks", "exams-directory"], exact: false });
+      qc.invalidateQueries({ queryKey: QK.creators });
+    },
+  });
+}
+
 export function useDeleteExam() {
+
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (id: string) => marksService.deleteExam(id),

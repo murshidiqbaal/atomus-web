@@ -96,3 +96,57 @@ export async function DELETE(req: NextRequest) {
     return NextResponse.json({ error: err.message }, { status: 500 });
   }
 }
+
+export async function PATCH(req: NextRequest) {
+  try {
+    const auth = await getServerAuth();
+    if (!auth.authed) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    const { searchParams } = new URL(req.url);
+    const id = searchParams.get("id");
+    if (!id) return NextResponse.json({ error: "Missing exam ID" }, { status: 400 });
+
+    const body = await req.json();
+    const { name, course_id, batch_id, campus_id, exam_scope, exam_date, total_marks, is_daily, subject_id } = body;
+
+    const adminDb = getSupabaseAdmin();
+    const { data: existing } = await adminDb.from("exams").select("*").eq("id", id).single();
+    if (!existing) return NextResponse.json({ error: "Exam not found" }, { status: 404 });
+
+    if (auth.role === "teacher" && existing.creator_id !== auth.userId) {
+      return NextResponse.json({ error: "You can only edit your own exams." }, { status: 403 });
+    } else if (auth.role !== "admin" && auth.role !== "teacher" && auth.role !== "staff") {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
+    }
+
+    const updates: Record<string, any> = {};
+    if (name !== undefined) updates.name = name;
+    if (exam_date !== undefined) updates.exam_date = exam_date;
+    if (total_marks !== undefined) updates.total_marks = total_marks;
+    if (is_daily !== undefined) updates.is_daily = !!is_daily;
+    if (subject_id !== undefined) updates.subject_id = subject_id || null;
+    if (exam_scope !== undefined) updates.exam_scope = exam_scope;
+    if (course_id !== undefined) updates.course_id = exam_scope === "campus" ? null : course_id;
+    if (batch_id !== undefined) updates.batch_id = exam_scope === "batch" ? batch_id : null;
+    if (campus_id !== undefined) updates.campus_id = exam_scope === "campus" ? campus_id : null;
+
+    const { data: updated, error } = await adminDb
+      .from("exams")
+      .update(updates)
+      .eq("id", id)
+      .select()
+      .single();
+
+    if (error) {
+      console.error("Exam update error:", error);
+      return NextResponse.json({ error: error.message }, { status: 500 });
+    }
+
+    return NextResponse.json(updated);
+  } catch (err: any) {
+    return NextResponse.json({ error: err.message }, { status: 500 });
+  }
+}
+
