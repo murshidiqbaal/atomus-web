@@ -8,6 +8,15 @@ import {
 
 export const marksService = {
   // ── Lookups ──────────────────────────────────────────────────────
+  async getCampuses(): Promise<{ id: string; name: string }[]> {
+    const { data, error } = await supabase
+      .from("campuses")
+      .select("id, name")
+      .order("name");
+    if (error) throw error;
+    return (data ?? []) as { id: string; name: string }[];
+  },
+
   async getCourses(): Promise<Course[]> {
     const { data, error } = await supabase
       .from("courses")
@@ -127,13 +136,15 @@ export const marksService = {
   async getExamsDirectory(filters: ExamsDirectoryFilters): Promise<ExamDirectoryRow[]> {
     let q = supabase
       .from("exams")
-      .select("*, courses(name), batches(name)")
+      .select("*, courses(name), batches(name), subjects(name), campuses(name)")
       .order("exam_date", { ascending: false, nullsFirst: false })
       .order("created_at", { ascending: false })
       .limit(500);
 
+    if (filters.campus_id) q = q.eq("campus_id", filters.campus_id);
     if (filters.course_id) q = q.eq("course_id", filters.course_id);
     if (filters.batch_id) q = q.eq("batch_id", filters.batch_id);
+    if (filters.subject_id) q = q.eq("subject_id", filters.subject_id);
     if (filters.creator_role) q = q.eq("creator_role", filters.creator_role);
     if (filters.created_by) q = q.eq("created_by", filters.created_by);
     if (filters.date_from) q = q.gte("exam_date", filters.date_from);

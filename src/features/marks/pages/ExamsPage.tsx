@@ -23,8 +23,9 @@ import {
   Calendar,
 } from "lucide-react";
 import {
+  useCampuses,
   useCourses,
-  useBatches,
+  useSubjects,
   useExamCreators,
   useExamsDirectory,
   useDeleteExam,
@@ -41,8 +42,9 @@ import { Card, EmptyState, Label, ToastStack, fieldCls, useToasts } from "../com
 
 export default function ExamsPage() {
   const [search, setSearch] = useState("");
+  const [campusId, setCampusId] = useState("");
   const [courseId, setCourseId] = useState("");
-  const [batchId, setBatchId] = useState("");
+  const [subjectId, setSubjectId] = useState("");
   const [role, setRole] = useState<CreatorRole | "">("");
   const [createdBy, setCreatedBy] = useState("");
 
@@ -58,16 +60,18 @@ export default function ExamsPage() {
   const filters: ExamsDirectoryFilters = useMemo(
     () => ({
       search: search.trim() || undefined,
+      campus_id: campusId || undefined,
       course_id: courseId || undefined,
-      batch_id: batchId || undefined,
+      subject_id: subjectId || undefined,
       creator_role: role || undefined,
       created_by: createdBy || undefined,
     }),
-    [search, courseId, batchId, role, createdBy]
+    [search, campusId, courseId, subjectId, role, createdBy]
   );
 
+  const { data: campuses = [] } = useCampuses();
   const { data: courses = [] } = useCourses();
-  const { data: batches = [] } = useBatches(courseId);
+  const { data: subjects = [] } = useSubjects(courseId);
   const { data: creators = [] } = useExamCreators();
   const { data: exams = [], isLoading, isFetching, refetch } = useExamsDirectory(filters);
 
@@ -92,13 +96,14 @@ export default function ExamsPage() {
 
   function resetFilters() {
     setSearch("");
+    setCampusId("");
     setCourseId("");
-    setBatchId("");
+    setSubjectId("");
     setRole("");
     setCreatedBy("");
   }
 
-  const hasActiveFilters = !!(search || courseId || batchId || role || createdBy);
+  const hasActiveFilters = !!(search || campusId || courseId || subjectId || role || createdBy);
 
   async function handleDeleteConfirm() {
     if (!examToDelete) return;
@@ -262,7 +267,7 @@ export default function ExamsPage() {
             </div>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-3">
             <div className="lg:col-span-2">
               <Label>Search Exam Name</Label>
               <div className="relative">
@@ -278,12 +283,28 @@ export default function ExamsPage() {
             </div>
 
             <div>
+              <Label>Campus</Label>
+              <select
+                value={campusId}
+                onChange={(e) => setCampusId(e.target.value)}
+                className={fieldCls}
+              >
+                <option value="">All Campuses</option>
+                {campuses.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div>
               <Label>Course</Label>
               <select
                 value={courseId}
                 onChange={(e) => {
                   setCourseId(e.target.value);
-                  setBatchId("");
+                  setSubjectId("");
                 }}
                 className={fieldCls}
               >
@@ -297,17 +318,17 @@ export default function ExamsPage() {
             </div>
 
             <div>
-              <Label>Batch</Label>
+              <Label>Subject</Label>
               <select
-                value={batchId}
-                onChange={(e) => setBatchId(e.target.value)}
+                value={subjectId}
+                onChange={(e) => setSubjectId(e.target.value)}
                 disabled={!courseId}
                 className={`${fieldCls} disabled:opacity-50 disabled:cursor-not-allowed`}
               >
-                <option value="">{courseId ? "All Batches" : "Select Course first"}</option>
-                {batches.map((b) => (
-                  <option key={b.id} value={b.id}>
-                    {b.name}
+                <option value="">{courseId ? "All Subjects" : "Select Course first"}</option>
+                {subjects.map((s) => (
+                  <option key={s.id} value={s.id}>
+                    {s.name} ({s.subject_code})
                   </option>
                 ))}
               </select>
@@ -356,7 +377,8 @@ export default function ExamsPage() {
                 <thead>
                   <tr className="bg-slate-50/80 border-b border-slate-200 text-[11px] uppercase font-bold tracking-wider text-slate-500">
                     <th className="py-3.5 px-4">Exam Name</th>
-                    <th className="py-3.5 px-4">Course & Batch</th>
+                    <th className="py-3.5 px-4">Campus</th>
+                    <th className="py-3.5 px-4">Course & Subject</th>
                     <th className="py-3.5 px-4">Exam Date</th>
                     <th className="py-3.5 px-4 text-center">Marks</th>
                     <th className="py-3.5 px-4">Creator</th>
@@ -396,10 +418,11 @@ export default function ExamsPage() {
                             </div>
                           </td>
 
-                          {/* Course & Batch */}
-                          <td className="py-4 px-4 align-top text-xs text-slate-600">
-                            <p className="font-semibold text-slate-800">{exam.courses?.name || "General Course"}</p>
-                            <p className="text-slate-400 mt-0.5">{exam.batches?.name || "All Batches"}</p>
+                          {/* Campus */}
+                          <td className="py-4 px-4 align-top text-xs font-semibold text-slate-700">
+                            <span className="inline-block px-2 py-0.5 bg-slate-100 text-slate-700 rounded-md font-medium">
+                              {exam.campuses?.name || "All Campuses"}
+                            </span>
                           </td>
 
                           {/* Exam Date */}
@@ -500,7 +523,7 @@ export default function ExamsPage() {
                         {/* Expanded Toppers Row */}
                         {isToppersExpanded && (
                           <tr className="bg-amber-50/40">
-                            <td colSpan={7} className="p-4 border-b border-amber-100">
+                            <td colSpan={8} className="p-4 border-b border-amber-100">
                               <ExamToppersSubRow examId={exam.id} examName={exam.name} />
                             </td>
                           </tr>

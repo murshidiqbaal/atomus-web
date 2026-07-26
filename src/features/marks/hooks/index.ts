@@ -29,6 +29,14 @@ const QK = {
     ["marks", "exam-toppers", examId, limit] as const,
 };
 
+export function useCampuses() {
+  return useQuery({
+    queryKey: ["marks", "campuses"],
+    queryFn: () => marksService.getCampuses(),
+    staleTime: 5 * 60_000,
+  });
+}
+
 export function useCourses() {
   return useQuery({
     queryKey: QK.courses,

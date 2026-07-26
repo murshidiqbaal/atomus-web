@@ -23,12 +23,15 @@ export interface Exam {
    */
   is_daily: boolean;
   subject_id: string | null;
+  campus_id: string | null;
   created_at: string;
   created_by: string | null;
   creator_name: string | null;
   creator_role: CreatorRole | null;
   courses?: { name: string } | null;
   batches?: { name: string } | null;
+  subjects?: { name: string } | null;
+  campuses?: { name: string } | null;
 }
 
 export interface ExamSummaryRow {
@@ -53,8 +56,10 @@ export interface ExamCreator {
 }
 
 export interface ExamsDirectoryFilters {
+  campus_id?: string;
   course_id?: string;
   batch_id?: string;
+  subject_id?: string;
   creator_role?: CreatorRole | "";
   created_by?: string;
   date_from?: string;
