@@ -6,6 +6,47 @@ import { supabase } from "@/lib/supabase";
 import { useRouter } from "next/navigation";
 import { matchesMasterAdmin, setMasterAdminFlag } from "@/lib/auth/master_admin";
 
+async function clearStaleAuthTokens() {
+  try {
+    await supabase.auth.signOut();
+  } catch {}
+  if (typeof window !== "undefined") {
+    try {
+      for (let i = localStorage.length - 1; i >= 0; i--) {
+        const key = localStorage.key(i);
+        if (key && (key.startsWith("sb-") || key.includes("supabase"))) {
+          localStorage.removeItem(key);
+        }
+      }
+      for (let i = sessionStorage.length - 1; i >= 0; i--) {
+        const key = sessionStorage.key(i);
+        if (key && (key.startsWith("sb-") || key.includes("supabase"))) {
+          sessionStorage.removeItem(key);
+        }
+      }
+    } catch {}
+  }
+}
+
+async function safeFetchJson(url: string, options: RequestInit) {
+  try {
+    const res = await fetch(url, options);
+    const contentType = res.headers.get("content-type") || "";
+    const text = await res.text();
+
+    if (contentType.includes("application/json")) {
+      try {
+        return { ok: res.ok, status: res.status, data: JSON.parse(text) };
+      } catch {
+        return { ok: false, status: res.status, data: { error: "Invalid JSON response from server" } };
+      }
+    }
+    return { ok: res.ok, status: res.status, data: { error: res.ok ? null : `Server error (${res.status})` } };
+  } catch (err: any) {
+    return { ok: false, status: 0, data: { error: err?.message || "Network error" } };
+  }
+}
+
 export default function LoginPage() {
   const router = useRouter();
   const [email, setEmail] = useState("");
@@ -21,25 +62,42 @@ export default function LoginPage() {
 
     try {
       // 1. Run pre-login check (lockout, username resolving)
-      const preRes = await fetch("/api/auth/pre-login", {
+      const { ok: preOk, data: preData } = await safeFetchJson("/api/auth/pre-login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ usernameOrEmail: email })
       });
-      const preData = await preRes.json();
-      if (!preRes.ok || preData.error) {
-        setError(preData.error || "Login check failed");
+
+      if (!preOk || preData?.error) {
+        setError(preData?.error || "Login check failed");
         setLoading(false);
         return;
       }
 
-      const resolvedEmail = preData.email || email;
+      const resolvedEmail = preData?.email || email;
 
       // 2. Perform Supabase authentication
-      const { error: authError } = await supabase.auth.signInWithPassword({
+      let { error: authError } = await supabase.auth.signInWithPassword({
         email: resolvedEmail,
         password
       });
+
+      // Clear stale token if invalid refresh token error occurs and retry
+      if (
+        authError &&
+        (authError.message.toLowerCase().includes("refresh token") ||
+          authError.message.toLowerCase().includes("invalid_grant") ||
+          authError.message.toLowerCase().includes("session"))
+      ) {
+        console.warn("Stale refresh token detected. Clearing local session and retrying...");
+        await clearStaleAuthTokens();
+
+        const retry = await supabase.auth.signInWithPassword({
+          email: resolvedEmail,
+          password
+        });
+        authError = retry.error;
+      }
 
       if (authError) {
         // Fallback for local testing / master-admin
@@ -50,25 +108,23 @@ export default function LoginPage() {
         }
 
         // 3. Register failed attempt in db
-        const failRes = await fetch("/api/auth/login-failed", {
+        const { data: failData } = await safeFetchJson("/api/auth/login-failed", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ usernameOrEmail: email })
         });
-        const failData = await failRes.json();
         
-        setError(failData.message || authError.message);
+        setError(failData?.message || authError.message || "Invalid credentials.");
         setLoading(false);
       } else {
         // 4. Register login success and check force password change
-        const successRes = await fetch("/api/auth/login-success", {
+        const { data: successData } = await safeFetchJson("/api/auth/login-success", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ usernameOrEmail: email })
         });
-        const successData = await successRes.json();
 
-        if (successData.must_change_password) {
+        if (successData?.must_change_password) {
           router.push("/change-password");
         } else {
           router.push("/admin");

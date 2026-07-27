@@ -10,7 +10,7 @@ import {
   LayoutDashboard, Users, UserCircle, GraduationCap, BookOpen,
   BookMarked, CalendarCheck, FileSpreadsheet, CreditCard, Megaphone,
   BarChart3, Settings, Menu, X, Bell, Search, ChevronDown,
-  LogOut, Calculator, Award, Timer, QrCode, Shield, Activity
+  LogOut, Calculator, Award, Timer, QrCode, Shield, Activity, MessageSquare
 } from 'lucide-react';
 import { SkeletonPage } from '@/components/shared/Skeleton';
 
@@ -21,6 +21,7 @@ const navItems: readonly NavItem[] = [
   { href: '/students', label: 'Students', icon: Users, roles: ['admin', 'staff'] },
   { href: '/parents', label: 'Parents', icon: UserCircle, roles: ['admin', 'staff'] },
   { href: '/teachers', label: 'Teachers', icon: GraduationCap, roles: ['admin', 'staff'] },
+  { href: '/feedbacks', label: 'Feedbacks', icon: MessageSquare, roles: ['admin', 'staff'] },
   { href: '/courses', label: 'Courses', icon: BookOpen, roles: ['admin', 'staff'] },
   { href: '/subjects', label: 'Subjects', icon: BookMarked, roles: ['admin', 'staff'] },
   { href: '/attendance', label: 'Attendance', icon: CalendarCheck, roles: ['admin', 'staff'] },
@@ -52,6 +53,7 @@ const ROUTE_TO_MODULE: Record<string, string> = {
   '/students': 'Students',
   '/parents': 'Parents',
   '/teachers': 'Teachers',
+  '/feedbacks': 'Reports',
   '/courses': 'Courses',
   '/subjects': 'Subjects',
   '/attendance': 'Attendance',
@@ -83,6 +85,7 @@ const ROLE_PATH_RULES: { prefix: string; allow: Exclude<AppRole, null>[] }[] = [
   { prefix: '/students', allow: ['admin', 'staff'] },
   { prefix: '/parents', allow: ['admin', 'staff'] },
   { prefix: '/teachers', allow: ['admin', 'staff'] },
+  { prefix: '/feedbacks', allow: ['admin', 'staff'] },
   { prefix: '/courses', allow: ['admin', 'staff'] },
   { prefix: '/subjects', allow: ['admin', 'staff'] },
   { prefix: '/attendance', allow: ['admin', 'staff'] },

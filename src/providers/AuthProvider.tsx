@@ -287,10 +287,32 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     let cancelled = false;
 
-    supabase.auth.getSession().then(({ data: { session } }) => {
+    supabase.auth.getSession().then(({ data: { session }, error }) => {
       if (cancelled) return;
+      if (error) {
+        console.warn('Session check warning:', error.message);
+        if (
+          error.message.toLowerCase().includes('refresh token') ||
+          error.message.toLowerCase().includes('invalid_grant') ||
+          error.message.toLowerCase().includes('session')
+        ) {
+          supabase.auth.signOut().catch(() => {});
+          if (typeof window !== 'undefined') {
+            try {
+              for (let i = localStorage.length - 1; i >= 0; i--) {
+                const key = localStorage.key(i);
+                if (key && (key.startsWith('sb-') || key.includes('supabase'))) {
+                  localStorage.removeItem(key);
+                }
+              }
+            } catch {}
+          }
+        }
+      }
       setSession(session);
       setLoading(false);
+    }).catch(() => {
+      if (!cancelled) setLoading(false);
     });
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
