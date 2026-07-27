@@ -16,7 +16,6 @@ const INITIAL_FILTERS: FiltersType = {
   studyEngagement: "All",
   homeworkStatus: "All",
   courseId: "All",
-  batchId: "All",
   startDate: "",
   endDate: "",
 };
@@ -28,7 +27,6 @@ export function FeedbacksPage() {
 
   // Lookups
   const [courses, setCourses] = useState<{ id: string; name: string }[]>([]);
-  const [batches, setBatches] = useState<{ id: string; name: string; course_id: string }[]>([]);
 
   // Filters State
   const [filters, setFilters] = useState<FiltersType>(INITIAL_FILTERS);
@@ -53,7 +51,6 @@ export function FeedbacksPage() {
       ]);
       setReports(reportsData);
       setCourses(lookups.courses);
-      setBatches(lookups.batches);
     } catch (err: any) {
       console.error("Failed to load feedback reports:", err);
       setError(err.message || "Failed to load feedback reports from database.");
@@ -254,7 +251,6 @@ export function FeedbacksPage() {
         onFilterChange={handleFilterChange}
         onResetFilters={handleResetFilters}
         courses={courses}
-        batches={batches}
       />
 
       {/* Reports Data Table */}

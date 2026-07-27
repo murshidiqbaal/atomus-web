@@ -1,5 +1,5 @@
 import React from "react";
-import { Search, Filter, RotateCcw, Calendar, BookOpen, Users } from "lucide-react";
+import { Search, Filter, RotateCcw, Calendar, BookOpen } from "lucide-react";
 import { FeedbackFilters as FiltersType } from "../types";
 
 interface FeedbackFiltersProps {
@@ -7,7 +7,6 @@ interface FeedbackFiltersProps {
   onFilterChange: (key: keyof FiltersType, value: string) => void;
   onResetFilters: () => void;
   courses: { id: string; name: string }[];
-  batches: { id: string; name: string; course_id: string }[];
 }
 
 export function FeedbackFilters({
@@ -15,13 +14,7 @@ export function FeedbackFilters({
   onFilterChange,
   onResetFilters,
   courses,
-  batches,
 }: FeedbackFiltersProps) {
-  // Filter batches based on selected course if a course is chosen
-  const filteredBatches = filters.courseId && filters.courseId !== "All"
-    ? batches.filter((b) => b.course_id === filters.courseId)
-    : batches;
-
   const hasActiveFilters =
     filters.search !== "" ||
     filters.status !== "All" ||
@@ -29,7 +22,6 @@ export function FeedbackFilters({
     filters.studyEngagement !== "All" ||
     filters.homeworkStatus !== "All" ||
     filters.courseId !== "All" ||
-    filters.batchId !== "All" ||
     filters.startDate !== "" ||
     filters.endDate !== "";
 
@@ -71,7 +63,7 @@ export function FeedbackFilters({
       </div>
 
       {/* Grid of Dropdown & Date Filters */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-7 gap-3 pt-2 border-t border-slate-100">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-3 pt-2 border-t border-slate-100">
         {/* Status */}
         <div>
           <label className="block text-[11px] font-bold text-slate-500 uppercase mb-1">
@@ -95,35 +87,13 @@ export function FeedbackFilters({
           </label>
           <select
             value={filters.courseId}
-            onChange={(e) => {
-              onFilterChange("courseId", e.target.value);
-              onFilterChange("batchId", "All");
-            }}
+            onChange={(e) => onFilterChange("courseId", e.target.value)}
             className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-700 focus:outline-none focus:border-[#0B3C5D]"
           >
             <option value="All">All Courses</option>
             {courses.map((c) => (
               <option key={c.id} value={c.id}>
                 {c.name}
-              </option>
-            ))}
-          </select>
-        </div>
-
-        {/* Batch */}
-        <div>
-          <label className="block text-[11px] font-bold text-slate-500 uppercase mb-1 flex items-center gap-1">
-            <Users size={12} /> Batch
-          </label>
-          <select
-            value={filters.batchId}
-            onChange={(e) => onFilterChange("batchId", e.target.value)}
-            className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-700 focus:outline-none focus:border-[#0B3C5D]"
-          >
-            <option value="All">All Batches</option>
-            {filteredBatches.map((b) => (
-              <option key={b.id} value={b.id}>
-                {b.name}
               </option>
             ))}
           </select>

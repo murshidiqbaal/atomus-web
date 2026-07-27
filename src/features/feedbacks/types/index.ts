@@ -54,7 +54,6 @@ export interface FeedbackFilters {
   studyEngagement: string; // 'All' | 'Active' | 'Passive' | etc.
   homeworkStatus: string; // 'All' | 'Completed' | 'Incomplete' | etc.
   courseId: string;
-  batchId: string;
   startDate: string;
   endDate: string;
 }

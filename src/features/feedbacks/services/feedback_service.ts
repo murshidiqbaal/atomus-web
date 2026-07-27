@@ -80,13 +80,9 @@ export const feedbackService = {
 
     let reports = (data || []) as unknown as DailyStudentReport[];
 
-    // Additional client-side filtering for search, date range, course, and batch
+    // Additional client-side filtering for search, date range, and course
     if (filters?.courseId && filters.courseId !== "All") {
       reports = reports.filter((r) => r.daily_class_reports?.course_id === filters.courseId);
-    }
-
-    if (filters?.batchId && filters.batchId !== "All") {
-      reports = reports.filter((r) => r.daily_class_reports?.batch_id === filters.batchId);
     }
 
     if (filters?.startDate) {
