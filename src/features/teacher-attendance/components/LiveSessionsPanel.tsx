@@ -9,7 +9,7 @@ import { ACTIVE_SESSIONS_REFETCH_MS, useActiveSessions } from "../hooks";
 import type { TeacherAttendanceFilters } from "../types";
 import { Avatar, Card, EmptyState, GhostButton, GpsBadge, StatusBadge } from "./ui";
 import { SessionTimer } from "./SessionTimer";
-import { formatTime } from "../utils/format";
+import { formatTime, MAX_SESSION_MS } from "../utils/format";
 
 interface Props {
   filters: TeacherAttendanceFilters;
@@ -32,7 +32,7 @@ export function LiveSessionsPanel({ filters, onOpenSession }: Props) {
         <div className="min-w-0">
           <p className="text-sm font-black text-slate-800 leading-tight">Currently Active Teachers</p>
           <p className="text-[11px] text-slate-400 mt-0.5">
-            Live · auto-refresh every {Math.round(ACTIVE_SESSIONS_REFETCH_MS / 1000)}s
+            Live · Auto-closed after 4h max · Auto-refresh every {Math.round(ACTIVE_SESSIONS_REFETCH_MS / 1000)}s
           </p>
         </div>
         <div className="ml-auto flex items-center gap-2">
@@ -56,12 +56,17 @@ export function LiveSessionsPanel({ filters, onOpenSession }: Props) {
           <EmptyState
             icon={<UserCheck size={20} />}
             title="No teachers are currently in session"
-            hint="Active sessions started from the Flutter app will appear here in real time."
+            hint="Active sessions started from the teacher app automatically punch out after 4 hours."
           />
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
             {sessions.map((s) => (
-              <LiveSessionCard key={s.id} session={s} onOpen={() => onOpenSession(s.id)} />
+              <LiveSessionCard
+                key={s.id}
+                session={s}
+                onOpen={() => onOpenSession(s.id)}
+                onExpire={() => refetch()}
+              />
             ))}
           </div>
         )}
@@ -71,8 +76,12 @@ export function LiveSessionsPanel({ filters, onOpenSession }: Props) {
 }
 
 function LiveSessionCard({
-  session, onOpen,
-}: { session: ActiveSessionModel; onOpen: () => void }) {
+  session, onOpen, onExpire,
+}: { session: ActiveSessionModel; onOpen: () => void; onExpire?: () => void }) {
+  const rawElapsed = Math.max(0, Date.now() - session.startedAtEpochMs);
+  const pct = Math.min(100, Math.round((rawElapsed / MAX_SESSION_MS) * 100));
+  const isNearLimit = pct >= 85;
+
   return (
     <button
       onClick={onOpen}
@@ -103,13 +112,29 @@ function LiveSessionCard({
         <div>
           <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Running</p>
           <p className="text-lg font-black text-emerald-600 leading-tight">
-            <SessionTimer startedAtEpochMs={session.startedAtEpochMs} />
+            <SessionTimer startedAtEpochMs={session.startedAtEpochMs} onExpire={onExpire} />
           </p>
           <p className="text-[10px] text-slate-400 mt-0.5">Since {formatTime(session.startedAt)}</p>
         </div>
         <div className="flex flex-col items-end gap-1">
           <StatusBadge status={session.status} />
           <GpsBadge status={session.gps} />
+        </div>
+      </div>
+
+      {/* 4-hour max progress bar */}
+      <div className="mt-3">
+        <div className="flex justify-between items-center text-[10px] text-slate-400 mb-1 font-semibold">
+          <span>Max 4h Limit</span>
+          <span className={isNearLimit ? "text-amber-600 font-bold" : ""}>{pct}%</span>
+        </div>
+        <div className="w-full bg-slate-100 h-1.5 rounded-full overflow-hidden">
+          <div
+            className={`h-full transition-all duration-500 rounded-full ${
+              isNearLimit ? "bg-amber-500" : "bg-emerald-500"
+            }`}
+            style={{ width: `${pct}%` }}
+          />
         </div>
       </div>
     </button>

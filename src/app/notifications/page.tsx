@@ -80,28 +80,46 @@ export default function NotificationManagement() {
         .select("*", { count: "exact", head: true })
         .eq("is_active", true);
 
-      // Fetch notification history
-      const { data: notifData, error: notifErr } = await supabase
+      // Fetch total count of notifications
+      const { count: totalNotifs } = await supabase
         .from("notifications")
-        .select("*, parents(name)")
+        .select("*", { count: "exact", head: true });
+
+      // Fetch notification history with parents join (using full_name)
+      let notifData: any[] | null = null;
+      const { data: joinedData, error: notifErr } = await supabase
+        .from("notifications")
+        .select("*, parents(full_name)")
         .order("created_at", { ascending: false })
-        .limit(50);
+        .limit(100);
 
-      if (notifErr) throw notifErr;
+      if (notifErr) {
+        // Fallback to simple select if join fails
+        const { data: simpleData } = await supabase
+          .from("notifications")
+          .select("*")
+          .order("created_at", { ascending: false })
+          .limit(100);
+        notifData = simpleData;
+      } else {
+        notifData = joinedData;
+      }
 
-      // Fetch logs count for simple analytics
-      const { data: logStats } = await supabase
-        .from("notification_logs")
-        .select("status");
-
-      let sentCount = notifData?.length || 0;
+      // Fetch logs count for simple analytics if table exists
       let delCount = 0;
       let failCount = 0;
+      try {
+        const { data: logStats } = await supabase
+          .from("notification_logs")
+          .select("status");
 
-      logStats?.forEach((l) => {
-        if (l.status === "sent" || l.status === "delivered") delCount++;
-        if (l.status === "failed") failCount++;
-      });
+        logStats?.forEach((l) => {
+          if (l.status === "sent" || l.status === "delivered") delCount++;
+          if (l.status === "failed") failCount++;
+        });
+      } catch {
+        // notification_logs optional
+      }
 
       // Fetch unread history count
       const { count: unreadCount } = await supabase
@@ -109,7 +127,7 @@ export default function NotificationManagement() {
         .select("*", { count: "exact", head: true })
         .eq("is_read", false);
 
-      const totalLogs = logStats?.length || 1;
+      const sentCount = totalNotifs || notifData?.length || 0;
       const readRate = Math.round(
         ((sentCount - (unreadCount || 0)) / (sentCount || 1)) * 100
       );
@@ -211,12 +229,16 @@ export default function NotificationManagement() {
     }
   };
 
-  const filteredLogs = logs.filter(
-    (l) =>
-      l.title?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      l.message?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      l.type?.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  const filteredLogs = logs.filter((l) => {
+    const q = searchQuery.toLowerCase();
+    return (
+      l.title?.toLowerCase().includes(q) ||
+      l.message?.toLowerCase().includes(q) ||
+      l.type?.toLowerCase().includes(q) ||
+      l.parents?.full_name?.toLowerCase().includes(q) ||
+      l.receiver_type?.toLowerCase().includes(q)
+    );
+  });
 
   return (
     <div className="p-8 max-w-[1600px] mx-auto space-y-8 animate-in fade-in duration-500">
@@ -616,10 +638,10 @@ export default function NotificationManagement() {
                         </td>
                         <td className="py-4 px-6">
                           <div className="text-sm font-bold text-slate-800 capitalize">
-                            {log.parents?.name || "Parent User"}
+                            {log.parents?.full_name || log.recipient_name || (log.receiver_type ? `${log.receiver_type} User` : "All Users")}
                           </div>
                           <div className="text-[10px] text-slate-400 uppercase font-bold">
-                            {log.receiver_type || "Parent"}
+                            {log.receiver_type || "General"}
                           </div>
                         </td>
                         <td className="py-4 px-6">

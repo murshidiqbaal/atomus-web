@@ -141,6 +141,29 @@ export function isLatePunchIn(iso: string | null | undefined): boolean {
 /** Sessions shorter than this are flagged in the alerts panel. */
 export const SHORT_SESSION_MINUTES = 10;
 
+/** Max allowed continuous session time for teacher attendance (4 hours). */
+export const MAX_SESSION_HOURS = 4;
+export const MAX_SESSION_MINUTES = 240;
+export const MAX_SESSION_MS = MAX_SESSION_HOURS * 60 * 60 * 1000;
+
+export function isAutoClosed4Hours(
+  startIso?: string | null,
+  endIso?: string | null,
+  durationMinutes?: number | null,
+): boolean {
+  if (durationMinutes === MAX_SESSION_MINUTES) return true;
+  if (!startIso || !endIso) return false;
+  try {
+    const startMs = new Date(startIso).getTime();
+    const endMs = new Date(endIso).getTime();
+    const diffMins = Math.round((endMs - startMs) / (60 * 1000));
+    return diffMins >= MAX_SESSION_MINUTES - 1 && diffMins <= MAX_SESSION_MINUTES + 1;
+  } catch {
+    return false;
+  }
+}
+
+
 export function statusTone(s: TeacherStatusBadge): {
   bg: string; text: string; dot: string;
 } {

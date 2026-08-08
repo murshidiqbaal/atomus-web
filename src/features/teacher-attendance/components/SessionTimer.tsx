@@ -1,33 +1,44 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { formatDurationHMS } from "../utils/format";
+import { useEffect, useRef, useState } from "react";
+import { formatDurationHMS, MAX_SESSION_MS } from "../utils/format";
 
 /**
- * Live HH:MM:SS counter that ticks once per second.
- *
- * One internal interval is fine for now — every active session card mounts its
- * own timer. If we ever render hundreds simultaneously we should hoist the tick
- * into a single shared "now" provider to avoid wasted re-renders.
+ * Live HH:MM:SS counter that ticks once per second up to the 4-hour max session limit.
  */
 export function SessionTimer({
   startedAtEpochMs,
   className = "",
+  onExpire,
 }: {
   startedAtEpochMs: number;
   className?: string;
+  onExpire?: () => void;
 }) {
   const [now, setNow] = useState(() => Date.now());
+  const expiredFired = useRef(false);
 
   useEffect(() => {
     const t = setInterval(() => setNow(Date.now()), 1000);
     return () => clearInterval(t);
   }, []);
 
-  const elapsed = Math.max(0, now - startedAtEpochMs);
+  const rawElapsed = Math.max(0, now - startedAtEpochMs);
+  const elapsed = Math.min(MAX_SESSION_MS, rawElapsed);
+  const isMax = rawElapsed >= MAX_SESSION_MS;
+
+  useEffect(() => {
+    if (isMax && !expiredFired.current && onExpire) {
+      expiredFired.current = true;
+      onExpire();
+    }
+  }, [isMax, onExpire]);
+
   return (
     <span className={`tabular-nums font-mono ${className}`}>
       {formatDurationHMS(elapsed)}
+      {isMax && <span className="ml-1 text-[10px] uppercase font-bold text-amber-600">(Max 4h)</span>}
     </span>
   );
 }
+

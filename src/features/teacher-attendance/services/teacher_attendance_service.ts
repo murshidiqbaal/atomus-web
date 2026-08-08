@@ -79,10 +79,43 @@ function applyFilters(
 
 export const teacherAttendanceService = {
   /**
+   * Auto-close any active sessions running longer than 4 hours.
+   * Stamps end_time = start_time + 4h and sets status to 'Completed'.
+   */
+  async autoCloseExpiredSessions(): Promise<void> {
+    try {
+      const fourHoursAgoIso = new Date(Date.now() - 4 * 60 * 60 * 1000).toISOString();
+      const { data: expired } = await supabase
+        .from("teacher_attendance")
+        .select("id, start_time, created_at")
+        .eq("attendance_status", "Active")
+        .or(`start_time.lt.${fourHoursAgoIso},and(start_time.is.null,created_at.lt.${fourHoursAgoIso})`);
+
+      if (expired && expired.length > 0) {
+        for (const row of expired) {
+          const startMs = new Date(row.start_time ?? row.created_at).getTime();
+          const endIso = new Date(startMs + 4 * 60 * 60 * 1000).toISOString();
+          await supabase
+            .from("teacher_attendance")
+            .update({
+              attendance_status: "Completed",
+              end_time: endIso,
+            })
+            .eq("id", row.id);
+        }
+      }
+    } catch (err) {
+      console.error("Error auto-closing expired teacher attendance sessions:", err);
+    }
+  },
+
+  /**
    * Active sessions — small payload, polled every ~20s by the admin dashboard.
    * Filters apply so admins can scope the live board to a campus/subject/etc.
    */
   async listActiveSessions(filters: TeacherAttendanceFilters): Promise<ActiveSessionModel[]> {
+    await this.autoCloseExpiredSessions();
+
     let q = supabase
       .from("teacher_attendance")
       .select(ACTIVE_SELECT)
@@ -92,11 +125,15 @@ export const teacherAttendanceService = {
     q = applyFilters(q, { ...filters, status: "" });
     const { data, error } = await q;
     if (error) throw error;
-    return (data ?? []).map((r) => normaliseActive(r as unknown as TeacherAttendanceDTO));
+    return (data ?? [])
+      .map((r) => normaliseActive(r as unknown as TeacherAttendanceDTO))
+      .filter((s) => Date.now() - s.startedAtEpochMs < 4 * 60 * 60 * 1000);
   },
 
   /** Filtered history rows for the table + timeline + per-row drilldowns. */
   async listAttendance(filters: TeacherAttendanceFilters): Promise<TeacherAttendanceDTO[]> {
+    await this.autoCloseExpiredSessions();
+
     let q = supabase
       .from("teacher_attendance")
       .select(FULL_SELECT)

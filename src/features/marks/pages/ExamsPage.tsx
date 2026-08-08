@@ -425,6 +425,16 @@ export default function ExamsPage() {
                             </span>
                           </td>
 
+                          {/* Course & Subject */}
+                          <td className="py-4 px-4 align-top text-xs">
+                            <p className="font-semibold text-slate-800 truncate">
+                              {exam.courses?.name || "All Courses"}
+                            </p>
+                            <p className="text-[11px] text-slate-400 truncate mt-0.5">
+                              {exam.subjects?.name || (exam.batches?.name ? `Batch: ${exam.batches.name}` : "All Subjects")}
+                            </p>
+                          </td>
+
                           {/* Exam Date */}
                           <td className="py-4 px-4 align-top text-xs text-slate-600">
                             <div className="flex items-center gap-1.5">
@@ -443,7 +453,7 @@ export default function ExamsPage() {
                           {/* Creator */}
                           <td className="py-4 px-4 align-top text-xs">
                             <p className="font-semibold text-slate-800">
-                              {exam.creator_name || exam.created_by || "System Admin"}
+                              {exam.creator_name || "System Admin"}
                             </p>
                             {exam.creator_role && (
                               <span className="inline-block mt-0.5 text-[10px] font-bold text-slate-400 uppercase">
@@ -463,9 +473,9 @@ export default function ExamsPage() {
                                   students evaluated
                                 </div>
                                 <div className="flex items-center gap-3 text-[11px] text-slate-500">
-                                  <span>Avg: <strong className="text-slate-700">{exam.stats.avg_pct ?? 0}%</strong></span>
-                                  <span>Pass: <strong className="text-emerald-600">{exam.stats.pass_pct ?? 0}%</strong></span>
-                                  <span>Top: <strong className="text-[#0B3C5D]">{exam.stats.top_pct ?? 0}%</strong></span>
+                                  <span>Avg: <strong className="text-slate-700">{formatPct(exam.stats.avg_pct)}</strong></span>
+                                  <span>Pass: <strong className="text-emerald-600">{formatPct(exam.stats.pass_pct)}</strong></span>
+                                  <span>Top: <strong className="text-[#0B3C5D]">{formatPct(exam.stats.top_pct)}</strong></span>
                                 </div>
                               </div>
                             ) : (
@@ -579,7 +589,7 @@ function ExamToppersSubRow({ examId, examName }: { examId: string; examName: str
             <div className="min-w-0 flex-1">
               <p className="text-xs font-bold text-slate-800 truncate">{t.student_name || "Student"}</p>
               <p className="text-[11px] text-slate-500">
-                Score: <strong className="text-amber-700">{t.marks_obtained}/{t.total_marks}</strong> ({t.percentage}%)
+                Score: <strong className="text-amber-700">{t.marks_obtained}/{t.total_marks}</strong> ({formatPct(t.percentage)})
               </p>
             </div>
           </div>
@@ -587,4 +597,10 @@ function ExamToppersSubRow({ examId, examName }: { examId: string; examName: str
       </div>
     </div>
   );
+}
+
+function formatPct(val: number | null | undefined): string {
+  if (val == null || isNaN(Number(val))) return "0%";
+  const num = Number(val);
+  return `${Number(num.toFixed(2))}%`;
 }

@@ -116,6 +116,8 @@ export interface TeacherAttendanceAnalytics {
 /** Alert items shown in the warnings panel. */
 export type AttendanceAlertKind =
   | "missing_punch_out"
+  | "auto_closed_4h"
+  | "approaching_4h"
   | "short_session"
   | "missed_class"
   | "no_gps";

@@ -484,7 +484,7 @@ function MiniStat({
 }
 
 function fmtPct(v: number | null): string {
-  if (v == null) return "—";
-  return `${Number(v).toFixed(1)}%`;
+  if (v == null || isNaN(Number(v))) return "—";
+  return `${Number(Number(v).toFixed(2))}%`;
 }
 

@@ -11,7 +11,7 @@ import {
   Avatar, GhostButton, GpsBadge, PrimaryButton, StatusBadge,
 } from "./ui";
 import {
-  formatDate, formatDurationMinutes, formatTime,
+  formatDate, formatDurationMinutes, formatTime, isAutoClosed4Hours,
 } from "../utils/format";
 
 function gpsForRow(r: TeacherAttendanceDTO): "Verified" | "Outside" | "Unknown" {
@@ -91,6 +91,19 @@ export function SessionDetailsModal({ sessionId, onClose, onToast }: Props) {
                   </div>
                 </div>
               </div>
+
+              {/* Auto-closed 4h notice */}
+              {isAutoClosed4Hours(row.start_time, row.end_time, row.total_duration_minutes) && (
+                <div className="bg-purple-50 border border-purple-100 rounded-2xl p-3.5 flex items-center gap-3 text-purple-900">
+                  <Clock size={18} className="text-purple-600 shrink-0" />
+                  <div className="text-xs">
+                    <p className="font-bold">Auto-Punched Out (4-Hour Maximum Limit)</p>
+                    <p className="text-purple-700 mt-0.5">
+                      This teacher session reached the 4-hour max limit and was automatically closed by the system.
+                    </p>
+                  </div>
+                </div>
+              )}
 
               {/* Class info */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">

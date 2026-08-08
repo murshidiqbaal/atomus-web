@@ -164,10 +164,50 @@ export const marksService = {
     const statsById = new Map<string, ExamSummaryRow>();
     for (const s of (stats ?? []) as ExamSummaryRow[]) statsById.set(s.exam_id, s);
 
-    return exams.map((e) => ({
-      ...(e as Exam),
-      stats: statsById.get(e.id) ?? null,
-    }));
+    // Resolve creator names from teachers / staff_accounts tables using auth_id / id
+    const rawCreatorIds = Array.from(
+      new Set(exams.map((e) => e.created_by || e.creator_id).filter(Boolean)),
+    );
+
+    const creatorNameMap = new Map<string, string>();
+    if (rawCreatorIds.length > 0) {
+      const { data: teachers } = await supabase
+        .from("teachers")
+        .select("id, auth_id, full_name")
+        .or(`auth_id.in.(${rawCreatorIds.join(",")}),id.in.(${rawCreatorIds.join(",")})`);
+
+      (teachers ?? []).forEach((t) => {
+        if (t.auth_id) creatorNameMap.set(t.auth_id, t.full_name);
+        if (t.id) creatorNameMap.set(t.id, t.full_name);
+      });
+
+      const unmapped = rawCreatorIds.filter((id) => !creatorNameMap.has(id));
+      if (unmapped.length > 0) {
+        const { data: staff } = await supabase
+          .from("staff_accounts")
+          .select("id, auth_id, full_name")
+          .or(`auth_id.in.(${unmapped.join(",")}),id.in.(${unmapped.join(",")})`);
+
+        (staff ?? []).forEach((s) => {
+          if (s.auth_id) creatorNameMap.set(s.auth_id, s.full_name);
+          if (s.id) creatorNameMap.set(s.id, s.full_name);
+        });
+      }
+    }
+
+    return exams.map((e) => {
+      const creatorId = e.created_by || e.creator_id;
+      const resolvedName =
+        (creatorId ? creatorNameMap.get(creatorId) : null) ||
+        (e.creator_name && !e.creator_name.includes("-") ? e.creator_name : null) ||
+        "System Admin";
+
+      return {
+        ...(e as Exam),
+        creator_name: resolvedName,
+        stats: statsById.get(e.id) ?? null,
+      };
+    });
   },
 
   /**
@@ -182,16 +222,34 @@ export const marksService = {
       .not("created_by", "is", null);
     if (error) throw error;
 
+    const rawCreatorIds = Array.from(
+      new Set((data ?? []).map((r) => r.created_by).filter(Boolean)),
+    );
+
+    const creatorNameMap = new Map<string, string>();
+    if (rawCreatorIds.length > 0) {
+      const { data: teachers } = await supabase
+        .from("teachers")
+        .select("id, auth_id, full_name")
+        .or(`auth_id.in.(${rawCreatorIds.join(",")}),id.in.(${rawCreatorIds.join(",")})`);
+
+      (teachers ?? []).forEach((t) => {
+        if (t.auth_id) creatorNameMap.set(t.auth_id, t.full_name);
+        if (t.id) creatorNameMap.set(t.id, t.full_name);
+      });
+    }
+
     const acc = new Map<string, ExamCreator>();
     for (const row of (data ?? []) as { created_by: string; creator_name: string | null; creator_role: CreatorRole | null }[]) {
       if (!row.created_by || !row.creator_role) continue;
+      const resolvedName = creatorNameMap.get(row.created_by) || row.creator_name || "System Admin";
       const existing = acc.get(row.created_by);
       if (existing) {
         existing.exam_count += 1;
       } else {
         acc.set(row.created_by, {
           id: row.created_by,
-          name: row.creator_name ?? "Unknown",
+          name: resolvedName,
           role: row.creator_role,
           exam_count: 1,
         });

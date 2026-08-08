@@ -7,10 +7,12 @@ import type {
 } from "../types";
 import { useTeacherAttendanceList } from "../hooks";
 import { Card } from "./ui";
-import { formatDate, formatDurationMinutes, formatTime, SHORT_SESSION_MINUTES } from "../utils/format";
+import { formatDate, formatDurationMinutes, formatTime, isAutoClosed4Hours, SHORT_SESSION_MINUTES } from "../utils/format";
 
 const KIND_META: Record<AttendanceAlertKind, { label: string; tone: string; bg: string; icon: React.ComponentType<{ size?: number }> }> = {
   missing_punch_out: { label: "Missing punch out", tone: "text-amber-700", bg: "bg-amber-50 border-amber-100", icon: Clock },
+  auto_closed_4h: { label: "Auto-punched out (4h max)", tone: "text-purple-700", bg: "bg-purple-50 border-purple-100", icon: Clock },
+  approaching_4h: { label: "Approaching 4h limit", tone: "text-amber-700", bg: "bg-amber-50 border-amber-100", icon: AlertTriangle },
   short_session: { label: "Unusually short", tone: "text-orange-700", bg: "bg-orange-50 border-orange-100", icon: Clock },
   missed_class: { label: "Missed class", tone: "text-rose-700", bg: "bg-rose-50 border-rose-100", icon: XCircle },
   no_gps: { label: "GPS not captured", tone: "text-slate-700", bg: "bg-slate-100 border-slate-200", icon: MapPin },
@@ -19,23 +21,37 @@ const KIND_META: Record<AttendanceAlertKind, { label: string; tone: string; bg: 
 function buildAlerts(rows: TeacherAttendanceDTO[]): AttendanceAlert[] {
   const out: AttendanceAlert[] = [];
   const now = Date.now();
-  const ELEVEN_HOURS = 11 * 60 * 60 * 1000;
+  const THREE_HALF_HOURS = 3.5 * 60 * 60 * 1000;
 
   for (const r of rows) {
     const teacher = r.teacher?.full_name ?? "Unknown teacher";
 
     if (r.attendance_status === "Active" && r.start_time) {
       const elapsed = now - new Date(r.start_time).getTime();
-      if (elapsed > ELEVEN_HOURS) {
+      if (elapsed >= THREE_HALF_HOURS) {
         out.push({
-          id: `${r.id}-missing`,
-          kind: "missing_punch_out",
+          id: `${r.id}-approaching`,
+          kind: "approaching_4h",
           teacher_name: teacher,
-          detail: `Active since ${formatTime(r.start_time)} on ${formatDate(r.attendance_date)} — over 11 hours`,
+          detail: `Active since ${formatTime(r.start_time)} — will auto punch out at 4 hours limit`,
           occurred_at: r.start_time,
           session_id: r.id,
         });
       }
+    }
+
+    if (
+      r.attendance_status === "Completed" &&
+      isAutoClosed4Hours(r.start_time, r.end_time, r.total_duration_minutes)
+    ) {
+      out.push({
+        id: `${r.id}-autoclosed`,
+        kind: "auto_closed_4h",
+        teacher_name: teacher,
+        detail: `Session automatically closed after 4 hours limit on ${formatDate(r.attendance_date)}`,
+        occurred_at: r.end_time ?? r.start_time ?? r.created_at,
+        session_id: r.id,
+      });
     }
 
     if (r.attendance_status === "Missed") {
@@ -51,6 +67,7 @@ function buildAlerts(rows: TeacherAttendanceDTO[]): AttendanceAlert[] {
 
     if (
       r.attendance_status === "Completed" &&
+      !isAutoClosed4Hours(r.start_time, r.end_time, r.total_duration_minutes) &&
       (r.total_duration_minutes ?? 0) > 0 &&
       (r.total_duration_minutes ?? 0) < SHORT_SESSION_MINUTES
     ) {

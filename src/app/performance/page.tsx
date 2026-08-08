@@ -88,7 +88,6 @@ export default function AcademicPerformancePage() {
           id,
           full_name,
           roll_number,
-          photo_url,
           campus_id,
           course_id,
           batch_id,
