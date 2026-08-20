@@ -20,10 +20,15 @@ let cachedUserId: { id: string | null; ts: number } | null = null;
 
 async function resolveUserId(): Promise<string | null> {
   if (cachedUserId && Date.now() - cachedUserId.ts < 30_000) return cachedUserId.id;
-  const { data } = await supabase.auth.getUser();
-  const id = data?.user?.id ?? null;
-  cachedUserId = { id, ts: Date.now() };
-  return id;
+  try {
+    const { data, error } = await supabase.auth.getUser();
+    if (error) return null;
+    const id = data?.user?.id ?? null;
+    cachedUserId = { id, ts: Date.now() };
+    return id;
+  } catch {
+    return null;
+  }
 }
 
 const STRUCTURE_SELECT =

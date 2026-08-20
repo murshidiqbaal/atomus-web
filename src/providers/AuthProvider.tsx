@@ -8,6 +8,7 @@ import {
   clearMasterAdminFlag,
   readMasterAdminFlag,
 } from '@/lib/auth/master_admin';
+import { clearStaleAuthTokens, isInvalidTokenError } from '@/lib/auth/token_cleanup';
 
 export type AppRole = 'admin' | 'teacher' | 'parent' | 'staff' | null;
 
@@ -287,36 +288,54 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     let cancelled = false;
 
-    supabase.auth.getSession().then(({ data: { session }, error }) => {
-      if (cancelled) return;
-      if (error) {
-        console.warn('Session check warning:', error.message);
-        if (
-          error.message.toLowerCase().includes('refresh token') ||
-          error.message.toLowerCase().includes('invalid_grant') ||
-          error.message.toLowerCase().includes('session')
-        ) {
-          supabase.auth.signOut().catch(() => {});
-          if (typeof window !== 'undefined') {
-            try {
-              for (let i = localStorage.length - 1; i >= 0; i--) {
-                const key = localStorage.key(i);
-                if (key && (key.startsWith('sb-') || key.includes('supabase'))) {
-                  localStorage.removeItem(key);
-                }
-              }
-            } catch {}
+    async function initSession() {
+      try {
+        const { data, error } = await supabase.auth.getSession();
+        if (cancelled) return;
+
+        if (error) {
+          if (isInvalidTokenError(error)) {
+            console.warn('Invalid refresh token detected. Purging stale auth state.');
+            await clearStaleAuthTokens();
+            if (!cancelled) {
+              setSession(null);
+              setLoading(false);
+            }
+            return;
           }
+          console.warn('Session check warning:', error.message);
+        }
+
+        if (!cancelled) {
+          setSession(data?.session ?? null);
+        }
+      } catch (err: any) {
+        console.warn('Auth initialization error:', err);
+        if (isInvalidTokenError(err)) {
+          await clearStaleAuthTokens();
+        }
+        if (!cancelled) {
+          setSession(null);
+        }
+      } finally {
+        if (!cancelled) {
+          setLoading(false);
         }
       }
-      setSession(session);
-      setLoading(false);
-    }).catch(() => {
-      if (!cancelled) setLoading(false);
-    });
+    }
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      setSession((prev) => (prev === session ? prev : session));
+    initSession();
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, currentSession) => {
+      if (event === 'SIGNED_OUT' || (event === 'TOKEN_REFRESHED' && !currentSession)) {
+        await clearStaleAuthTokens();
+        setSession(null);
+        setProfile(null);
+      } else if (currentSession) {
+        setSession(currentSession);
+      } else {
+        setSession(null);
+      }
       setLoading(false);
     });
 
@@ -330,7 +349,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     clearMasterAdminFlag();
     setMasterAdmin(false);
     setProfile(null);
-    await supabase.auth.signOut();
+    setSession(null);
+    await clearStaleAuthTokens();
   }, []);
 
   const isAdmin = useCallback(() => role === 'admin', [role]);

@@ -5,28 +5,7 @@ import { Eye, EyeOff, LogIn, AlertCircle, GraduationCap } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { useRouter } from "next/navigation";
 import { matchesMasterAdmin, setMasterAdminFlag } from "@/lib/auth/master_admin";
-
-async function clearStaleAuthTokens() {
-  try {
-    await supabase.auth.signOut();
-  } catch {}
-  if (typeof window !== "undefined") {
-    try {
-      for (let i = localStorage.length - 1; i >= 0; i--) {
-        const key = localStorage.key(i);
-        if (key && (key.startsWith("sb-") || key.includes("supabase"))) {
-          localStorage.removeItem(key);
-        }
-      }
-      for (let i = sessionStorage.length - 1; i >= 0; i--) {
-        const key = sessionStorage.key(i);
-        if (key && (key.startsWith("sb-") || key.includes("supabase"))) {
-          sessionStorage.removeItem(key);
-        }
-      }
-    } catch {}
-  }
-}
+import { clearStaleAuthTokens, isInvalidTokenError } from "@/lib/auth/token_cleanup";
 
 async function safeFetchJson(url: string, options: RequestInit) {
   try {
@@ -83,12 +62,7 @@ export default function LoginPage() {
       });
 
       // Clear stale token if invalid refresh token error occurs and retry
-      if (
-        authError &&
-        (authError.message.toLowerCase().includes("refresh token") ||
-          authError.message.toLowerCase().includes("invalid_grant") ||
-          authError.message.toLowerCase().includes("session"))
-      ) {
+      if (authError && isInvalidTokenError(authError)) {
         console.warn("Stale refresh token detected. Clearing local session and retrying...");
         await clearStaleAuthTokens();
 

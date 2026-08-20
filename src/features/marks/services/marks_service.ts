@@ -398,8 +398,15 @@ export const marksService = {
     // so admin-entered marks carry attribution that mirrors what the Flutter teacher app
     // already writes via /api/marks. Falls back to null for the
     // master-admin override (no real auth session).
-    const { data: authData } = await supabase.auth.getUser();
-    const currentAuthId = authData?.user?.id ?? null;
+    let currentAuthId: string | null = null;
+    try {
+      const { data: authData, error } = await supabase.auth.getUser();
+      if (!error && authData?.user) {
+        currentAuthId = authData.user.id;
+      }
+    } catch {
+      currentAuthId = null;
+    }
 
     let isTeacher = false;
     if (currentAuthId) {

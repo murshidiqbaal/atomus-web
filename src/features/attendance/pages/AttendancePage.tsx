@@ -191,7 +191,8 @@ export default function AttendancePage() {
   const handleUpdateStatus = async (recordId: string, newStatus: AttendanceStatus, studentName: string, batchId: string) => {
     setIsActionLoading(recordId);
     try {
-      const { data: { user } } = await supabase.auth.getUser();
+      const { data } = await supabase.auth.getUser().catch(() => ({ data: { user: null } }));
+      const user = data?.user;
       const { error } = await supabase
         .from("attendance")
         .update({
@@ -302,7 +303,8 @@ export default function AttendancePage() {
     if (!addSelectedStudent) return;
     setIsAdding(true);
     try {
-      const { data: { user } } = await supabase.auth.getUser();
+      const { data } = await supabase.auth.getUser().catch(() => ({ data: { user: null } }));
+      const user = data?.user;
       const payload = {
         student_id: addSelectedStudent.id,
         campus_id: addSelectedStudent.campus_id,

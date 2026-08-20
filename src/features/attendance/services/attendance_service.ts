@@ -16,22 +16,31 @@ let cachedUserId: { id: string | null; ts: number } | null = null;
 
 async function resolveUserId(): Promise<string | null> {
   if (cachedUserId && Date.now() - cachedUserId.ts < 30_000) return cachedUserId.id;
-  const { data } = await supabase.auth.getUser();
-  const id = data?.user?.id ?? null;
-  cachedUserId = { id, ts: Date.now() };
-  return id;
+  try {
+    const { data, error } = await supabase.auth.getUser();
+    if (error) return null;
+    const id = data?.user?.id ?? null;
+    cachedUserId = { id, ts: Date.now() };
+    return id;
+  } catch {
+    return null;
+  }
 }
 
 export const attendanceService = {
   // ── Identity ─────────────────────────────────────────────────────
   async getCurrentUser(): Promise<CurrentUser | null> {
-    const { data } = await supabase.auth.getUser();
-    const u = data?.user;
-    if (!u) {
+    try {
+      const { data, error } = await supabase.auth.getUser();
+      if (error || !data?.user) {
+        return { id: "master-admin", role: "admin" };
+      }
+      const u = data.user;
+      const role = (u.user_metadata?.role as "admin" | "teacher" | undefined) ?? null;
+      return { id: u.id, role };
+    } catch {
       return { id: "master-admin", role: "admin" };
     }
-    const role = (u.user_metadata?.role as "admin" | "teacher" | undefined) ?? null;
-    return { id: u.id, role };
   },
 
   async getTeacherProfile(authId: string): Promise<TeacherProfile | null> {
