@@ -317,7 +317,7 @@ export default function DashboardOverview() {
           { data: transData },
           { data: teachersData }
         ] = await Promise.all([
-          supabase.from("students").select("id", { count: "exact", head: true }),
+          supabase.from("students").select("id", { count: "exact", head: true }).eq("is_active", true),
           supabase.from("parents").select("id", { count: "exact", head: true }),
           supabase.from("teachers").select("id", { count: "exact", head: true }),
           supabase.from("courses").select("id", { count: "exact", head: true }),

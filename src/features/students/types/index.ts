@@ -25,6 +25,8 @@ export interface Student {
   address?: string | null;
   parent_id?: string | null;
   is_active?: boolean | null;
+  deleted_at?: string | null;
+  deleted_by?: string | null;
   attendance_percentage?: number | null;
   progress_status?: string | null;
   created_at: string;

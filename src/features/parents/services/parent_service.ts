@@ -23,6 +23,7 @@ const SELECT_WITH_STUDENTS = `
     roll_number,
     course_id,
     batch_id,
+    is_active,
     attendance_percentage,
     progress_status,
     academic_status,
@@ -45,7 +46,7 @@ async function createAuthUser(args: {
   
   const contentType = res.headers.get("content-type");
   if (!res.ok || !contentType || !contentType.includes("application/json")) {
-    let errMsg = `Failed to create auth account (status ${res.status})`;
+    let errMsg = `Failed to create parent auth account (status ${res.status})`;
     try {
       if (contentType && contentType.includes("application/json")) {
         const errData = await res.json();
@@ -70,6 +71,7 @@ export function mapParent(item: any): Parent {
   if (!item) return item;
   return {
     ...item,
+    students: (item.students ?? []).filter((s: any) => s.is_active !== false),
     image_url: item.image_url ?? item.profile_photo_url,
     storage_key: item.storage_key ?? item.profile_photo_drive_id,
     profile_photo_url: item.image_url ?? item.profile_photo_url,
@@ -122,6 +124,7 @@ export const parentService = {
         batches:batch_id(id, name)
       `)
       .is("parent_id", null)
+      .eq("is_active", true)
       .order("full_name");
     if (error) throw error;
     return (data ?? []) as unknown as LinkedStudent[];

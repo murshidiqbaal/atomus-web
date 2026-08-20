@@ -26,12 +26,14 @@ export class SupabaseParentRepository implements IParentRepository {
       username: p.username,
       password: p.password_hash,
       status: p.account_status,
-      linkedStudents: p.students.map((s: any) => ({
-        id: s.id,
-        name: s.full_name,
-        class: s.course_id, // Map accordingly
-        rollNumber: s.roll_number
-      })),
+      linkedStudents: (p.students || [])
+        .filter((s: any) => s.is_active !== false)
+        .map((s: any) => ({
+          id: s.id,
+          name: s.full_name,
+          class: s.course_id, // Map accordingly
+          rollNumber: s.roll_number
+        })),
       createdAt: p.created_at
     }));
   }
@@ -84,6 +86,7 @@ export class SupabaseParentRepository implements IParentRepository {
     const { data, error } = await supabase
       .from('students')
       .select('*')
+      .eq('is_active', true)
       .ilike('full_name', `%${query}%`);
 
     if (error) throw error;

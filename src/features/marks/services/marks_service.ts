@@ -330,6 +330,7 @@ export const marksService = {
     let q = supabase
       .from("students")
       .select("id, full_name, roll_number, batch_id, course_id, batches(name)")
+      .eq("is_active", true)
       .order("roll_number", { ascending: true, nullsFirst: false })
       .order("full_name", { ascending: true });
 
@@ -647,6 +648,7 @@ export const marksService = {
     const { data: students, error: stuErr } = await supabase
       .from("students")
       .select("id, batch_id")
+      .eq("is_active", true)
       .in("batch_id", batches.map((b) => b.id));
     if (stuErr) throw stuErr;
 

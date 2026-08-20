@@ -202,6 +202,7 @@ export const academicPerformanceService = {
     const { data: students, error } = await supabase
       .from("students")
       .select("id")
+      .eq("is_active", true)
       .or(`batch_id.eq.${batchId},batch_ids.cs.{${batchId}},batch_id.is.null`);
 
     if (error || !students) {

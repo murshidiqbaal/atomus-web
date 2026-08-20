@@ -149,7 +149,8 @@ export const attendanceService = {
   }): Promise<StudentLite[]> {
     let q = supabase
       .from("students")
-      .select("id, full_name, roll_number, batch_id, campus_id, course_id");
+      .select("id, full_name, roll_number, batch_id, campus_id, course_id")
+      .eq("is_active", true);
 
     if (filters.campus_id) {
       q = q.eq("campus_id", filters.campus_id);

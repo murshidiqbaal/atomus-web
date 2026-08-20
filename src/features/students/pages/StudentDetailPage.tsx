@@ -6,9 +6,10 @@ import {
   ChevronLeft, Building2, BookOpen, Users, Calendar, Phone, Mail, MapPin, 
   CheckCircle2, Clock, Award, FileText, Settings, Download, Share2, 
   ArrowUpRight, AlertCircle, TrendingUp, Info, UserCircle, ChevronDown, ChevronUp,
-  Trash2, X
+  Archive, RotateCcw, AlertTriangle, Trash2, X
 } from "lucide-react";
-import { useStudent, useStudentAttendance, useStudentMarks, useSubjectsByCourse, useDeleteStudent, useAllBatches } from "../hooks";
+import { useStudent, useStudentAttendance, useStudentMarks, useSubjectsByCourse, useDeleteStudent, useRestoreStudent, useAllBatches } from "../hooks";
+import { useAuth } from "@/providers/AuthProvider";
 import StudentModal from "../components/StudentModal";
 import { AcademicStatus } from "../types";
 import { StudentFeeProfile } from "@/features/fees/components/StudentFeeProfile";
@@ -64,12 +65,14 @@ function SummaryCard({ label, value, sub, icon: Icon, trend }: { label: string; 
 }
 
 export default function StudentDetailPage({ id }: Props) {
+  const { user } = useAuth();
   const { data: student, isLoading } = useStudent(id);
   const { data: allBatches = [] } = useAllBatches();
   const { data: attendance = [] }     = useStudentAttendance(id, !!student);
   const { data: rawMarks = [] }       = useStudentMarks(id, !!student);
   const { data: subjects = [] }        = useSubjectsByCourse(student?.course_id ?? "", !!student);
   const deleteStudent = useDeleteStudent();
+  const restoreStudent = useRestoreStudent();
 
   const displayBatch = (() => {
     if (!student) return "N/A";
@@ -82,20 +85,24 @@ export default function StudentDetailPage({ id }: Props) {
     return names.length > 0 ? names.join(", ") : (student.batches?.name ?? "Any Batch");
   })();
   const [toast, setToast] = useState<{ type: "success" | "error"; message: string } | null>(null);
+  const [showArchiveModal, setShowArchiveModal] = useState(false);
 
   function notify(type: "success" | "error", message: string) {
     setToast({ type, message });
     setTimeout(() => setToast(null), 4000);
   }
 
-  async function handleDelete() {
+  async function handleConfirmArchive() {
     if (!student) return;
-    if (!confirm(`Delete ${student.full_name}? This will remove all their records.`)) return;
     try {
-      await deleteStudent.mutateAsync(student.id);
-      window.location.href = "/students";
+      await deleteStudent.mutateAsync({ id: student.id, currentUserId: user?.id });
+      notify("success", "Student archived successfully.");
+      setShowArchiveModal(false);
+      setTimeout(() => {
+        window.location.href = "/students";
+      }, 1000);
     } catch (e: any) {
-      notify("error", e?.message ?? "Delete failed");
+      notify("error", e?.message ?? "Archive failed");
     }
   }
   
@@ -153,6 +160,44 @@ export default function StudentDetailPage({ id }: Props) {
     <p className="text-slate-600 font-black text-lg tracking-tight">Scholar Profile Not Found</p>
     <Link href="/students" className="text-[#0B3C5D] font-black text-sm hover:underline mt-4 inline-block">Return to directory</Link>
   </div>;
+
+  if (student.is_active === false) {
+    return (
+      <div className="p-12 sm:p-20 max-w-lg mx-auto text-center space-y-6 animate-in fade-in zoom-in-95 duration-300">
+        <div className="w-20 h-20 bg-amber-50 text-amber-600 rounded-3xl flex items-center justify-center mx-auto border border-amber-100 shadow-lg shadow-amber-500/10">
+          <Archive size={36} />
+        </div>
+        <div className="space-y-2">
+          <h2 className="text-2xl font-black text-slate-900 tracking-tight">Student Unavailable</h2>
+          <p className="text-sm font-bold text-slate-500 leading-relaxed">
+            This student has been archived and is no longer active.
+          </p>
+        </div>
+        <div className="flex flex-col sm:flex-row items-center justify-center gap-3 pt-4">
+          <Link
+            href="/students"
+            className="w-full sm:w-auto px-6 py-3.5 bg-[#0B3C5D] text-white rounded-2xl font-black text-xs hover:bg-[#0B3C5D]/90 transition-all shadow-lg shadow-[#0B3C5D]/20 active:scale-95 flex items-center justify-center gap-2"
+          >
+            <ChevronLeft size={16} /> Return to directory
+          </Link>
+          <button
+            onClick={async () => {
+              try {
+                await restoreStudent.mutateAsync(student.id);
+                notify("success", "Student restored successfully.");
+              } catch (e: any) {
+                notify("error", e?.message ?? "Failed to restore student");
+              }
+            }}
+            disabled={restoreStudent.isPending}
+            className="w-full sm:w-auto px-6 py-3.5 bg-emerald-600 text-white rounded-2xl font-black text-xs hover:bg-emerald-700 transition-all shadow-lg shadow-emerald-600/20 active:scale-95 flex items-center justify-center gap-2"
+          >
+            <RotateCcw size={16} /> {restoreStudent.isPending ? "Restoring..." : "Restore Student"}
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   const status = STATUS_STYLE[student.academic_status || "Active"];
   const StatusIcon = status.icon;
@@ -216,12 +261,12 @@ export default function StudentDetailPage({ id }: Props) {
             Edit Profile
           </button>
           <button 
-            onClick={handleDelete}
-            className="flex-1 sm:flex-none flex items-center justify-center gap-2 bg-rose-50 border border-rose-200 text-rose-600 px-6 py-3 rounded-2xl text-sm font-black hover:bg-rose-100 transition-all active:scale-95"
-            title="Delete Scholar Profile"
+            onClick={() => setShowArchiveModal(true)}
+            className="flex-1 sm:flex-none flex items-center justify-center gap-2 bg-amber-50 border border-amber-200 text-amber-900 px-6 py-3 rounded-2xl text-sm font-black hover:bg-amber-100 transition-all active:scale-95"
+            title="Archive Scholar Profile"
           >
-            <Trash2 size={18} />
-            Delete Scholar
+            <Archive size={18} className="text-amber-700" />
+            Archive Student
           </button>
         </div>
       </div>
@@ -983,6 +1028,53 @@ export default function StudentDetailPage({ id }: Props) {
       </div>
 
       {modalOpen && <StudentModal student={student} onClose={() => setModalOpen(false)} />}
+
+      {/* Archive Student Confirmation Modal */}
+      {showArchiveModal && student && (
+        <div className="fixed inset-0 z-[110] bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-200">
+          <div className="bg-white rounded-[2.5rem] p-8 max-w-md w-full shadow-2xl border border-slate-100 space-y-6 animate-in zoom-in-95 duration-200">
+            <div className="flex items-center gap-4">
+              <div className="w-12 h-12 rounded-2xl bg-amber-50 text-amber-600 flex items-center justify-center shrink-0 border border-amber-100">
+                <AlertTriangle size={24} />
+              </div>
+              <div>
+                <h3 className="text-xl font-black text-slate-900 tracking-tight">Archive Student?</h3>
+                <p className="text-xs font-bold text-slate-400 mt-0.5">{student.full_name} ({student.roll_number})</p>
+              </div>
+            </div>
+
+            <div className="p-4 rounded-2xl bg-amber-50/60 border border-amber-100/80 space-y-2 text-xs font-semibold text-amber-900 leading-relaxed">
+              <p>
+                This student will immediately become unavailable in the Parent App, Teacher App, and active student lists.
+              </p>
+              <p className="font-bold text-amber-950">
+                All attendance, marks, academic performance, fee records, and other historical data will be preserved.
+              </p>
+            </div>
+
+            <p className="text-sm font-black text-slate-700 text-center">Do you want to continue?</p>
+
+            <div className="flex items-center gap-3 pt-2">
+              <button
+                type="button"
+                onClick={() => setShowArchiveModal(false)}
+                disabled={deleteStudent.isPending}
+                className="flex-1 px-5 py-3.5 text-xs font-black text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-2xl transition-all active:scale-95 disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmArchive}
+                disabled={deleteStudent.isPending}
+                className="flex-1 px-5 py-3.5 text-xs font-black text-white bg-amber-600 hover:bg-amber-700 rounded-2xl transition-all shadow-lg shadow-amber-600/25 active:scale-95 disabled:opacity-50 flex items-center justify-center gap-2"
+              >
+                {deleteStudent.isPending ? "Archiving..." : "Archive Student"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

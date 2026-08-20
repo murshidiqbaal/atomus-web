@@ -157,7 +157,18 @@ export const studentService = {
     const { data, error } = await supabase
       .from("students")
       .select(STUDENT_SELECT)
+      .eq("is_active", true)
       .order("created_at", { ascending: false });
+    if (error) throw error;
+    return (data ?? []).map(mapStudent) as StudentWithRelations[];
+  },
+
+  async getArchived(): Promise<StudentWithRelations[]> {
+    const { data, error } = await supabase
+      .from("students")
+      .select(STUDENT_SELECT)
+      .eq("is_active", false)
+      .order("deleted_at", { ascending: false });
     if (error) throw error;
     return (data ?? []).map(mapStudent) as StudentWithRelations[];
   },
@@ -249,6 +260,33 @@ export const studentService = {
     return student;
   },
 
+  async archive(id: string, currentUserId?: string): Promise<void> {
+    const { error } = await supabase
+      .from("students")
+      .update({
+        is_active: false,
+        deleted_at: new Date().toISOString(),
+        deleted_by: currentUserId || null,
+      })
+      .eq("id", id);
+    if (error) throw error;
+  },
+
+  async restore(id: string): Promise<StudentWithRelations> {
+    const { data, error } = await supabase
+      .from("students")
+      .update({
+        is_active: true,
+        deleted_at: null,
+        deleted_by: null,
+      })
+      .eq("id", id)
+      .select(STUDENT_SELECT)
+      .single();
+    if (error) throw error;
+    return mapStudent(data) as StudentWithRelations;
+  },
+
   async toggleActive(id: string, is_active: boolean): Promise<StudentWithRelations> {
     const { data, error } = await supabase
       .from("students")
@@ -271,9 +309,8 @@ export const studentService = {
     return mapStudent(data) as StudentWithRelations;
   },
 
-  async remove(id: string): Promise<void> {
-    const { error } = await supabase.from("students").delete().eq("id", id);
-    if (error) throw error;
+  async remove(id: string, currentUserId?: string): Promise<void> {
+    return this.archive(id, currentUserId);
   },
 
   async checkRollDuplicate(roll_number: string, excludeId?: string): Promise<boolean> {

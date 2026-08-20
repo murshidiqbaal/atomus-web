@@ -173,14 +173,57 @@ export function useUpdateStudent() {
   });
 }
 
+export function useArchivedStudents() {
+  return useQuery({
+    queryKey: [QK, "archived"],
+    queryFn: () => studentService.getArchived(),
+    staleTime: 30_000,
+  });
+}
+
 export function useDeleteStudent() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (id: string) => studentService.remove(id),
+    mutationFn: (param: { id: string; currentUserId?: string } | string) => {
+      const studentId = typeof param === "string" ? param : param.id;
+      const userId = typeof param === "string" ? undefined : param.currentUserId;
+      return studentService.archive(studentId, userId);
+    },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: [QK] });
+      qc.invalidateQueries({ queryKey: [QK, "archived"] });
       qc.invalidateQueries({ queryKey: ["students-unlinked"] });
       qc.invalidateQueries({ queryKey: ["parents"] });
+      qc.invalidateQueries({ queryKey: ["all-batches"] });
+    },
+  });
+}
+
+export function useArchiveStudent() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, currentUserId }: { id: string; currentUserId?: string }) =>
+      studentService.archive(id, currentUserId),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: [QK] });
+      qc.invalidateQueries({ queryKey: [QK, "archived"] });
+      qc.invalidateQueries({ queryKey: ["students-unlinked"] });
+      qc.invalidateQueries({ queryKey: ["parents"] });
+      qc.invalidateQueries({ queryKey: ["all-batches"] });
+    },
+  });
+}
+
+export function useRestoreStudent() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => studentService.restore(id),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: [QK] });
+      qc.invalidateQueries({ queryKey: [QK, "archived"] });
+      qc.invalidateQueries({ queryKey: ["students-unlinked"] });
+      qc.invalidateQueries({ queryKey: ["parents"] });
+      qc.invalidateQueries({ queryKey: ["all-batches"] });
     },
   });
 }

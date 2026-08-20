@@ -2,7 +2,7 @@
 
 import React from "react";
 import Link from "next/link";
-import { Eye, Pencil, ExternalLink, Trash2 } from "lucide-react";
+import { Eye, Pencil, ExternalLink, Archive, Trash2 } from "lucide-react";
 import { StudentWithRelations } from "../types";
 import { useToggleStudent, useUpdateStudentStatus } from "../hooks";
 
@@ -191,10 +191,10 @@ const StudentRow = React.memo(function StudentRow({ student, onEdit, onDelete, a
           </button>
           <button
             onClick={() => onDelete(student)}
-            className="p-2.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition-all"
-            title="Delete Student"
+            className="p-2.5 text-slate-400 hover:text-amber-600 hover:bg-amber-50 rounded-xl transition-all"
+            title="Archive Student"
           >
-            <Trash2 size={18} />
+            <Archive size={18} />
           </button>
         </div>
       </td>

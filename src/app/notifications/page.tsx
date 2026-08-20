@@ -61,7 +61,7 @@ export default function NotificationManagement() {
     try {
       const { data: campusData } = await supabase.from("campuses").select("id, name");
       const { data: courseData } = await supabase.from("courses").select("id, name");
-      const { data: studentData } = await supabase.from("students").select("id, full_name, admission_number").limit(100);
+      const { data: studentData } = await supabase.from("students").select("id, full_name, admission_number").eq("is_active", true).limit(100);
 
       setCampuses(campusData || []);
       setCourses(courseData || []);

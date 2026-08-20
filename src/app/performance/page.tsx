@@ -94,7 +94,8 @@ export default function AcademicPerformancePage() {
           campuses:campus_id(name),
           courses:course_id(name),
           batches:batch_id(name)
-        `);
+        `)
+        .eq("is_active", true);
 
       if (studentsError) throw studentsError;
 

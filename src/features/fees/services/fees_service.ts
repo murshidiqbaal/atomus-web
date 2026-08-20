@@ -283,7 +283,7 @@ export const feesService = {
     if (!fs) throw new Error("Fee structure not found.");
     if (!fs.course_id) throw new Error("Structure must have a course before bulk assigning.");
 
-    let q = supabase.from("students").select("id").eq("course_id", fs.course_id);
+    let q = supabase.from("students").select("id").eq("course_id", fs.course_id).eq("is_active", true);
     if (fs.campus_id && !fs.applies_to_all_campuses) q = q.eq("campus_id", fs.campus_id);
 
     const { data: students, error: sErr } = await q;

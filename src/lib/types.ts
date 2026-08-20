@@ -23,6 +23,9 @@ export interface Student {
   attendance_percentage?: number;
   progressStatus: ProgressStatus;
   progress_status?: ProgressStatus;
+  is_active?: boolean;
+  deleted_at?: string | null;
+  deleted_by?: string | null;
   createdAt: string;
   created_at?: string;
 }

@@ -282,6 +282,7 @@ export default function AttendancePage() {
           courses:course_id (name),
           batches:batch_id (name)
         `)
+        .eq("is_active", true)
         .or(`full_name.ilike.%${addStudentSearch}%,roll_number.ilike.%${addStudentSearch}%`)
         .limit(8);
       setAddMatchedStudents(data ?? []);

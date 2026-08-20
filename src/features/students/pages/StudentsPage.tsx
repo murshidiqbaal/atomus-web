@@ -1,8 +1,8 @@
-"use client";
-
 import { useMemo, useState } from "react";
-import { Plus, Search, Users, RotateCcw, Filter, ChevronRight, Download, GraduationCap, Building2, BookOpen, CheckCircle2, Upload, Trash2, X, AlertCircle } from "lucide-react";
-import { useStudents, useCourses, useAllBatches, useCampuses, useCoursesByCampus, useDeleteStudent } from "../hooks";
+import Link from "next/link";
+import { Plus, Search, Users, RotateCcw, Filter, ChevronRight, Download, GraduationCap, Building2, BookOpen, CheckCircle2, Upload, Archive, Trash2, X, AlertCircle, AlertTriangle } from "lucide-react";
+import { useStudents, useArchivedStudents, useCourses, useAllBatches, useCampuses, useCoursesByCampus, useDeleteStudent } from "../hooks";
+import { useAuth } from "@/providers/AuthProvider";
 import { StudentWithRelations, StudentFilters } from "../types";
 import StudentRow from "../components/StudentRow";
 import StudentModal from "../components/StudentModal";
@@ -25,8 +25,8 @@ function StatCard({
   value, 
   sub, 
   trend, 
-  icon: Icon,
-  color = "blue"
+  icon: Icon, 
+  color = "blue" 
 }: { 
   label: string; 
   value: number; 
@@ -114,8 +114,8 @@ function MobileCard({ student, onEdit, onDelete }: { student: StudentWithRelatio
 
       <div className="flex items-center justify-between gap-3 pt-2">
         <button onClick={() => onEdit(student)} className="flex-1 px-4 py-3 text-xs font-black text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-xl transition-colors">Edit</button>
-        <button onClick={() => onDelete(student)} className="px-4 py-3 text-xs font-black text-rose-600 bg-rose-50 hover:bg-rose-100 rounded-xl transition-colors" title="Delete">
-          <Trash2 size={16} />
+        <button onClick={() => onDelete(student)} className="px-4 py-3 text-xs font-black text-amber-700 bg-amber-50 hover:bg-amber-100 rounded-xl transition-colors" title="Archive Student">
+          <Archive size={16} />
         </button>
         <a href={`/students/${student.id}`} className="flex-1 px-4 py-3 text-xs font-black text-white bg-[#0B3C5D] rounded-xl flex items-center justify-center gap-2 shadow-lg shadow-[#0B3C5D]/20">
           Profile <ChevronRight size={14} />
@@ -146,26 +146,34 @@ function TableSkeleton() {
 }
 
 export default function StudentsPage() {
+  const { user } = useAuth();
   const { data: students = [], isLoading } = useStudents();
+  const { data: archivedStudents = [] }    = useArchivedStudents();
   const { data: campuses = [] }            = useCampuses();
   const { data: courses = [] }             = useCourses();
   const { data: allBatches = [] }          = useAllBatches();
   const deleteStudent = useDeleteStudent();
 
   const [toast, setToast] = useState<{ type: "success" | "error"; message: string } | null>(null);
+  const [studentToArchive, setStudentToArchive] = useState<StudentWithRelations | null>(null);
 
   function notify(type: "success" | "error", message: string) {
     setToast({ type, message });
     setTimeout(() => setToast(null), 4000);
   }
 
-  async function handleDelete(s: StudentWithRelations) {
-    if (!confirm(`Delete ${s.full_name}? This will remove all their records.`)) return;
+  function handleDelete(s: StudentWithRelations) {
+    setStudentToArchive(s);
+  }
+
+  async function handleConfirmArchive() {
+    if (!studentToArchive) return;
     try {
-      await deleteStudent.mutateAsync(s.id);
-      notify("success", "Student removed successfully");
+      await deleteStudent.mutateAsync({ id: studentToArchive.id, currentUserId: user?.id });
+      notify("success", "Student archived successfully.");
+      setStudentToArchive(null);
     } catch (e: any) {
-      notify("error", e?.message ?? "Delete failed");
+      notify("error", e?.message ?? "Archive failed");
     }
   }
 
@@ -399,6 +407,18 @@ export default function StudentsPage() {
           </div>
         </div>
         <div className="flex items-center gap-3">
+          <Link
+            href="/students/archived"
+            className="flex items-center gap-2 bg-amber-50 border border-amber-200 text-amber-900 px-5 py-3 rounded-2xl text-sm font-black hover:bg-amber-100 transition-all active:scale-95 shadow-sm"
+          >
+            <Archive size={18} className="text-amber-700" />
+            Archived Students
+            {archivedStudents.length > 0 && (
+              <span className="bg-amber-200 text-amber-900 text-xs px-2 py-0.5 rounded-full font-black">
+                {archivedStudents.length}
+              </span>
+            )}
+          </Link>
           <button 
             onClick={handleExport}
             className="hidden sm:flex items-center gap-2 bg-white border border-slate-200 text-slate-600 px-5 py-3 rounded-2xl text-sm font-black hover:bg-slate-50 transition-all active:scale-95 shadow-sm"
@@ -652,6 +672,53 @@ export default function StudentsPage() {
       </div>
 
       {modalOpen && <StudentModal student={editing} onClose={closeModal} />}
+
+      {/* Archive Student Confirmation Modal */}
+      {studentToArchive && (
+        <div className="fixed inset-0 z-[110] bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-200">
+          <div className="bg-white rounded-[2.5rem] p-8 max-w-md w-full shadow-2xl border border-slate-100 space-y-6 animate-in zoom-in-95 duration-200">
+            <div className="flex items-center gap-4">
+              <div className="w-12 h-12 rounded-2xl bg-amber-50 text-amber-600 flex items-center justify-center shrink-0 border border-amber-100">
+                <AlertTriangle size={24} />
+              </div>
+              <div>
+                <h3 className="text-xl font-black text-slate-900 tracking-tight">Archive Student?</h3>
+                <p className="text-xs font-bold text-slate-400 mt-0.5">{studentToArchive.full_name} ({studentToArchive.roll_number})</p>
+              </div>
+            </div>
+
+            <div className="p-4 rounded-2xl bg-amber-50/60 border border-amber-100/80 space-y-2 text-xs font-semibold text-amber-900 leading-relaxed">
+              <p>
+                This student will immediately become unavailable in the Parent App, Teacher App, and active student lists.
+              </p>
+              <p className="font-bold text-amber-950">
+                All attendance, marks, academic performance, fee records, and other historical data will be preserved.
+              </p>
+            </div>
+
+            <p className="text-sm font-black text-slate-700 text-center">Do you want to continue?</p>
+
+            <div className="flex items-center gap-3 pt-2">
+              <button
+                type="button"
+                onClick={() => setStudentToArchive(null)}
+                disabled={deleteStudent.isPending}
+                className="flex-1 px-5 py-3.5 text-xs font-black text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-2xl transition-all active:scale-95 disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmArchive}
+                disabled={deleteStudent.isPending}
+                className="flex-1 px-5 py-3.5 text-xs font-black text-white bg-amber-600 hover:bg-amber-700 rounded-2xl transition-all shadow-lg shadow-amber-600/25 active:scale-95 disabled:opacity-50 flex items-center justify-center gap-2"
+              >
+                {deleteStudent.isPending ? "Archiving..." : "Archive Student"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

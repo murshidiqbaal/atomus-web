@@ -7,6 +7,7 @@ export class SupabaseStudentRepository {
     const { data, error } = await supabase
       .from("students")
       .select("*, parents(*), courses(name), batches(name)")
+      .eq("is_active", true)
       .order("created_at", { ascending: false });
 
     if (error) throw error;
@@ -17,6 +18,7 @@ export class SupabaseStudentRepository {
     let query = supabase
       .from("students")
       .select("*")
+      .eq("is_active", true)
       .order("full_name", { ascending: true });
 
     if (batchId) {

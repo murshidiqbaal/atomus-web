@@ -41,7 +41,8 @@ export default function ParentDashboardPage() {
       const { data: s } = await supabase
         .from("students")
         .select("id, full_name, roll_number, attendance_percentage, progress_status")
-        .eq("parent_id", user.id);
+        .eq("parent_id", user.id)
+        .eq("is_active", true);
 
       if (cancelled) return;
       setParent((p as ParentRow | null) ?? null);

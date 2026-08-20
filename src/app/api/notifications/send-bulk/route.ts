@@ -83,7 +83,7 @@ export async function POST(request: Request) {
       if (!campus_id) {
         return NextResponse.json({ error: "campus_id is required for target campus" }, { status: 400 });
       }
-      const { data: students } = await admin.from("students").select("parent_id").eq("campus_id", campus_id);
+      const { data: students } = await admin.from("students").select("parent_id").eq("campus_id", campus_id).eq("is_active", true);
       const { data: teachers } = await admin.from("teachers").select("id").eq("campus_id", campus_id);
       receiverIds = [
         ...(students?.map((s) => s.parent_id).filter(Boolean) as string[] || []),
@@ -93,7 +93,7 @@ export async function POST(request: Request) {
       if (!course_id) {
         return NextResponse.json({ error: "course_id is required for target course" }, { status: 400 });
       }
-      const { data: students } = await admin.from("students").select("parent_id").eq("course_id", course_id);
+      const { data: students } = await admin.from("students").select("parent_id").eq("course_id", course_id).eq("is_active", true);
       const { data: teacherSubjs } = await admin.from("teacher_subjects").select("teacher_id").eq("course_id", course_id);
       receiverIds = [
         ...(students?.map((s) => s.parent_id).filter(Boolean) as string[] || []),
@@ -105,7 +105,7 @@ export async function POST(request: Request) {
       const { data: teachers } = await query;
       receiverIds = teachers?.map((t) => t.id) || [];
     } else if (target === "parents") {
-      let query = admin.from("students").select("parent_id");
+      let query = admin.from("students").select("parent_id").eq("is_active", true);
       if (campus_id) query = query.eq("campus_id", campus_id);
       if (course_id) query = query.eq("course_id", course_id);
       const { data: students } = await query;
